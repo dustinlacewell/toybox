@@ -1,0 +1,56 @@
+.animbar {
+  position: absolute;
+  left: var(--space-3);
+  right: var(--space-3);
+  bottom: var(--space-3);
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  padding: var(--space-2) var(--space-3);
+  background: color-mix(in srgb, var(--bg-1) 90%, transparent);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-2);
+  backdrop-filter: blur(6px);
+  z-index: 2;
+}
+
+.animbar__play {
+  all: unset;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 30px;
+  height: 30px;
+  border-radius: var(--radius-1);
+  color: var(--accent);
+  cursor: pointer;
+  flex-shrink: 0;
+}
+.animbar__play:hover {
+  background: var(--bg-3);
+}
+
+.animbar__scrub {
+  flex: 1;
+  accent-color: var(--accent);
+  cursor: pointer;
+}
+
+.animbar__time {
+  font-size: var(--fs-sm);
+  color: var(--text-1);
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+
+.animbar__clip {
+  background: var(--bg-2);
+  color: var(--text-0);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-1);
+  padding: var(--space-1) var(--space-2);
+  font-size: var(--fs-sm);
+  font-family: inherit;
+  max-width: 180px;
+}

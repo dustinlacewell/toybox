@@ -1,0 +1,51 @@
+.vtoolbar {
+  position: absolute;
+  top: var(--space-3);
+  left: var(--space-3);
+  display: flex;
+  gap: var(--space-1);
+  padding: var(--space-1);
+  background: color-mix(in srgb, var(--bg-1) 88%, transparent);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-2);
+  backdrop-filter: blur(6px);
+  z-index: 2;
+}
+
+.vtoolbar__btn {
+  all: unset;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 30px;
+  height: 30px;
+  border-radius: var(--radius-1);
+  color: var(--text-2);
+  cursor: pointer;
+}
+.vtoolbar__btn:hover {
+  background: var(--bg-3);
+  color: var(--text-1);
+}
+.vtoolbar__btn.is-active {
+  background: var(--accent-soft);
+  color: var(--accent);
+}
+
+.vtoolbar__sep {
+  width: 1px;
+  align-self: stretch;
+  margin: var(--space-1) var(--space-1);
+  background: var(--border);
+}
+
+/* Orbit-target button shows a small text tag, so it's wider than icon buttons. */
+.vtoolbar__btn .vtoolbar__tag {
+  font-size: var(--fs-sm);
+  margin-left: var(--space-1);
+}
+.vtoolbar__btn:has(.vtoolbar__tag) {
+  width: auto;
+  padding: 0 var(--space-2);
+  gap: var(--space-1);
+}

@@ -1,0 +1,75 @@
+.viewer {
+  position: fixed;
+  inset: 0;
+  background: #000a;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 40;
+  padding: var(--space-5);
+}
+
+.viewer__panel {
+  width: min(960px, 90vw);
+  height: min(720px, 85vh);
+  background: var(--bg-1);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-2);
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+.viewer__header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: var(--space-3) var(--space-4);
+  border-bottom: 1px solid var(--border);
+}
+.viewer__name {
+  font-size: var(--fs-lg);
+  font-weight: 600;
+}
+.viewer__meta {
+  font-size: var(--fs-sm);
+  color: var(--text-2);
+}
+.viewer__actions {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+}
+.viewer__close {
+  all: unset;
+  cursor: pointer;
+  color: var(--text-1);
+  font-size: var(--fs-lg);
+  padding: var(--space-1) var(--space-2);
+}
+.viewer__close:hover {
+  color: var(--text-0);
+}
+
+.viewer__stage {
+  position: relative;
+  flex: 1;
+  min-height: 0;
+  background: var(--bg-0);
+}
+
+.viewer__loading,
+.viewer__error {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  pointer-events: none;
+}
+.viewer__error {
+  color: var(--danger);
+  font-size: var(--fs-sm);
+  padding: var(--space-4);
+  text-align: center;
+}

@@ -1,0 +1,96 @@
+.export {
+  display: flex;
+  flex-direction: column;
+  padding: var(--space-4);
+  gap: var(--space-4);
+}
+
+.export__header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+.export__header h2 {
+  margin: 0;
+  font-size: var(--fs-lg);
+}
+.export__close {
+  all: unset;
+  cursor: pointer;
+  color: var(--text-1);
+  font-size: var(--fs-lg);
+}
+.export__close:hover {
+  color: var(--text-0);
+}
+
+.export__section {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+
+.export__label {
+  font-size: var(--fs-sm);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--text-2);
+}
+
+.export__mode {
+  all: unset;
+  cursor: pointer;
+  padding: var(--space-3);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-1);
+  background: var(--bg-2);
+}
+.export__mode.is-active {
+  border-color: var(--accent);
+  background: var(--accent-soft);
+}
+.export__mode-title {
+  font-weight: 600;
+}
+.export__mode-desc {
+  font-size: var(--fs-sm);
+  color: var(--text-1);
+  margin-top: var(--space-1);
+}
+
+.export__path {
+  font-size: var(--fs-sm);
+  color: var(--text-1);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.export__error {
+  color: var(--danger);
+  font-size: var(--fs-sm);
+}
+
+.export__report {
+  border-top: 1px solid var(--border);
+  padding-top: var(--space-4);
+}
+.export__ok {
+  color: var(--ok);
+}
+.export__warn,
+.export__skip {
+  margin-top: var(--space-3);
+}
+.export__warn ul,
+.export__skip ul {
+  margin: var(--space-1) 0 0;
+  padding-left: var(--space-4);
+  font-size: var(--fs-sm);
+}
+.export__warn {
+  color: var(--text-1);
+}
+.export__skip {
+  color: var(--danger);
+}

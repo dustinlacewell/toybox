@@ -1,0 +1,54 @@
+/* Design tokens. The single source of color/spacing/typography values; every
+   primitive reads from these custom properties. */
+
+:root {
+  color-scheme: dark;
+
+  --bg-0: #14161a;
+  --bg-1: #1b1e24;
+  --bg-2: #23272f;
+  --bg-3: #2d323c;
+  --border: #353b46;
+  --border-strong: #4a515f;
+
+  --text-0: #e7eaf0;
+  --text-1: #aab2c0;
+  --text-2: #6b7484;
+
+  --accent: #4a90e2;
+  --accent-soft: #4a90e233;
+  --danger: #e94e77;
+  --ok: #50e3c2;
+
+  --space-1: 4px;
+  --space-2: 8px;
+  --space-3: 12px;
+  --space-4: 16px;
+  --space-5: 24px;
+
+  --radius-1: 4px;
+  --radius-2: 8px;
+
+  --font: system-ui, -apple-system, "Segoe UI", sans-serif;
+  --fs-sm: 12px;
+  --fs-md: 13px;
+  --fs-lg: 16px;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html,
+body,
+#root {
+  height: 100%;
+  margin: 0;
+}
+
+body {
+  background: var(--bg-0);
+  color: var(--text-0);
+  font-family: var(--font);
+  font-size: var(--fs-md);
+}
