@@ -4,6 +4,7 @@
 pub mod catalog;
 pub mod export_copy;
 pub mod export_glb;
+pub mod export_placer;
 pub mod export_util;
 pub mod packs;
 pub mod recenter;

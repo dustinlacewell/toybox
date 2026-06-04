@@ -63,6 +63,23 @@ export const exportGlb = (
 ): Promise<ExportReport> =>
   invoke("export_glb", { req: { assetIds, targetDir, preserveStructure } });
 
+export type PlacerFormat = "glb" | "copy";
+
+export interface ExportPlacerArgs {
+  assetIds: string[];
+  /** Filesystem root files are written under (the Godot project dir). */
+  targetDir: string;
+  /** Project-relative subfolder + res:// prefix, e.g. "assets/exported". */
+  subDir: string;
+  preserveStructure: boolean;
+  format: PlacerFormat;
+  /** Filesystem path of the asset_library.json to create or merge. */
+  libraryJsonPath: string;
+}
+
+export const exportPlacer = (args: ExportPlacerArgs): Promise<ExportReport> =>
+  invoke("export_placer", { req: args });
+
 export type Axis = "x" | "y" | "z";
 export type Align = "min" | "center" | "max";
 

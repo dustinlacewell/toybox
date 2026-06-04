@@ -11,4 +11,5 @@ pub mod mat4;
 pub mod merge;
 pub mod pack_meta;
 pub mod paths;
+pub mod placer_library;
 pub mod seed;

@@ -47,7 +47,7 @@ pub async fn export_glb(app: AppHandle, req: ExportGlbReq) -> AppResult<ExportRe
 }
 
 /// Read and GLB-prepare every image referenced by the glTF, keyed to its index.
-fn gather_images(
+pub(crate) fn gather_images(
     root: &str,
     asset: &Asset,
     doc: &Value,

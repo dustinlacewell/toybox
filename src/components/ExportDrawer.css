@@ -66,6 +66,14 @@
   white-space: nowrap;
 }
 
+.export__hint {
+  font-size: var(--fs-sm);
+  color: var(--text-2);
+}
+.export__hint code {
+  font-family: var(--font-mono, monospace);
+}
+
 .export__error {
   color: var(--danger);
   font-size: var(--fs-sm);

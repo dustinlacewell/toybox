@@ -4,7 +4,9 @@ mod domain;
 mod error;
 mod infra;
 
-use commands::{catalog, export_copy, export_glb, packs, recenter, scan, thumbs};
+use commands::{
+    catalog, export_copy, export_glb, export_placer, packs, recenter, scan, thumbs,
+};
 
 /// Re-exports of the pure domain modules for integration tests in `tests/`.
 /// Integration tests link against the public crate API only.
@@ -36,6 +38,7 @@ pub fn run() {
             thumbs::clear_thumbs,
             export_copy::export_copy,
             export_glb::export_glb,
+            export_placer::export_placer,
             recenter::recenter_asset,
             packs::load_packs,
         ])

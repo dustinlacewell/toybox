@@ -1,7 +1,8 @@
 /**
- * Export configuration + run panel. Shows the selected-asset count, lets the
- * user choose the mode (merged .glb default, or self-contained loose copy), the
- * layout (preserve pack/category structure vs. flatten), and a target folder,
+ * Export configuration + run panel. Three intents: a folder of merged .glb, a
+ * folder of self-contained loose copies, or a one-way publish into a Godot
+ * project's asset_placer library (which additionally writes/merges the addon's
+ * asset_library.json). Shows the selected-asset count, the per-intent options,
  * then runs the export and surfaces the report.
  */
 
@@ -10,17 +11,21 @@ import { useState } from "react";
 import { Drawer } from "../ds/Drawer";
 import { Button } from "../ds/Button";
 import { Checkbox } from "../ds/Checkbox";
+import { TextInput } from "../ds/TextInput";
 import { Stack } from "../ds/Stack";
 import { Spinner } from "../ds/Spinner";
 import {
   exportCopy,
   exportGlb,
+  exportPlacer,
+  type PlacerFormat,
   type ExportReport as Report,
 } from "../services/tauriApi";
 import { pickDirectory } from "../services/pickDirectory";
+import { pickSaveFile } from "../services/pickSaveFile";
 import "./ExportDrawer.css";
 
-type Mode = "glb" | "copy";
+type Mode = "glb" | "copy" | "placer";
 
 interface Props {
   open: boolean;
@@ -28,13 +33,25 @@ interface Props {
   onClose: () => void;
 }
 
+const DEFAULT_SUB_DIR = "assets/exported";
+
 export function ExportDrawer({ open, selectedIds, onClose }: Props) {
   const [mode, setMode] = useState<Mode>("glb");
   const [preserve, setPreserve] = useState(true);
   const [targetDir, setTargetDir] = useState<string | null>(null);
+  // Placer-only:
+  const [placerFormat, setPlacerFormat] = useState<PlacerFormat>("glb");
+  const [subDir, setSubDir] = useState(DEFAULT_SUB_DIR);
+  const [libraryJson, setLibraryJson] = useState<string | null>(null);
+
   const [running, setRunning] = useState(false);
   const [report, setReport] = useState<Report | null>(null);
   const [error, setError] = useState<string | null>(null);
+
+  const ready =
+    selectedIds.length > 0 &&
+    !!targetDir &&
+    (mode !== "placer" || !!libraryJson);
 
   const run = async () => {
     if (!targetDir) return;
@@ -42,13 +59,27 @@ export function ExportDrawer({ open, selectedIds, onClose }: Props) {
     setReport(null);
     setError(null);
     try {
-      const fn = mode === "glb" ? exportGlb : exportCopy;
-      setReport(await fn(selectedIds, targetDir, preserve));
+      setReport(await runExport());
     } catch (e) {
       setError(String(e));
     } finally {
       setRunning(false);
     }
+  };
+
+  const runExport = (): Promise<Report> => {
+    if (mode === "placer") {
+      return exportPlacer({
+        assetIds: selectedIds,
+        targetDir: targetDir!,
+        subDir,
+        preserveStructure: preserve,
+        format: placerFormat,
+        libraryJsonPath: libraryJson!,
+      });
+    }
+    const fn = mode === "glb" ? exportGlb : exportCopy;
+    return fn(selectedIds, targetDir!, preserve);
   };
 
   return (
@@ -60,20 +91,39 @@ export function ExportDrawer({ open, selectedIds, onClose }: Props) {
         </header>
 
         <section className="export__section">
-          <div className="export__label">Format</div>
+          <div className="export__label">Destination</div>
           <ModeOption
             active={mode === "glb"}
             onClick={() => setMode("glb")}
-            title="Merged .glb (recommended)"
+            title="Folder of merged .glb (recommended)"
             desc="One self-contained binary file per asset, textures embedded. Lossless."
           />
           <ModeOption
             active={mode === "copy"}
             onClick={() => setMode("copy")}
-            title="Self-contained copy"
+            title="Folder of self-contained copies"
             desc="Loose .gltf + .bin + textures, paths rewritten. Shared textures deduped."
           />
+          <ModeOption
+            active={mode === "placer"}
+            onClick={() => setMode("placer")}
+            title="asset_placer library (Godot)"
+            desc="Publish into a Godot project and create/merge its asset_library.json so the dock sees them."
+          />
         </section>
+
+        {mode === "placer" && (
+          <PlacerOptions
+            format={placerFormat}
+            onFormat={setPlacerFormat}
+            subDir={subDir}
+            onSubDir={setSubDir}
+            libraryJson={libraryJson}
+            onPickLibraryJson={async () =>
+              setLibraryJson((await pickSaveFile("asset_library.json")) ?? libraryJson)
+            }
+          />
+        )}
 
         <section className="export__section">
           <Checkbox
@@ -84,7 +134,9 @@ export function ExportDrawer({ open, selectedIds, onClose }: Props) {
         </section>
 
         <section className="export__section">
-          <div className="export__label">Destination</div>
+          <div className="export__label">
+            {mode === "placer" ? "Godot project folder" : "Target folder"}
+          </div>
           <Stack dir="row" gap={8} align="center">
             <Button onClick={async () => setTargetDir(await pickDirectory())}>
               Choose folder…
@@ -96,11 +148,7 @@ export function ExportDrawer({ open, selectedIds, onClose }: Props) {
         </section>
 
         <section className="export__section">
-          <Button
-            variant="primary"
-            onClick={run}
-            disabled={!targetDir || running || selectedIds.length === 0}
-          >
+          <Button variant="primary" onClick={run} disabled={!ready || running}>
             {running ? "Exporting…" : "Export"}
           </Button>
           {running && <Spinner />}
@@ -110,6 +158,66 @@ export function ExportDrawer({ open, selectedIds, onClose }: Props) {
         {report && <ReportView report={report} />}
       </div>
     </Drawer>
+  );
+}
+
+/** Options unique to the asset_placer publish: per-file format, target subfolder,
+ *  and the asset_library.json to create or merge. */
+function PlacerOptions({
+  format,
+  onFormat,
+  subDir,
+  onSubDir,
+  libraryJson,
+  onPickLibraryJson,
+}: {
+  format: PlacerFormat;
+  onFormat: (f: PlacerFormat) => void;
+  subDir: string;
+  onSubDir: (s: string) => void;
+  libraryJson: string | null;
+  onPickLibraryJson: () => void;
+}) {
+  return (
+    <>
+      <section className="export__section">
+        <div className="export__label">Per-asset file format</div>
+        <ModeOption
+          active={format === "glb"}
+          onClick={() => onFormat("glb")}
+          title="Merged .glb"
+          desc="One embedded binary per asset. Cleanest to drop into a project."
+        />
+        <ModeOption
+          active={format === "copy"}
+          onClick={() => onFormat("copy")}
+          title="Loose .gltf copy"
+          desc="Editable .gltf + .bin + textures in-project."
+        />
+      </section>
+
+      <section className="export__section">
+        <div className="export__label">Project subfolder</div>
+        <TextInput
+          value={subDir}
+          onChange={(e) => onSubDir(e.currentTarget.value)}
+          placeholder="assets/exported"
+        />
+        <div className="export__hint">
+          Relative to the project; also the <code>res://</code> prefix for each asset's id.
+        </div>
+      </section>
+
+      <section className="export__section">
+        <div className="export__label">asset_library.json</div>
+        <Stack dir="row" gap={8} align="center">
+          <Button onClick={onPickLibraryJson}>Choose file…</Button>
+          <span className="export__path" title={libraryJson ?? ""}>
+            {libraryJson ?? "No file chosen — create or merge"}
+          </span>
+        </Stack>
+      </section>
+    </>
   );
 }
 
