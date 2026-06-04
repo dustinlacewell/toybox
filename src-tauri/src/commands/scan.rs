@@ -1,6 +1,6 @@
-//! `scan_library`: build (or rebuild) the catalog from the Godot curation file,
-//! resolving each asset's full fileset by reading its glTF. Thin orchestration:
-//! infra-read -> domain-transform -> infra-write.
+//! `scan_library`: build (or rebuild) the catalog from Capital's native
+//! `catalog.json` source, resolving each asset's full fileset by reading its
+//! glTF. Thin orchestration: infra-read -> domain-transform -> infra-write.
 
 use std::path::Path;
 
@@ -29,7 +29,7 @@ pub async fn scan_library(app: AppHandle, force_reseed: bool) -> AppResult<Catal
     Ok(result)
 }
 
-/// Read `asset_library.json`, then resolve each asset's textures by parsing its
+/// Read `catalog.json`, then resolve each asset's textures by parsing its
 /// glTF. Produces a catalog with default `user`/`thumb` metadata.
 fn build_catalog_from_seed() -> AppResult<Catalog> {
     let root = config::LIBRARY_ROOT;

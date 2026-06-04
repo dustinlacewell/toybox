@@ -1,21 +1,28 @@
-//! Pure seeding logic: turn the Godot `asset_library.json` document into our
-//! catalog model. The two orthogonal facets (pack, category) are recovered from
-//! the conflated `collections` list and cross-checked against folder structure.
+//! Pure seeding logic: turn Capital's native `catalog.json` source document into
+//! our catalog model. The source is a flat asset list — each entry already names
+//! its two facets (`pack`, `category`) explicitly, so seeding is a direct
+//! projection with no id/tag archaeology.
 //!
 //! This module performs no IO. The caller (`commands::scan`) reads files and
-//! supplies each asset's glTF image URIs via a lookup, so the transform stays
-//! pure and testable.
-
-use std::collections::HashMap;
+//! supplies each asset's glTF-derived texture/animation facts, so the transform
+//! stays pure and testable.
+//!
+//! Source schema (`schemaVersion: 1`):
+//! ```json
+//! { "schemaVersion": 1,
+//!   "assets": [
+//!     { "id": "uid://p6p3bf5qgcvb", "pack": "polygon_city",
+//!       "category": "buildings", "file": "SM_Bld_Apartment_01.gltf" } ] }
+//! ```
 
 use serde_json::Value;
 
 use crate::domain::catalog_model::{AnimationMeta, Asset, AssetFileset, ThumbMeta, UserMeta};
-use crate::domain::paths;
 use crate::error::{AppError, AppResult};
 
-/// A single entry recovered from `asset_library.json`, before we attach the
-/// file-read-derived texture list. `gltf_rel` / `bin_rel` are library-relative.
+/// A single entry recovered from `catalog.json`, before we attach the
+/// file-read-derived texture/animation facts. `gltf_rel` / `bin_rel` are
+/// library-relative.
 pub struct SeedEntry {
     pub id: String,
     pub name: String,
@@ -26,92 +33,32 @@ pub struct SeedEntry {
     pub category: String,
 }
 
-/// Collection ids below this are packs; at/above are categories.
-const CATEGORY_ID_FLOOR: i64 = 100;
-
-/// Parse `asset_library.json` into seed entries. Pack/category names are derived
-/// from the `collections` table (not hardcoded) and cross-checked against the
-/// folder path; a mismatch is an error rather than a silent guess.
+/// Parse `catalog.json` into seed entries. Each asset names its pack, category,
+/// and file directly; the library-relative paths are reconstructed as
+/// `library/<pack>/<category>/<file>`.
 pub fn parse_seed_entries(doc: &Value) -> AppResult<Vec<SeedEntry>> {
-    let names = collection_names(doc)?;
     let assets = doc
         .get("assets")
         .and_then(|v| v.as_array())
-        .ok_or_else(|| AppError::msg("asset_library.json has no assets[]"))?;
-
-    assets.iter().map(|a| parse_one(a, &names)).collect()
+        .ok_or_else(|| AppError::msg("catalog.json has no assets[]"))?;
+    assets.iter().map(parse_one).collect()
 }
 
-/// Map collection id -> name (e.g. 1 -> "polygon_city" derived from folders,
-/// but here we use the human name only for reference; the canonical pack/
-/// category strings come from the folder path which matches the on-disk dirs).
-fn collection_names(doc: &Value) -> AppResult<HashMap<i64, String>> {
-    let cols = doc
-        .get("collections")
-        .and_then(|v| v.as_array())
-        .ok_or_else(|| AppError::msg("asset_library.json has no collections[]"))?;
-    let mut map = HashMap::new();
-    for c in cols {
-        let id = c.get("id").and_then(|v| v.as_i64());
-        let name = c.get("name").and_then(|v| v.as_str());
-        if let (Some(id), Some(name)) = (id, name) {
-            map.insert(id, name.to_string());
-        }
-    }
-    Ok(map)
-}
-
-fn parse_one(a: &Value, _names: &HashMap<i64, String>) -> AppResult<SeedEntry> {
+fn parse_one(a: &Value) -> AppResult<SeedEntry> {
     let id = str_field(a, "id")?;
-    let file_name = str_field(a, "name")?;
-    let folder_path = str_field(a, "folder_path")?;
-
-    let rel_dir = paths::res_to_rel(&folder_path);
-    let (pack, category) = paths::pack_category_from_rel_dir(&rel_dir)
-        .ok_or_else(|| AppError::msg(format!("unexpected folder shape: {rel_dir}")))?;
-
-    // Cross-check the tag-derived facets against the folder. The pack id is
-    // `primary_collection`; the category id is the tag >= CATEGORY_ID_FLOOR.
-    // We only validate consistency of the two tags (one pack, one category);
-    // the canonical names come from the folder, which matches disk exactly.
-    validate_tags(a)?;
+    let pack = str_field(a, "pack")?;
+    let category = str_field(a, "category")?;
+    let file_name = str_field(a, "file")?;
 
     let name = file_name
         .strip_suffix(".gltf")
         .unwrap_or(&file_name)
         .to_string();
+    let rel_dir = format!("library/{pack}/{category}");
     let gltf_rel = format!("{rel_dir}/{file_name}");
     let bin_rel = format!("{rel_dir}/{name}.bin");
 
     Ok(SeedEntry { id, name, file_name, gltf_rel, bin_rel, pack, category })
-}
-
-/// Confirm each asset carries exactly one pack tag (< floor) and one category
-/// tag (>= floor), and that `primary_collection` equals the pack tag.
-fn validate_tags(a: &Value) -> AppResult<()> {
-    let tags: Vec<i64> = a
-        .get("tags")
-        .and_then(|v| v.as_array())
-        .map(|arr| arr.iter().filter_map(|t| t.as_i64()).collect())
-        .unwrap_or_default();
-    let packs: Vec<i64> = tags.iter().copied().filter(|t| *t < CATEGORY_ID_FLOOR).collect();
-    let cats: Vec<i64> = tags.iter().copied().filter(|t| *t >= CATEGORY_ID_FLOOR).collect();
-    if packs.len() != 1 || cats.len() != 1 {
-        return Err(AppError::msg(format!(
-            "asset {:?} has unexpected tags {tags:?}",
-            a.get("name")
-        )));
-    }
-    if let Some(primary) = a.get("primary_collection").and_then(|v| v.as_i64()) {
-        if primary != packs[0] {
-            return Err(AppError::msg(format!(
-                "asset {:?}: primary_collection {primary} != pack tag {}",
-                a.get("name"),
-                packs[0]
-            )));
-        }
-    }
-    Ok(())
 }
 
 /// Assemble a full `Asset` from a seed entry plus its resolved texture list and
@@ -153,16 +100,12 @@ mod tests {
 
     fn sample_doc() -> Value {
         json!({
-            "collections": [
-                {"id": 1, "name": "Polygon City"},
-                {"id": 100, "name": "Buildings"}
-            ],
+            "schemaVersion": 1,
             "assets": [{
-                "folder_path": "res://assets/library/polygon_city/buildings",
                 "id": "uid://abc",
-                "name": "SM_Bld_Apartment_01.gltf",
-                "primary_collection": 1,
-                "tags": [1, 100]
+                "pack": "polygon_city",
+                "category": "buildings",
+                "file": "SM_Bld_Apartment_01.gltf"
             }]
         })
     }
@@ -181,9 +124,14 @@ mod tests {
     }
 
     #[test]
-    fn rejects_bad_tags() {
+    fn rejects_missing_field() {
         let mut doc = sample_doc();
-        doc["assets"][0]["tags"] = json!([1, 2]); // two packs, no category
+        doc["assets"][0].as_object_mut().unwrap().remove("category");
         assert!(parse_seed_entries(&doc).is_err());
+    }
+
+    #[test]
+    fn rejects_missing_assets_array() {
+        assert!(parse_seed_entries(&json!({ "schemaVersion": 1 })).is_err());
     }
 }

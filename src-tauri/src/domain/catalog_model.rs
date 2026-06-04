@@ -1,9 +1,8 @@
 //! The app-owned catalog: pure data types, no IO.
 //!
-//! Pack and Category are modeled as two distinct facets (the source
-//! `asset_library.json` conflates them into a flat `collections` list).
-//! The primary key is the Godot `uid://`, because glTF basenames collide
-//! across packs.
+//! Pack and Category are modeled as two distinct facets, named explicitly by
+//! the native `catalog.json` source. The primary key is the Godot `uid://`,
+//! because glTF basenames collide across packs.
 
 use serde::{Deserialize, Serialize};
 

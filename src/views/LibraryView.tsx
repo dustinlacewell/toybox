@@ -179,7 +179,7 @@ async function initCatalog(deps: InitDeps, forceScan = false) {
     // Pack identity comes from each pack's pack.json, independent of the asset
     // catalog. Load it alongside.
     setPacks(await loadPacks());
-    // Force re-seed rebuilds the catalog from asset_library.json (picking up new
+    // Force re-seed rebuilds the catalog from catalog.json (picking up new
     // packs and new fields like animation). Otherwise load the cache, scanning
     // only if none exists yet.
     const existing = forceScan ? null : await loadCatalog();

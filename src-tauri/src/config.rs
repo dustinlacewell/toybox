@@ -5,8 +5,8 @@
 /// Absolute path to the asset library root.
 pub const LIBRARY_ROOT: &str = r"D:\code\games\assets";
 
-/// The Godot curation file, relative to `LIBRARY_ROOT`.
-pub const SEED_REL: &str = "_library_config/asset_library.json";
+/// Capital's native catalog source file, relative to `LIBRARY_ROOT`.
+pub const SEED_REL: &str = "_library_config/catalog.json";
 
 /// Catalog schema version we write.
 pub const SCHEMA_VERSION: u32 = 1;
