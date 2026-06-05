@@ -59,6 +59,22 @@ export default defineConfig({
     },
     resolve: {
       alias: [{ find: "@app", replacement: appSrc }],
+      // App components live at repo-root ../src and are pulled in through the
+      // @app alias. Their bare dependency imports would otherwise resolve from
+      // the repo root, whose node_modules doesn't exist in CI (only site/ is
+      // installed there). dedupe forces these shared packages — all declared in
+      // site/package.json — to resolve from site/node_modules regardless of the
+      // importing file's location.
+      dedupe: [
+        "react",
+        "react-dom",
+        "three",
+        "zustand",
+        "@react-three/fiber",
+        "@react-three/drei",
+        "@tanstack/react-virtual",
+        "lucide-react",
+      ],
     },
   },
 });
