@@ -1,4 +1,4 @@
-//! `scan_library`: build (or rebuild) the catalog from Capital's native
+//! `scan_library`: build (or rebuild) the catalog from Toybox's native
 //! `catalog.json` source, resolving each asset's full fileset by reading its
 //! glTF. Thin orchestration: infra-read -> domain-transform -> infra-write.
 

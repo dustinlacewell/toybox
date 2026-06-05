@@ -38,6 +38,42 @@
   background: var(--bg-2);
 }
 
+.ds-icon-strip {
+  display: inline-flex;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-1);
+  overflow: hidden;
+}
+.ds-icon-button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+  height: 32px;
+  padding: 0;
+  margin: 0;
+  background: var(--bg-2);
+  color: var(--text-0);
+  border: none;
+  border-left: 1px solid var(--border);
+  cursor: pointer;
+  user-select: none;
+}
+.ds-icon-button:first-child {
+  border-left: none;
+}
+.ds-icon-button:hover:not(:disabled) {
+  background: var(--bg-3);
+}
+.ds-icon-button:disabled {
+  opacity: 0.5;
+  cursor: default;
+}
+.ds-icon-button--active {
+  background: var(--accent);
+  color: #fff;
+}
+
 .ds-input {
   padding: var(--space-2) var(--space-3);
   background: var(--bg-1);

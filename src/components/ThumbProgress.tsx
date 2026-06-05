@@ -1,7 +1,8 @@
 /**
- * Thumbnail generation control + progress, shown in the toolbar. Idle: a
- * "Generate thumbnails" button. Running: a progress bar with the current asset
- * name and a pause button.
+ * Thumbnail generation progress, shown in the toolbar while work is pending or
+ * running. Pending: a "Generate thumbnails" button. Running: a progress bar
+ * with the current asset name and a pause button. Renders nothing once every
+ * thumbnail is ready — regeneration is driven from the toolbar's icon strip.
  */
 
 import { Button } from "../ds/Button";
@@ -13,27 +14,11 @@ interface Props {
   pendingCount: number;
   onStart: () => void;
   onPause: () => void;
-  onRegenerate: () => void;
 }
 
-export function ThumbProgress({
-  progress,
-  pendingCount,
-  onStart,
-  onPause,
-  onRegenerate,
-}: Props) {
+export function ThumbProgress({ progress, pendingCount, onStart, onPause }: Props) {
   if (!progress || (!progress.running && progress.done >= progress.total)) {
-    if (pendingCount === 0) {
-      return (
-        <div className="thumbp">
-          <span className="thumbp__done">Thumbnails ready</span>
-          <Button variant="ghost" onClick={onRegenerate}>
-            Regenerate
-          </Button>
-        </div>
-      );
-    }
+    if (pendingCount === 0) return null;
     return <Button onClick={onStart}>Generate thumbnails ({pendingCount})</Button>;
   }
 

@@ -14,11 +14,10 @@ import { AssetGrid } from "../components/AssetGrid";
 import { AssetViewer } from "../components/AssetViewer";
 import { ExportDrawer } from "../components/ExportDrawer";
 import { FacetFilter } from "../components/FacetFilter";
+import { LibraryToolbar } from "../components/LibraryToolbar";
 import { ThumbProgress } from "../components/ThumbProgress";
 import { useThumbGeneration } from "../components/useThumbGeneration";
 import { useFavorites } from "../components/useFavorites";
-import { Toolbar } from "../ds/Toolbar";
-import { TextInput } from "../ds/TextInput";
 import { Button } from "../ds/Button";
 import { Spinner } from "../ds/Spinner";
 import { Stack } from "../ds/Stack";
@@ -41,7 +40,6 @@ export function LibraryView() {
     togglePack,
     toggleCategory,
     toggleFavoritesOnly,
-    toggleAnimatedOnly,
     clearFilter,
     toggleSelected,
     clearSelection,
@@ -102,44 +100,29 @@ export function LibraryView() {
           onTogglePack={togglePack}
           onToggleCategory={toggleCategory}
           onToggleFavoritesOnly={toggleFavoritesOnly}
-          onToggleAnimatedOnly={toggleAnimatedOnly}
           onClear={clearFilter}
         />
 
         <Stack grow>
-          <Toolbar>
-            <TextInput
-              placeholder="Search assets…"
-              value={filter.text}
-              onChange={(e) => setText(e.currentTarget.value)}
-              style={{ maxWidth: 320 }}
-            />
-            <span className="lib__count">
-              {visible.length} / {assets.length}
-            </span>
-            <div style={{ flex: 1 }} />
-            <ThumbProgress
-              progress={progress}
-              pendingCount={pendingCount}
-              onStart={() => void startThumbs()}
-              onPause={pauseThumbs}
-              onRegenerate={() => void regenerateThumbs()}
-            />
-            <Button onClick={rescan} title="Rebuild the catalog from the library">
-              Rescan
-            </Button>
-            <span className="lib__count">{selection.size} selected</span>
-            <Button onClick={clearSelection} disabled={selection.size === 0}>
-              Clear
-            </Button>
-            <Button
-              variant="primary"
-              onClick={() => setExportOpen(true)}
-              disabled={selection.size === 0}
-            >
-              Export
-            </Button>
-          </Toolbar>
+          <LibraryToolbar
+            searchText={filter.text}
+            onSearchChange={setText}
+            visibleCount={visible.length}
+            totalCount={assets.length}
+            selectedCount={selection.size}
+            onClearSelection={clearSelection}
+            onExport={() => setExportOpen(true)}
+            onRescan={rescan}
+            onRegenerate={() => void regenerateThumbs()}
+            thumbControl={
+              <ThumbProgress
+                progress={progress}
+                pendingCount={pendingCount}
+                onStart={() => void startThumbs()}
+                onPause={pauseThumbs}
+              />
+            }
+          />
 
           <AssetGrid
             assets={visible}

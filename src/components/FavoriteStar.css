@@ -1,0 +1,14 @@
+.fav-star {
+  all: unset;
+  display: inline-flex;
+  align-items: center;
+  cursor: pointer;
+  line-height: 0;
+  color: var(--text-2);
+}
+.fav-star:hover {
+  color: color-mix(in srgb, var(--gold) 60%, var(--text-1));
+}
+.fav-star.is-on {
+  color: var(--gold);
+}

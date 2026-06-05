@@ -9,7 +9,6 @@ export interface Filter {
   packs: Set<Pack>;
   categories: Set<Category>;
   favoritesOnly: boolean;
-  animatedOnly: boolean;
   /** Case-insensitive substring over the asset name. */
   text: string;
 }
@@ -18,7 +17,6 @@ export const emptyFilter = (): Filter => ({
   packs: new Set(),
   categories: new Set(),
   favoritesOnly: false,
-  animatedOnly: false,
   text: "",
 });
 
@@ -26,11 +24,7 @@ export const isFilterActive = (f: Filter): boolean =>
   f.packs.size > 0 ||
   f.categories.size > 0 ||
   f.favoritesOnly ||
-  f.animatedOnly ||
   f.text.trim().length > 0;
-
-/** An asset carries at least one real animation clip. */
-export const isAnimated = (a: Asset): boolean => a.animation.clipCount > 0;
 
 /** Apply a filter to the asset list. An empty facet set means "no constraint". */
 export function applyFilter(assets: Asset[], f: Filter): Asset[] {
@@ -39,7 +33,6 @@ export function applyFilter(assets: Asset[], f: Filter): Asset[] {
     if (f.packs.size > 0 && !f.packs.has(a.pack)) return false;
     if (f.categories.size > 0 && !f.categories.has(a.category)) return false;
     if (f.favoritesOnly && !a.user.favorite) return false;
-    if (f.animatedOnly && !isAnimated(a)) return false;
     if (needle && !a.name.toLowerCase().includes(needle)) return false;
     return true;
   });

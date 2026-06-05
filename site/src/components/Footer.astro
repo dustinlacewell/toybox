@@ -1,0 +1,27 @@
+---
+import pkg from "../../package.json";
+
+const version = `v${pkg.version}`;
+const repo = "dustinlacewell/toybox";
+---
+
+<footer class="border-t border-hairline">
+  <div class="max-w-6xl mx-auto px-6 py-10 flex flex-col md:flex-row items-start md:items-center justify-between gap-6">
+    <div class="flex items-center gap-2.5 text-sm text-slate-400">
+      <span class="inline-flex h-6 w-6 items-center justify-center rounded-md bg-gradient-to-br from-accent to-accent-glow">
+        <svg viewBox="0 0 24 24" fill="none" class="h-3.5 w-3.5 text-slate-950">
+          <path d="M12 3l8 4.5v9L12 21l-8-4.5v-9L12 3z" stroke="currentColor" stroke-width="2" stroke-linejoin="round"/>
+          <path d="M4 7.5L12 12l8-4.5M12 12v9" stroke="currentColor" stroke-width="2" stroke-linejoin="round"/>
+        </svg>
+      </span>
+      <span class="font-semibold text-slate-200">Toybox</span>
+      <span>— Asset Library</span>
+      <span class="font-mono text-slate-500">· {version}</span>
+    </div>
+    <div class="flex items-center gap-6 text-sm">
+      <a href={`https://github.com/${repo}`} class="text-slate-400 hover:text-white transition-colors">GitHub</a>
+      <a href={`https://github.com/${repo}/releases`} class="text-slate-400 hover:text-white transition-colors">Releases</a>
+      <span class="text-xs font-mono text-slate-500">MIT licensed</span>
+    </div>
+  </div>
+</footer>

@@ -32,7 +32,6 @@ interface AppState {
   togglePack: (pack: Pack) => void;
   toggleCategory: (category: Category) => void;
   toggleFavoritesOnly: () => void;
-  toggleAnimatedOnly: () => void;
   clearFilter: () => void;
 
   toggleSelected: (id: string) => void;
@@ -65,8 +64,6 @@ export const useStore = create<AppState>((set) => ({
     set((s) => ({ filter: toggleInSet(s.filter, "categories", category) })),
   toggleFavoritesOnly: () =>
     set((s) => ({ filter: { ...s.filter, favoritesOnly: !s.filter.favoritesOnly } })),
-  toggleAnimatedOnly: () =>
-    set((s) => ({ filter: { ...s.filter, animatedOnly: !s.filter.animatedOnly } })),
   clearFilter: () => set({ filter: emptyFilter() }),
 
   toggleSelected: (id) =>

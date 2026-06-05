@@ -26,8 +26,3 @@
   text-overflow: ellipsis;
   white-space: nowrap;
 }
-
-.thumbp__done {
-  font-size: var(--fs-sm);
-  color: var(--ok);
-}

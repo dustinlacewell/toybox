@@ -1,0 +1,68 @@
+/*
+ * Scoped app styling for the embedded demo. The real app puts its design
+ * tokens on :root and paints the body (src/ds/tokens.css); here we re-declare
+ * the same token values on the .toybox-app wrapper instead, so the app's dark
+ * slate theme stays inside the demo window and never bleeds onto the marketing
+ * page. We pull in the app's ds.css and LibraryView.css (widget + toolbar
+ * styles) — but NOT tokens.css, whose :root/body rules we're deliberately
+ * replacing. Each component's own CSS (AssetGrid.css, AssetCard.css, …) is
+ * self-imported by the component. All of it only ever reads these vars.
+ */
+
+@import "@app/ds/ds.css";
+@import "@app/views/LibraryView.css";
+
+.toybox-app {
+  /* Mirrors src/ds/tokens.css — kept in sync by hand; the demo bundles a
+     fixed slice of the app, so drift here is visible immediately. */
+  --bg-0: #14161a;
+  --bg-1: #1b1e24;
+  --bg-2: #23272f;
+  --bg-3: #2d323c;
+  --border: #353b46;
+  --border-strong: #4a515f;
+
+  --text-0: #e7eaf0;
+  --text-1: #aab2c0;
+  --text-2: #6b7484;
+
+  --accent: #4a90e2;
+  --accent-soft: #4a90e233;
+  --danger: #e94e77;
+  --ok: #50e3c2;
+  --gold: #f5b942; /* favorited-star fill; reads as gold, not the blue accent */
+
+  --space-1: 4px;
+  --space-2: 8px;
+  --space-3: 12px;
+  --space-4: 16px;
+  --space-5: 24px;
+
+  --radius-1: 4px;
+  --radius-2: 8px;
+
+  --font: system-ui, -apple-system, "Segoe UI", sans-serif;
+  --fs-sm: 12px;
+  --fs-md: 13px;
+  --fs-lg: 16px;
+
+  position: absolute;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  background: var(--bg-0);
+  color: var(--text-0);
+  font-family: var(--font);
+  font-size: var(--fs-md);
+  overflow: hidden;
+}
+
+.toybox-app * {
+  box-sizing: border-box;
+}
+
+/* The app viewer mounts a fixed full-screen scrim (.viewer { position: fixed });
+   inside the demo window we want it confined to the window, not the page. */
+.toybox-app .viewer {
+  position: absolute;
+}

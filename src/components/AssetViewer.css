@@ -9,9 +9,12 @@
   padding: var(--space-5);
 }
 
+/* Sized against the scrim (%, not vw/vh) so it fits whether the scrim fills the
+   window (app) or is confined to the embedded demo box. The scrim's padding
+   keeps the panel inset on both axes. */
 .viewer__panel {
-  width: min(960px, 90vw);
-  height: min(720px, 85vh);
+  width: min(960px, 100%);
+  height: min(720px, 100%);
   background: var(--bg-1);
   border: 1px solid var(--border);
   border-radius: var(--radius-2);

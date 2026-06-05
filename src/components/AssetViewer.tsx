@@ -17,8 +17,11 @@ import { loadAssetScene } from "../services/gltfLoad";
 import { disposeScene } from "../services/disposeScene";
 import { revealAsset } from "../services/reveal";
 import { recenterAsset, type Align, type Axis } from "../services/tauriApi";
+import { FolderOpen } from "lucide-react";
+
 import { Spinner } from "../ds/Spinner";
-import { Button } from "../ds/Button";
+import { IconButton } from "../ds/IconButton";
+import { FavoriteStar } from "./FavoriteStar";
 import { useFavorites } from "./useFavorites";
 import { OriginGrid } from "./viewer/OriginGrid";
 import { OriginAxes } from "./viewer/OriginAxes";
@@ -82,16 +85,15 @@ export function AssetViewer({ asset, onClose }: Props) {
             </div>
           </div>
           <div className="viewer__actions">
-            <Button
-              variant="ghost"
-              onClick={() => toggleFavorite(asset.id)}
-              title="Favorite"
-            >
-              {asset.user.favorite ? "★ Favorited" : "☆ Favorite"}
-            </Button>
-            <Button variant="ghost" onClick={() => void revealAsset(asset)}>
-              Reveal in Explorer
-            </Button>
+            <FavoriteStar
+              favorited={asset.user.favorite}
+              onToggle={() => toggleFavorite(asset.id)}
+            />
+            <IconButton
+              icon={FolderOpen}
+              label="Reveal in Explorer"
+              onClick={() => void revealAsset(asset)}
+            />
             <button className="viewer__close" onClick={onClose} title="Close">
               ✕
             </button>

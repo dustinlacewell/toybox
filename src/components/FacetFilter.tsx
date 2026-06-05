@@ -17,7 +17,6 @@ interface Props {
   onTogglePack: (pack: Pack) => void;
   onToggleCategory: (category: Category) => void;
   onToggleFavoritesOnly: () => void;
-  onToggleAnimatedOnly: () => void;
   onClear: () => void;
 }
 
@@ -28,7 +27,6 @@ export function FacetFilter({
   onTogglePack,
   onToggleCategory,
   onToggleFavoritesOnly,
-  onToggleAnimatedOnly,
   onClear,
 }: Props) {
   const packs = packCounts(assets);
@@ -45,11 +43,6 @@ export function FacetFilter({
           checked={filter.favoritesOnly}
           onChange={onToggleFavoritesOnly}
           label={<strong>Favorites only</strong>}
-        />
-        <Checkbox
-          checked={filter.animatedOnly}
-          onChange={onToggleAnimatedOnly}
-          label={<strong>Animated only</strong>}
         />
       </div>
 

@@ -1,4 +1,4 @@
-//! Pure seeding logic: turn Capital's native `catalog.json` source document into
+//! Pure seeding logic: turn Toybox's native `catalog.json` source document into
 //! our catalog model. The source is a flat asset list — each entry already names
 //! its two facets (`pack`, `category`) explicitly, so seeding is a direct
 //! projection with no id/tag archaeology.

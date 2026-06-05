@@ -1,0 +1,63 @@
+---
+const features = [
+  {
+    title: "Facet the whole library",
+    body: "Filter by pack and category with live counts, or flag favorites. The grid narrows as you click.",
+    icon: `<path d="M3 5h18M6 12h12M10 19h4" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"/>`,
+  },
+  {
+    title: "Spin it in 3D",
+    body: "Open any asset in a real-time viewer — orbit, frame, and inspect at its authored origin over a reference grid with RGB axes.",
+    icon: `<path d="M12 3l8 4.5v9L12 21l-8-4.5v-9L12 3z" stroke="currentColor" stroke-width="1.7" stroke-linejoin="round"/><path d="M4 7.5L12 12l8-4.5M12 12v9" stroke="currentColor" stroke-width="1.7" stroke-linejoin="round"/>`,
+  },
+  {
+    title: "Search across thousands",
+    body: "Type to filter by name across the entire catalog. A virtualized grid keeps 1,500+ assets scrolling at sixty frames.",
+    icon: `<circle cx="11" cy="11" r="6" stroke="currentColor" stroke-width="1.7"/><path d="M16 16l4 4" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"/>`,
+  },
+  {
+    title: "Export clean",
+    body: "Select what you need, then write a self-contained copy of the loose files — or a single merged .glb, assembled directly in Rust.",
+    icon: `<path d="M12 3v12M8 11l4 4 4-4" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"/><path d="M4 17v2a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-2" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"/>`,
+  },
+  {
+    title: "Correct the origin",
+    body: "Land an asset's bounding box on the local origin per axis — min, center, or max — baked straight into the source glTF.",
+    icon: `<path d="M12 3v18M3 12h18" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"/><circle cx="12" cy="12" r="3" stroke="currentColor" stroke-width="1.7"/>`,
+  },
+  {
+    title: "Featherweight & native",
+    body: "Built on Tauri — a native Rust backend with a tiny footprint. Thumbnails render locally and cache to disk. No Electron, no bloat.",
+    icon: `<path d="M5 13c4-1 7-4 8-8 4 1 6 4 6 8 0 4-3 7-7 7-4 0-7-3-7-7z" stroke="currentColor" stroke-width="1.7" stroke-linejoin="round"/>`,
+  },
+];
+---
+
+<section id="features" class="relative py-24 sm:py-28">
+  <div class="max-w-6xl mx-auto px-6">
+    <div class="max-w-2xl">
+      <div class="text-xs font-mono uppercase tracking-widest text-accent-soft">Features</div>
+      <h2 class="mt-3 text-4xl md:text-5xl font-bold tracking-tight text-balance">
+        Everything a library browser should be.
+      </h2>
+      <p class="mt-5 text-lg text-slate-300 text-pretty">
+        Stop digging through folders and double-clicking glTFs in a DCC tool.
+        See, filter, and stage your whole library in one window.
+      </p>
+    </div>
+
+    <div class="mt-14 grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3 sm:gap-4">
+      {features.map(({ title, body, icon }) => (
+        <div class="group relative rounded-xl border border-hairline bg-slate-900/70 backdrop-blur p-7 hover:bg-slate-850/70 transition-colors">
+          <div class="flex items-center gap-3">
+            <div class="flex h-8 w-8 shrink-0 items-center justify-center rounded-md bg-slate-900 border border-hairline text-accent group-hover:text-accent-soft transition-colors">
+              <svg viewBox="0 0 24 24" fill="none" class="h-4 w-4" set:html={icon} />
+            </div>
+            <h3 class="text-base font-semibold tracking-tight text-slate-100">{title}</h3>
+          </div>
+          <p class="mt-3 text-sm leading-relaxed text-slate-400 text-pretty">{body}</p>
+        </div>
+      ))}
+    </div>
+  </div>
+</section>

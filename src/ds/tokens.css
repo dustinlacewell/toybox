@@ -19,6 +19,7 @@
   --accent-soft: #4a90e233;
   --danger: #e94e77;
   --ok: #50e3c2;
+  --gold: #f5b942; /* favorited-star fill; reads as gold, not the blue accent */
 
   --space-1: 4px;
   --space-2: 8px;

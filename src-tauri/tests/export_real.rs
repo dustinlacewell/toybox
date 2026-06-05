@@ -8,7 +8,7 @@
 
 use std::path::{Path, PathBuf};
 
-use capital_lib::testing::{export_copy_plan, glb_assemble, gltf_parse, image_embed, paths};
+use toybox_lib::testing::{export_copy_plan, glb_assemble, gltf_parse, image_embed, paths};
 
 const ROOT: &str = r"D:\code\games\assets";
 

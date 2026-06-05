@@ -7,7 +7,7 @@ use tauri::{AppHandle, Manager};
 
 use crate::error::{AppError, AppResult};
 
-/// `%APPDATA%\com.capital.app` (Windows) and equivalents elsewhere.
+/// `%APPDATA%\com.toybox.app` (Windows) and equivalents elsewhere.
 pub fn app_data_dir(app: &AppHandle) -> AppResult<PathBuf> {
     app.path()
         .app_data_dir()

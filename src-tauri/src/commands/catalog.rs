@@ -9,9 +9,15 @@ use crate::domain::paths;
 use crate::error::AppResult;
 use crate::infra::{appdata, fsio};
 
+/// Frontend entry point: hand back the cache only if it was built under the
+/// current schema. A cache from an older schema may carry stale *derived* fields
+/// (e.g. a v1 `clipCount` predating the animation channel filter), so we reject
+/// it as `None` — the frontend then rescans, which rebuilds those fields while
+/// `scan_library` reads the same stale file internally to preserve user metadata
+/// (favorites/tags survive a schema bump).
 #[tauri::command]
 pub async fn load_catalog(app: AppHandle) -> AppResult<Option<Catalog>> {
-    load_catalog_inner(&app)
+    Ok(load_catalog_inner(&app)?.filter(|c| c.schema_version == config::SCHEMA_VERSION))
 }
 
 #[tauri::command]

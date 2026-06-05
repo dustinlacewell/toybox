@@ -1,0 +1,122 @@
+@import "tailwindcss";
+
+@theme {
+  --font-sans: "Inter", ui-sans-serif, system-ui, -apple-system, "Segoe UI",
+    Roboto, sans-serif;
+  --font-mono: "JetBrains Mono", ui-monospace, SFMono-Regular, Menlo, monospace;
+
+  /* Slate ink — mirrors the app's own --bg-* / --text-* token ramp. */
+  --color-slate-50: #f5f7fa;
+  --color-slate-100: #e7eaf0;
+  --color-slate-200: #cdd3de;
+  --color-slate-300: #aab2c0;
+  --color-slate-400: #6b7484;
+  --color-slate-500: #4a515f;
+  --color-slate-600: #353b46;
+  --color-slate-700: #2d323c;
+  --color-slate-800: #23272f;
+  --color-slate-850: #1b1e24;
+  --color-slate-900: #14161a;
+  --color-slate-950: #0d0f12;
+
+  /* Steel-blue accent + mint secondary, lifted straight from ds/tokens.css. */
+  --color-accent: #4a90e2;
+  --color-accent-soft: #7db1ec;
+  --color-accent-glow: #2f74c8;
+  --color-mint: #50e3c2;
+}
+
+@layer base {
+  :root {
+    color-scheme: dark;
+  }
+
+  html {
+    font-family: var(--font-sans);
+    background: var(--color-slate-950);
+    color: var(--color-slate-100);
+    scroll-behavior: smooth;
+    -webkit-font-smoothing: antialiased;
+    text-rendering: optimizeLegibility;
+  }
+
+  /*
+   * Page-wide gradient wash, painted relative to the viewport so it never
+   * breaks at a section seam — the whole page sits on one fabric.
+   */
+  body {
+    font-feature-settings: "ss01", "cv11";
+    background-color: var(--color-slate-950);
+    background-image:
+      radial-gradient(
+        ellipse 80% 50% at 50% 0%,
+        rgba(74, 144, 226, 0.14),
+        transparent 60%
+      ),
+      radial-gradient(
+        ellipse 60% 40% at 85% 8%,
+        rgba(80, 227, 194, 0.08),
+        transparent 55%
+      ),
+      radial-gradient(
+        ellipse 50% 60% at 15% 100%,
+        rgba(47, 116, 200, 0.08),
+        transparent 60%
+      );
+    background-attachment: fixed;
+    background-repeat: no-repeat;
+  }
+
+  ::selection {
+    background: var(--color-accent);
+    color: var(--color-slate-950);
+  }
+}
+
+@layer utilities {
+  .bg-grid {
+    background-image:
+      linear-gradient(to right, rgba(255, 255, 255, 0.035) 1px, transparent 1px),
+      linear-gradient(to bottom, rgba(255, 255, 255, 0.035) 1px, transparent 1px);
+    background-size: 56px 56px;
+    mask-image: radial-gradient(ellipse 80% 60% at 50% 0%, black 40%, transparent 80%);
+  }
+
+  .text-balance {
+    text-wrap: balance;
+  }
+
+  .text-pretty {
+    text-wrap: pretty;
+  }
+
+  .border-hairline {
+    border-color: rgba(255, 255, 255, 0.08);
+  }
+
+  .shadow-glow {
+    box-shadow:
+      0 0 0 1px rgba(255, 255, 255, 0.05),
+      0 24px 70px -24px rgba(74, 144, 226, 0.4);
+  }
+
+  @keyframes fade-up {
+    from {
+      opacity: 0;
+      transform: translateY(12px);
+    }
+    to {
+      opacity: 1;
+      transform: translateY(0);
+    }
+  }
+
+  .animate-fade-up {
+    animation: fade-up 0.8s cubic-bezier(0.16, 1, 0.3, 1) both;
+  }
+
+  .delay-100 { animation-delay: 0.1s; }
+  .delay-200 { animation-delay: 0.2s; }
+  .delay-300 { animation-delay: 0.3s; }
+  .delay-400 { animation-delay: 0.4s; }
+}

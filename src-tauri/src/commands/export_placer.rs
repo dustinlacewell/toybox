@@ -2,10 +2,10 @@
 //! asset_placer library. Each asset is baked to a self-contained `.glb` (or
 //! copied as a loose `.gltf` fileset) under `<target_dir>/<sub_dir>`, then the
 //! project's `asset_library.json` is created or idempotently merged so the
-//! exported assets appear in the addon's dock. Capital's own facets — pack,
+//! exported assets appear in the addon's dock. Toybox's own facets — pack,
 //! category, favorite, user-tags — become the addon's collections.
 //!
-//! This is outbound only: Capital never re-seeds its catalog from the file it
+//! This is outbound only: Toybox never re-seeds its catalog from the file it
 //! writes here (see `domain::seed` for the inbound source format).
 
 use std::collections::HashSet;

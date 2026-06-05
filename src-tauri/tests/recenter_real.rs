@@ -4,8 +4,8 @@
 //!
 //! Run with `cargo test --test recenter_real -- --ignored`.
 
-use capital_lib::testing_origin::{recenter, world_aabb, Align, Axis};
-use capital_lib::testing::{gltf_parse, paths};
+use toybox_lib::testing_origin::{recenter, world_aabb, Align, Axis};
+use toybox_lib::testing::{gltf_parse, paths};
 
 const ROOT: &str = r"D:\code\games\assets";
 

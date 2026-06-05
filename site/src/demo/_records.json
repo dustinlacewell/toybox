@@ -1,0 +1,210 @@
+[
+  {
+    "id": "demo://polygon_prototype/buildings/SM_Buildings_Block_1x1_01",
+    "name": "Buildings Block 1x1 01",
+    "fileName": "SM_Buildings_Block_1x1_01.gltf",
+    "relPath": "polygon_prototype/buildings/SM_Buildings_Block_1x1_01.gltf",
+    "pack": "polygon_prototype",
+    "category": "buildings",
+    "fileset": {
+      "gltf": "polygon_prototype/buildings/SM_Buildings_Block_1x1_01.gltf",
+      "bin": "polygon_prototype/buildings/SM_Buildings_Block_1x1_01.bin",
+      "textures": [
+        "polygon_prototype/textures/PolygonPrototype_Texture_01.png"
+      ]
+    },
+    "clipCount": 0
+  },
+  {
+    "id": "demo://polygon_prototype/buildings/SM_Buildings_Column_1x3_01",
+    "name": "Buildings Column 1x3 01",
+    "fileName": "SM_Buildings_Column_1x3_01.gltf",
+    "relPath": "polygon_prototype/buildings/SM_Buildings_Column_1x3_01.gltf",
+    "pack": "polygon_prototype",
+    "category": "buildings",
+    "fileset": {
+      "gltf": "polygon_prototype/buildings/SM_Buildings_Column_1x3_01.gltf",
+      "bin": "polygon_prototype/buildings/SM_Buildings_Column_1x3_01.bin",
+      "textures": [
+        "polygon_prototype/textures/PolygonPrototype_Texture_01.png"
+      ]
+    },
+    "clipCount": 0
+  },
+  {
+    "id": "demo://polygon_prototype/characters/SK_Character_Dummy_Female_01",
+    "name": "Character Dummy Female 01",
+    "fileName": "SK_Character_Dummy_Female_01.gltf",
+    "relPath": "polygon_prototype/characters/SK_Character_Dummy_Female_01.gltf",
+    "pack": "polygon_prototype",
+    "category": "characters",
+    "fileset": {
+      "gltf": "polygon_prototype/characters/SK_Character_Dummy_Female_01.gltf",
+      "bin": "polygon_prototype/characters/SK_Character_Dummy_Female_01.bin",
+      "textures": [
+        "polygon_prototype/textures/PolygonPrototype_Texture_01.png"
+      ]
+    },
+    "clipCount": 1
+  },
+  {
+    "id": "demo://polygon_prototype/characters/SK_Character_Dummy_Male_01",
+    "name": "Character Dummy Male 01",
+    "fileName": "SK_Character_Dummy_Male_01.gltf",
+    "relPath": "polygon_prototype/characters/SK_Character_Dummy_Male_01.gltf",
+    "pack": "polygon_prototype",
+    "category": "characters",
+    "fileset": {
+      "gltf": "polygon_prototype/characters/SK_Character_Dummy_Male_01.gltf",
+      "bin": "polygon_prototype/characters/SK_Character_Dummy_Male_01.bin",
+      "textures": [
+        "polygon_prototype/textures/PolygonPrototype_Texture_01.png"
+      ]
+    },
+    "clipCount": 1
+  },
+  {
+    "id": "demo://polygon_prototype/primitives/SM_Primitive_Cone_01",
+    "name": "Primitive Cone 01",
+    "fileName": "SM_Primitive_Cone_01.gltf",
+    "relPath": "polygon_prototype/primitives/SM_Primitive_Cone_01.gltf",
+    "pack": "polygon_prototype",
+    "category": "primitives",
+    "fileset": {
+      "gltf": "polygon_prototype/primitives/SM_Primitive_Cone_01.gltf",
+      "bin": "polygon_prototype/primitives/SM_Primitive_Cone_01.bin",
+      "textures": [
+        "polygon_prototype/textures/PolygonPrototype_Texture_01.png"
+      ]
+    },
+    "clipCount": 0
+  },
+  {
+    "id": "demo://polygon_prototype/primitives/SM_Primitive_Cube_01",
+    "name": "Primitive Cube 01",
+    "fileName": "SM_Primitive_Cube_01.gltf",
+    "relPath": "polygon_prototype/primitives/SM_Primitive_Cube_01.gltf",
+    "pack": "polygon_prototype",
+    "category": "primitives",
+    "fileset": {
+      "gltf": "polygon_prototype/primitives/SM_Primitive_Cube_01.gltf",
+      "bin": "polygon_prototype/primitives/SM_Primitive_Cube_01.bin",
+      "textures": [
+        "polygon_prototype/textures/PolygonPrototype_Texture_01.png"
+      ]
+    },
+    "clipCount": 0
+  },
+  {
+    "id": "demo://polygon_prototype/primitives/SM_Primitive_Cube_03",
+    "name": "Primitive Cube 03",
+    "fileName": "SM_Primitive_Cube_03.gltf",
+    "relPath": "polygon_prototype/primitives/SM_Primitive_Cube_03.gltf",
+    "pack": "polygon_prototype",
+    "category": "primitives",
+    "fileset": {
+      "gltf": "polygon_prototype/primitives/SM_Primitive_Cube_03.gltf",
+      "bin": "polygon_prototype/primitives/SM_Primitive_Cube_03.bin",
+      "textures": [
+        "polygon_prototype/textures/PolygonPrototype_Texture_01.png"
+      ]
+    },
+    "clipCount": 0
+  },
+  {
+    "id": "demo://polygon_prototype/primitives/SM_Primitive_Cylander_01",
+    "name": "Primitive Cylander 01",
+    "fileName": "SM_Primitive_Cylander_01.gltf",
+    "relPath": "polygon_prototype/primitives/SM_Primitive_Cylander_01.gltf",
+    "pack": "polygon_prototype",
+    "category": "primitives",
+    "fileset": {
+      "gltf": "polygon_prototype/primitives/SM_Primitive_Cylander_01.gltf",
+      "bin": "polygon_prototype/primitives/SM_Primitive_Cylander_01.bin",
+      "textures": [
+        "polygon_prototype/textures/PolygonPrototype_Texture_01.png"
+      ]
+    },
+    "clipCount": 0
+  },
+  {
+    "id": "demo://polygon_prototype/primitives/SM_Primitive_Sphere_01",
+    "name": "Primitive Sphere 01",
+    "fileName": "SM_Primitive_Sphere_01.gltf",
+    "relPath": "polygon_prototype/primitives/SM_Primitive_Sphere_01.gltf",
+    "pack": "polygon_prototype",
+    "category": "primitives",
+    "fileset": {
+      "gltf": "polygon_prototype/primitives/SM_Primitive_Sphere_01.gltf",
+      "bin": "polygon_prototype/primitives/SM_Primitive_Sphere_01.bin",
+      "textures": [
+        "polygon_prototype/textures/PolygonPrototype_Texture_01.png"
+      ]
+    },
+    "clipCount": 0
+  },
+  {
+    "id": "demo://polygon_prototype/props/SM_Note_Bug_01",
+    "name": "Note Bug 01",
+    "fileName": "SM_Note_Bug_01.gltf",
+    "relPath": "polygon_prototype/props/SM_Note_Bug_01.gltf",
+    "pack": "polygon_prototype",
+    "category": "props",
+    "fileset": {
+      "gltf": "polygon_prototype/props/SM_Note_Bug_01.gltf",
+      "bin": "polygon_prototype/props/SM_Note_Bug_01.bin",
+      "textures": [
+        "polygon_prototype/textures/PolygonPrototype_Texture_01.png"
+      ]
+    },
+    "clipCount": 0
+  },
+  {
+    "id": "demo://polygon_prototype/props/SM_Note_Done_01",
+    "name": "Note Done 01",
+    "fileName": "SM_Note_Done_01.gltf",
+    "relPath": "polygon_prototype/props/SM_Note_Done_01.gltf",
+    "pack": "polygon_prototype",
+    "category": "props",
+    "fileset": {
+      "gltf": "polygon_prototype/props/SM_Note_Done_01.gltf",
+      "bin": "polygon_prototype/props/SM_Note_Done_01.bin",
+      "textures": [
+        "polygon_prototype/textures/PolygonPrototype_Texture_01.png"
+      ]
+    },
+    "clipCount": 0
+  },
+  {
+    "id": "demo://polygon_prototype/props/SM_Note_Final_01",
+    "name": "Note Final 01",
+    "fileName": "SM_Note_Final_01.gltf",
+    "relPath": "polygon_prototype/props/SM_Note_Final_01.gltf",
+    "pack": "polygon_prototype",
+    "category": "props",
+    "fileset": {
+      "gltf": "polygon_prototype/props/SM_Note_Final_01.gltf",
+      "bin": "polygon_prototype/props/SM_Note_Final_01.bin",
+      "textures": [
+        "polygon_prototype/textures/PolygonPrototype_Texture_01.png"
+      ]
+    },
+    "clipCount": 0
+  },
+  {
+    "id": "demo://polygon_prototype/props/SM_Note_Fix_01",
+    "name": "Note Fix 01",
+    "fileName": "SM_Note_Fix_01.gltf",
+    "relPath": "polygon_prototype/props/SM_Note_Fix_01.gltf",
+    "pack": "polygon_prototype",
+    "category": "props",
+    "fileset": {
+      "gltf": "polygon_prototype/props/SM_Note_Fix_01.gltf",
+      "bin": "polygon_prototype/props/SM_Note_Fix_01.bin",
+      "textures": [
+        "polygon_prototype/textures/PolygonPrototype_Texture_01.png"
+      ]
+    },
+    "clipCount": 0
+  }
+]

@@ -41,7 +41,17 @@ export async function loadAssetScene(asset: Asset, cacheBust = 0): Promise<Loade
   const gltfHref = cacheBust ? `${gltfBase}?v=${cacheBust}` : gltfBase;
 
   const gltf = await loader.loadAsync(gltfHref);
-  return { scene: gltf.scene, clips: gltf.animations ?? [] };
+  return { scene: gltf.scene, clips: realClips(gltf.animations) };
+}
+
+/**
+ * Keep only clips that actually drive something. FBX→glTF converters emit an
+ * empty default take ("Take 001" with no channels), which three.js parses into a
+ * clip with zero tracks. This mirrors the Rust scanner's channel filter (see
+ * domain/gltf_parse.rs) so the viewer's "is this animated?" matches the catalog's.
+ */
+function realClips(animations: AnimationClip[] | undefined): AnimationClip[] {
+  return (animations ?? []).filter((clip) => clip.tracks.length > 0);
 }
 
 /** Map every fileset file's basename -> its asset:// URL. */

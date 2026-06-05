@@ -8,6 +8,7 @@ import { memo, type MouseEvent } from "react";
 import { Film } from "lucide-react";
 
 import type { Asset } from "../domain/catalog";
+import { FavoriteStar } from "./FavoriteStar";
 import { useThumbUrl } from "./useThumbUrl";
 import "./AssetCard.css";
 
@@ -37,14 +38,26 @@ function AssetCardImpl({
     onToggleSelect(asset.id);
   };
 
+  // Plain click on the card body selects. Shift is already handled in the
+  // capture phase above, so skip it here to avoid a double toggle. Children
+  // that own a click (thumbnail, favorite, checkbox) stopPropagation to opt out.
+  const handlePlainSelect = (e: MouseEvent) => {
+    if (e.shiftKey) return;
+    onToggleSelect(asset.id);
+  };
+
   return (
     <div
       className={`card ${selected ? "card--selected" : ""}`}
       onClickCapture={handleShiftToggle}
+      onClick={handlePlainSelect}
     >
       <button
         className="card__thumb"
-        onClick={() => onOpen(asset.id)}
+        onClick={(e) => {
+          e.stopPropagation();
+          onOpen(asset.id);
+        }}
         title={asset.name}
       >
         {thumb ? (
@@ -67,18 +80,19 @@ function AssetCardImpl({
           type="checkbox"
           checked={selected}
           onChange={() => onToggleSelect(asset.id)}
+          onClick={(e) => e.stopPropagation()}
           title="Select for export"
         />
         <span className="card__name" title={asset.name}>
           {asset.name}
         </span>
-        <button
-          className={`card__fav ${asset.user.favorite ? "is-fav" : ""}`}
-          onClick={() => onToggleFavorite(asset.id)}
-          title="Favorite"
-        >
-          {asset.user.favorite ? "★" : "☆"}
-        </button>
+        <FavoriteStar
+          favorited={asset.user.favorite}
+          onToggle={() => onToggleFavorite(asset.id)}
+          // stopPropagation: the card body is click-to-select; the favorite
+          // toggle must not bubble into selection.
+          onClick={(e) => e.stopPropagation()}
+        />
       </div>
     </div>
   );

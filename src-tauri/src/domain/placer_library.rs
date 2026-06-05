@@ -1,11 +1,11 @@
-//! Build / merge the asset_placer addon's `asset_library.json` from Capital's
-//! own facets. This is a **one-way publish** format: Capital never re-seeds its
+//! Build / merge the asset_placer addon's `asset_library.json` from Toybox's
+//! own facets. This is a **one-way publish** format: Toybox never re-seeds its
 //! catalog from it (see `seed.rs` for the inbound source). Pure data — no IO.
 //!
 //! The addon's schema (`version: 3`) is three arrays — `collections`, `assets`,
 //! `folders`. A collection is a tag with an integer id; an asset carries
 //! `tags: int[]` plus a `primary_collection`. We derive collections from four
-//! Capital facets and band their ids so the kinds stay visually separable and
+//! Toybox facets and band their ids so the kinds stay visually separable and
 //! never collide on allocation:
 //!
 //!   pack      -> 1..=99      (primary collection of each asset)
@@ -22,7 +22,7 @@ use std::collections::HashMap;
 
 use serde_json::{json, Value};
 
-/// One asset to publish: the Capital facets that become tags, plus the
+/// One asset to publish: the Toybox facets that become tags, plus the
 /// `res://` path the file was written to and the basename the addon stores as
 /// `name`. `folder_path` is the parent dir of `res_path` (addon convention).
 pub struct PlacerAsset {
