@@ -5,7 +5,7 @@
  * thumbnail is ready — regeneration is driven from the toolbar's icon strip.
  */
 
-import { Button } from "../ds/Button";
+import { Button } from "@ldlework/toybox-sdk/ui";
 import type { ThumbProgress as Progress } from "../services/thumbQueue";
 import "./ThumbProgress.css";
 

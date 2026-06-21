@@ -7,12 +7,9 @@
  */
 
 import type { ReactNode } from "react";
-import { Download, RefreshCw, ScanLine, X } from "lucide-react";
+import { Download, RefreshCw, ScanLine, Upload, X } from "lucide-react";
 
-import { Toolbar } from "../ds/Toolbar";
-import { TextInput } from "../ds/TextInput";
-import { IconButton } from "../ds/IconButton";
-import { IconStrip } from "../ds/IconStrip";
+import { Toolbar, TextInput, IconButton, IconStrip } from "@ldlework/toybox-sdk/ui";
 
 interface Props {
   searchText: string;
@@ -22,6 +19,8 @@ interface Props {
   selectedCount: number;
   onClearSelection: () => void;
   onExport: () => void;
+  /** Library-only: open the import drawer (plugin-driven ingestion). */
+  onImport?: () => void;
   /** Library-only: rebuild the catalog. Omitted by the web demo. */
   onRescan?: () => void;
   /** Library-only: regenerate every thumbnail. Omitted by the web demo. */
@@ -38,6 +37,7 @@ export function LibraryToolbar({
   selectedCount,
   onClearSelection,
   onExport,
+  onImport,
   onRescan,
   onRegenerate,
   thumbControl,
@@ -58,6 +58,7 @@ export function LibraryToolbar({
       {thumbControl}
       <span className="lib__count">{selectedCount} selected</span>
       <IconStrip>
+        {onImport && <IconButton icon={Upload} label="Import assets…" onClick={onImport} />}
         {onRegenerate && (
           <IconButton icon={RefreshCw} label="Regenerate thumbnails" onClick={onRegenerate} />
         )}

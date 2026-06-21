@@ -58,7 +58,16 @@ export default defineConfig({
       __APP_VERSION__: JSON.stringify(pkg.version),
     },
     resolve: {
-      alias: [{ find: "@app", replacement: appSrc }],
+      // App components import the plugin SDK by bare specifier. Resolve both
+      // entries from source — matching the app's own vite.config — so the demo
+      // build never hits the package's dist/ (the contract → package source;
+      // `/ui` → the app's design system, src/ds). The `/ui` entry must precede
+      // the bare name so the longer specifier matches first.
+      alias: [
+        { find: "@ldlework/toybox-sdk/ui", replacement: path.resolve(appSrc, "ds/index.ts") },
+        { find: "@ldlework/toybox-sdk", replacement: path.resolve(root, "../packages/toybox-sdk/src/index.ts") },
+        { find: "@app", replacement: appSrc },
+      ],
       // App components live at repo-root ../src and are pulled in through the
       // @app alias. Their bare dependency imports would otherwise resolve from
       // the repo root, whose node_modules doesn't exist in CI (only site/ is

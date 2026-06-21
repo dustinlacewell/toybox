@@ -19,8 +19,7 @@ import { revealAsset } from "../services/reveal";
 import { recenterAsset, type Align, type Axis } from "../services/tauriApi";
 import { FolderOpen } from "lucide-react";
 
-import { Spinner } from "../ds/Spinner";
-import { IconButton } from "../ds/IconButton";
+import { Spinner, IconButton } from "@ldlework/toybox-sdk/ui";
 import { FavoriteStar } from "./FavoriteStar";
 import { useFavorites } from "./useFavorites";
 import { OriginGrid } from "./viewer/OriginGrid";

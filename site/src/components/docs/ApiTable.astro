@@ -1,0 +1,32 @@
+---
+/**
+ * A two-column reference table for an API surface: a monospace `signature` and a
+ * prose `description`, plus an optional `perm` chip naming the permission that
+ * gates the member. Rows are passed as `rows`.
+ */
+interface Row {
+  signature: string;
+  description: string;
+  perm?: string;
+}
+interface Props {
+  rows: Row[];
+}
+const { rows } = Astro.props;
+---
+
+<div class="my-4 overflow-hidden rounded-lg border border-hairline">
+  {rows.map((row) => (
+    <div class="grid grid-cols-1 gap-1 border-b border-hairline px-4 py-3 last:border-b-0 md:grid-cols-[minmax(0,1fr)_minmax(0,1.2fr)] md:gap-6">
+      <div class="min-w-0">
+        <code class="font-mono text-[13px] text-accent-soft break-words">{row.signature}</code>
+        {row.perm && (
+          <span class="ml-2 inline-block rounded bg-slate-800 px-1.5 py-0.5 align-middle font-mono text-[10px] text-mint">
+            {row.perm}
+          </span>
+        )}
+      </div>
+      <div class="text-sm leading-relaxed text-slate-400">{row.description}</div>
+    </div>
+  ))}
+</div>

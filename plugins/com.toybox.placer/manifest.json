@@ -1,0 +1,15 @@
+{
+  "id": "com.toybox.placer",
+  "name": "Godot asset_placer",
+  "version": "1.0.0",
+  "kind": "exporter",
+  "entry": "dist/index.js",
+  "description": "Publish selected assets into a Godot project's asset_placer library, creating or merging its asset_library.json so the dock sees them.",
+  "permissions": {
+    "rustExport": true,
+    "fsWrite": true
+  },
+  "ui": {
+    "exportPanel": "dist/ui/Export.js"
+  }
+}

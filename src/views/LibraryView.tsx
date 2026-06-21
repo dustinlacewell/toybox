@@ -13,14 +13,14 @@ import { useStore } from "../state/store";
 import { AssetGrid } from "../components/AssetGrid";
 import { AssetViewer } from "../components/AssetViewer";
 import { ExportDrawer } from "../components/ExportDrawer";
+import { ImportDrawer } from "../components/ImportDrawer";
 import { FacetFilter } from "../components/FacetFilter";
 import { LibraryToolbar } from "../components/LibraryToolbar";
 import { ThumbProgress } from "../components/ThumbProgress";
 import { useThumbGeneration } from "../components/useThumbGeneration";
 import { useFavorites } from "../components/useFavorites";
-import { Button } from "../ds/Button";
-import { Spinner } from "../ds/Spinner";
-import { Stack } from "../ds/Stack";
+import { usePluginRegistry } from "../components/usePluginRegistry";
+import { Button, Spinner, Stack } from "@ldlework/toybox-sdk/ui";
 import "./LibraryView.css";
 
 export function LibraryView() {
@@ -47,6 +47,8 @@ export function LibraryView() {
   } = useStore();
 
   const [exportOpen, setExportOpen] = useState(false);
+  const [importOpen, setImportOpen] = useState(false);
+  const registry = usePluginRegistry();
 
   useEffect(() => {
     void initCatalog({ setCatalog, setPacks, setLoading, setError });
@@ -112,6 +114,7 @@ export function LibraryView() {
             selectedCount={selection.size}
             onClearSelection={clearSelection}
             onExport={() => setExportOpen(true)}
+            onImport={() => setImportOpen(true)}
             onRescan={rescan}
             onRegenerate={() => void regenerateThumbs()}
             thumbControl={
@@ -141,7 +144,20 @@ export function LibraryView() {
       <ExportDrawer
         open={exportOpen}
         selectedIds={[...selection]}
+        exporters={registry.exporters}
+        pluginErrors={registry.errors}
         onClose={() => setExportOpen(false)}
+      />
+
+      <ImportDrawer
+        open={importOpen}
+        importers={registry.importers}
+        pluginErrors={registry.errors}
+        onClose={() => setImportOpen(false)}
+        onCommitted={() => {
+          setImportOpen(false);
+          rescan();
+        }}
       />
     </>
   );

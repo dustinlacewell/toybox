@@ -10,13 +10,11 @@ use tauri::AppHandle;
 
 use crate::config;
 use crate::domain::catalog_model::Asset;
-use crate::domain::export_copy_plan::{plan_copy, CopyPlan};
+use crate::domain::export_copy_plan::plan_copy;
 use crate::domain::export_model::{ExportCopyReq, ExportReport};
-use crate::domain::paths;
 use crate::error::AppResult;
-use crate::infra::fsio;
 
-use super::export_util::{collect_assets, read_gltf};
+use super::export_util::{collect_assets, execute_copy_plan, read_gltf};
 
 #[tauri::command]
 pub async fn export_copy(app: AppHandle, req: ExportCopyReq) -> AppResult<ExportReport> {
@@ -43,7 +41,7 @@ pub async fn export_copy(app: AppHandle, req: ExportCopyReq) -> AppResult<Export
             req.preserve_structure,
         )?;
 
-        execute_plan(root, target, &plan, &mut copied_textures, &mut report)?;
+        execute_copy_plan(root, target, &plan, &mut copied_textures, &mut report)?;
     }
 
     Ok(report)
@@ -72,43 +70,4 @@ fn resolve_stem(
     ));
     used.insert(namespaced.clone());
     namespaced
-}
-
-/// Write the rewritten glTF, copy the bin, and copy any not-yet-copied textures.
-fn execute_plan(
-    root: &str,
-    target: &Path,
-    plan: &CopyPlan,
-    copied_textures: &mut HashSet<String>,
-    report: &mut ExportReport,
-) -> AppResult<()> {
-    // glTF
-    let gltf_text = serde_json::to_string_pretty(&plan.gltf)?;
-    let gltf_out = target.join(&plan.gltf_dst);
-    fsio::write_text(&gltf_out, &gltf_text)?;
-    report.write(plan.gltf_dst.clone());
-
-    // bin
-    let bin_bytes = fsio::read_bytes(&paths::abs_under_root(root, &plan.bin_src_rel))?;
-    let bin_out = target.join(&plan.bin_dst);
-    fsio::write_bytes(&bin_out, &bin_bytes)?;
-    report.write(plan.bin_dst.clone());
-
-    // textures (deduped across the batch by target-relative path)
-    for tex in &plan.textures {
-        let dst_rel = format!("{}/{}", plan.textures_dst_dir, tex.dst_basename);
-        if !copied_textures.insert(dst_rel.clone()) {
-            continue;
-        }
-        let src = paths::abs_under_root(root, &tex.src_rel);
-        if !fsio::exists(&src) {
-            report.skip(format!("missing texture: {}", tex.src_rel));
-            continue;
-        }
-        let bytes = fsio::read_bytes(&src)?;
-        fsio::write_bytes(&target.join(&dst_rel), &bytes)?;
-        report.write(dst_rel);
-    }
-
-    Ok(())
 }

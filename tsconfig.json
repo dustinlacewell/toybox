@@ -10,6 +10,16 @@
     "moduleResolution": "bundler",
     "allowImportingTsExtensions": true,
     "resolveJsonModule": true,
+
+    /* The `toybox` SDK is shared with runtime-loaded plugins via the app's
+       import map (see vite.config.ts). The app imports it by the same bare
+       specifier so app + plugins share one chunk/instance; map it here for
+       type resolution. */
+    "baseUrl": ".",
+    "paths": {
+      "@ldlework/toybox-sdk": ["./packages/toybox-sdk/src/index.ts"],
+      "@ldlework/toybox-sdk/ui": ["./src/ds/index.ts"]
+    },
     "isolatedModules": true,
     "noEmit": true,
     "jsx": "react-jsx",

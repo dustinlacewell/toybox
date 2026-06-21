@@ -1,0 +1,442 @@
+---
+import Layout from "../layouts/Layout.astro";
+import Nav from "../components/Nav.astro";
+import Footer from "../components/Footer.astro";
+import CodeBlock from "../components/docs/CodeBlock.astro";
+import ApiTable from "../components/docs/ApiTable.astro";
+
+const sdk = "@ldlework/toybox-sdk";
+
+// Sidebar sections — id must match each <section id> below.
+const toc = [
+  { id: "overview", label: "Overview" },
+  { id: "anatomy", label: "Plugin anatomy" },
+  { id: "manifest", label: "The manifest" },
+  { id: "exporters", label: "Exporters" },
+  { id: "importers", label: "Importers" },
+  { id: "panels", label: "UI panels" },
+  { id: "host-api", label: "Host API reference" },
+  { id: "fs-api", label: "Filesystem API" },
+  { id: "report", label: "Reports" },
+  { id: "types", label: "Asset & data types" },
+  { id: "permissions", label: "Permissions & security" },
+  { id: "runtime", label: "How loading works" },
+  { id: "dev", label: "Developing a plugin" },
+];
+---
+
+<Layout
+  title="Plugin API — Toybox"
+  description="Full reference for writing Toybox import and export plugins: the manifest, the exporter run contract, importer panels, the host API, the filesystem jail, and the shared-runtime model."
+>
+  <Nav />
+
+  <main class="mx-auto max-w-6xl px-6 py-12 md:py-16">
+    <div class="mb-12 max-w-3xl">
+      <div class="font-mono text-xs uppercase tracking-widest text-accent-soft">Reference</div>
+      <h1 class="mt-3 text-4xl font-bold tracking-tight text-balance md:text-5xl">Plugin API</h1>
+      <p class="mt-5 text-lg leading-relaxed text-slate-300 text-pretty">
+        Toybox plugins are small JavaScript modules that add <strong>import</strong> and
+        <strong>export</strong> formats. A plugin reads the selected assets, gets the host's
+        glTF/GLB primitives, and writes files — optionally shipping its own React UI that renders
+        with the app's own design system. This page is the complete contract.
+      </p>
+    </div>
+
+    <div class="gap-12 lg:grid lg:grid-cols-[200px_minmax(0,1fr)]">
+      <!-- Sidebar -->
+      <aside class="mb-10 lg:sticky lg:top-8 lg:mb-0 lg:self-start">
+        <nav class="flex flex-col gap-1 text-sm">
+          {toc.map((t) => (
+            <a
+              href={`#${t.id}`}
+              class="rounded-md px-3 py-1.5 text-slate-400 transition-colors hover:bg-slate-850/70 hover:text-slate-100"
+            >
+              {t.label}
+            </a>
+          ))}
+        </nav>
+      </aside>
+
+      <!-- Content -->
+      <div class="min-w-0 max-w-3xl">
+        <!-- OVERVIEW ------------------------------------------------------- -->
+        <section id="overview" class="scroll-mt-8">
+          <h2 class="text-2xl font-bold tracking-tight">Overview</h2>
+          <p class="mt-4 leading-relaxed text-slate-300">
+            There are two kinds of plugin. An <strong>exporter</strong> turns the current selection
+            into files on disk — a merged <code class="ds-code">.glb</code>, a loose copy, a
+            project-specific layout. An <strong>importer</strong> brings new assets <em>into</em> the
+            library from some outside source. Both are authored against one package:
+          </p>
+          <CodeBlock lang="bash">npm install {sdk}</CodeBlock>
+          <p class="leading-relaxed text-slate-300">
+            The package is the plugin <em>contract</em> — manifest types, the <code class="ds-code">ctx</code>
+            shapes your code receives, and the <code class="ds-code">define*</code> authoring helpers. You
+            install it for types; at runtime the host redirects the import to its own bundled copy, so
+            your plugin shares the host's exact instances (one <code class="ds-code">three</code>, one React)
+            rather than bundling its own.
+          </p>
+        </section>
+
+        <!-- ANATOMY -------------------------------------------------------- -->
+        <section id="anatomy" class="mt-14 scroll-mt-8">
+          <h2 class="text-2xl font-bold tracking-tight">Plugin anatomy</h2>
+          <p class="mt-4 leading-relaxed text-slate-300">
+            A plugin is a folder under the app's data directory. Each folder's name must equal the
+            plugin <code class="ds-code">id</code> in its manifest.
+          </p>
+          <CodeBlock lang="text" title="<app-data>/plugins/">com.acme.myplugin/
+├─ manifest.json        # required — id, kind, permissions, entry/ui
+├─ dist/
+│  ├─ index.js          # exporter entry module (default-exports run)
+│  └─ ui/
+│     └─ Export.js      # optional UI panel (default-exports a component)
+└─ ...your source</CodeBlock>
+          <p class="leading-relaxed text-slate-300">
+            On Windows the data directory is <code class="ds-code">%APPDATA%\com.toybox.app\plugins\</code>;
+            on macOS/Linux it's the platform's app-data equivalent. The app discovers plugins at
+            startup — a folder with no valid manifest is skipped, never fatal.
+          </p>
+        </section>
+
+        <!-- MANIFEST ------------------------------------------------------- -->
+        <section id="manifest" class="mt-14 scroll-mt-8">
+          <h2 class="text-2xl font-bold tracking-tight">The manifest</h2>
+          <p class="mt-4 leading-relaxed text-slate-300">
+            <code class="ds-code">manifest.json</code> declares what the plugin is and what it may do.
+          </p>
+          <CodeBlock lang="json" title="manifest.json">{`{
+  "id": "com.acme.myplugin",
+  "name": "My Exporter",
+  "version": "1.0.0",
+  "kind": "exporter",
+  "entry": "dist/index.js",
+  "description": "What this plugin does.",
+  "permissions": {
+    "rustExport": true,
+    "fsWrite": true,
+    "fsRead": false
+  },
+  "ui": {
+    "exportPanel": "dist/ui/Export.js"
+  }
+}`}</CodeBlock>
+          <ApiTable rows={[
+            { signature: "id: string", description: "Reverse-DNS identifier. MUST equal the folder name, or the plugin is skipped." },
+            { signature: 'kind: "exporter" | "importer"', description: "Which contract the plugin fulfils." },
+            { signature: "entry: string", description: "Path (relative to the plugin folder) of the exporter's entry module. Required for exporters; importers are panel-only and may omit it." },
+            { signature: "permissions: {…}", description: "Capability flags gating the host API — see Permissions below." },
+            { signature: "fields?: FieldSpec[]", description: "Optional declarative config inputs (the zero-code UI path). Ignored when a UI panel is present." },
+            { signature: "ui?: { exportPanel?, importPanel? }", description: "Paths to plugin-shipped React panel modules. When present, the host mounts the panel instead of rendering fields." },
+          ]} />
+        </section>
+
+        <!-- EXPORTERS ------------------------------------------------------ -->
+        <section id="exporters" class="mt-14 scroll-mt-8">
+          <h2 class="text-2xl font-bold tracking-tight">Exporters</h2>
+          <p class="mt-4 leading-relaxed text-slate-300">
+            An exporter's entry module default-exports the result of <code class="ds-code">defineExporter</code>.
+            Its <code class="ds-code">run</code> receives the <code class="ds-code">ctx</code> and the selected
+            assets, does its work through the host primitives, and returns a report.
+          </p>
+          <CodeBlock lang="ts" title="dist/index.js (authored as index.ts)">{`import { defineExporter } from "${sdk}";
+
+export default defineExporter({
+  async run(ctx, assets) {
+    const { host, fs, config, report } = ctx;
+
+    for (const asset of assets) {
+      const glb = await host.assembleGlb(asset.id);          // Uint8Array
+      await fs.writeBytes(config.targetDir, asset.name + ".glb", glb);
+      report.write(asset.name + ".glb");
+    }
+
+    return report.done();
+  },
+});`}</CodeBlock>
+          <p class="leading-relaxed text-slate-300">
+            <code class="ds-code">run</code> is called once per export, with the live selection. Throw to
+            fail the run; the host surfaces the message. Respect <code class="ds-code">ctx.signal</code> for
+            cancellation on long runs.
+          </p>
+          <CodeBlock lang="ts">{`run(ctx: ExportCtx, assets: AssetView[]): Promise<ExportReport>`}</CodeBlock>
+        </section>
+
+        <!-- IMPORTERS ------------------------------------------------------ -->
+        <section id="importers" class="mt-14 scroll-mt-8">
+          <h2 class="text-2xl font-bold tracking-tight">Importers</h2>
+          <p class="mt-4 leading-relaxed text-slate-300">
+            Importers are <strong>panel-only</strong> — there is no <code class="ds-code">run</code>. The work
+            lives in an <code class="ds-code">importPanel</code> component that picks a source, builds
+            <code class="ds-code">SeedEntryInput[]</code>, and hands them to the host via
+            <code class="ds-code">ctx.commit</code>. The host merges them into the catalog and refreshes the
+            grid.
+          </p>
+          <CodeBlock lang="ts" title="dist/ui/Import.js (authored as Import.tsx)">{`import { defineImportPanel, type ImportPanelCtx, type SeedEntryInput } from "${sdk}";
+import { Stack, Button } from "${sdk}/ui";
+
+export default defineImportPanel(function ImportPanel({ ctx }: { ctx: ImportPanelCtx }) {
+  async function go() {
+    const dir = await ctx.host.pickDirectory();
+    if (!dir) return;
+    const entries: SeedEntryInput[] = scanForEntries(dir);  // your logic
+    await ctx.commit(entries);                                // host merges + refreshes
+    ctx.close();
+  }
+  return (
+    <Stack gap={12}>
+      <Button variant="primary" onClick={go}>Import from folder…</Button>
+    </Stack>
+  );
+});`}</CodeBlock>
+          <p class="leading-relaxed text-slate-300">
+            The manifest sets <code class="ds-code">"kind": "importer"</code> and
+            <code class="ds-code">{`"ui": { "importPanel": "dist/ui/Import.js" }`}</code>; no
+            <code class="ds-code">entry</code> is needed.
+          </p>
+        </section>
+
+        <!-- PANELS --------------------------------------------------------- -->
+        <section id="panels" class="mt-14 scroll-mt-8">
+          <h2 class="text-2xl font-bold tracking-tight">UI panels</h2>
+          <p class="mt-4 leading-relaxed text-slate-300">
+            A panel is a React component that the host mounts in its export or import drawer. It runs on
+            the host's <em>exact</em> React instance and renders with the app's design-system primitives
+            (<code class="ds-code">{sdk}/ui</code>), so it looks native and hooks work across the boundary.
+            Each panel receives a single typed <code class="ds-code">ctx</code> <em>prop</em>.
+          </p>
+
+          <h3 class="mt-8 text-lg font-semibold text-slate-100">Export panel — <code class="ds-code">ExportPanelCtx</code></h3>
+          <p class="mt-3 leading-relaxed text-slate-300">
+            An export panel collects config and pushes it up; it does <em>not</em> write files. The
+            host runs the exporter's <code class="ds-code">run</code> later with whatever config the panel
+            reported.
+          </p>
+          <ApiTable rows={[
+            { signature: "host: SlotHost", description: "Render-time reads + OS pickers (see below). The narrow read subset — write primitives fire later, in run." },
+            { signature: "shared: { targetDir, preserveStructure }", description: "The host-level export inputs every mode shares." },
+            { signature: "setConfig(values, ready): void", description: "Report the panel's collected config and whether it's valid. Call it whenever inputs change; the host's Export button enables on ready." },
+          ]} />
+          <CodeBlock lang="tsx">{`import { defineExportPanel, type ExportPanelCtx } from "${sdk}";
+import { Stack, TextInput } from "${sdk}/ui";
+import { useEffect, useState } from "react";
+
+export default defineExportPanel(function Panel({ ctx }: { ctx: ExportPanelCtx }) {
+  const [subDir, setSubDir] = useState("exported");
+  useEffect(() => ctx.setConfig({ subDir }, subDir.length > 0), [ctx, subDir]);
+  return (
+    <Stack gap={12}>
+      <TextInput value={subDir} onChange={(e) => setSubDir(e.currentTarget.value)} />
+    </Stack>
+  );
+});`}</CodeBlock>
+
+          <h3 class="mt-8 text-lg font-semibold text-slate-100">Import panel — <code class="ds-code">ImportPanelCtx</code></h3>
+          <ApiTable rows={[
+            { signature: "host: SlotHost", description: "Same render-time read + picker surface as the export panel." },
+            { signature: "commit(entries): Promise<void>", description: "Hand SeedEntryInput[] to the host. It merges them into the catalog and refreshes the grid. Rejects on failure — handle it." },
+            { signature: "close(): void", description: "Close the import drawer (typically after a successful commit)." },
+          ]} />
+
+          <h3 class="mt-8 text-lg font-semibold text-slate-100">The render-time host — <code class="ds-code">SlotHost</code></h3>
+          <p class="mt-3 leading-relaxed text-slate-300">
+            Both panel contexts expose the same narrow <code class="ds-code">host</code>: reads and pickers
+            only. The gated write/export primitives are deliberately absent during render — they fire at
+            run/commit, host-driven.
+          </p>
+          <ApiTable rows={[
+            { signature: "getSelectedAssets(): AssetView[]", description: "The currently selected catalog assets." },
+            { signature: "getAsset(id): AssetView | undefined", description: "Look up one asset by id." },
+            { signature: "pickDirectory(): Promise<string | null>", description: "Open the OS folder picker; null if cancelled." },
+            { signature: "pickSaveFile(defaultName): Promise<string | null>", description: "Open the OS save-file dialog; null if cancelled." },
+          ]} />
+
+          <h3 class="mt-8 text-lg font-semibold text-slate-100">Declarative fields (no-code path)</h3>
+          <p class="mt-3 leading-relaxed text-slate-300">
+            If a plugin needs only simple inputs, it can skip a custom panel and declare
+            <code class="ds-code">fields</code> in the manifest. The host renders each with the matching
+            primitive and passes the collected values into <code class="ds-code">config</code>.
+          </p>
+          <CodeBlock lang="json">{`"fields": [
+  { "key": "subDir", "type": "text", "label": "Subfolder", "default": "exported" },
+  { "key": "merge", "type": "checkbox", "label": "Merge into one file", "default": true },
+  { "key": "target", "type": "directory", "label": "Output folder", "required": true }
+]`}</CodeBlock>
+          <p class="leading-relaxed text-slate-300">
+            Field types: <code class="ds-code">text</code>, <code class="ds-code">checkbox</code>,
+            <code class="ds-code">select</code>, <code class="ds-code">directory</code>,
+            <code class="ds-code">saveFile</code>. A custom panel always wins over fields when both are present.
+          </p>
+        </section>
+
+        <!-- HOST API ------------------------------------------------------- -->
+        <section id="host-api" class="mt-14 scroll-mt-8">
+          <h2 class="text-2xl font-bold tracking-tight">Host API reference</h2>
+          <p class="mt-4 leading-relaxed text-slate-300">
+            <code class="ds-code">ctx.host</code> (an <code class="ds-code">HostApi</code>) is what an exporter's
+            <code class="ds-code">run</code> uses to read the catalog and invoke the host's native glTF/GLB
+            primitives. The primitive half is gated by the <code class="ds-code">rustExport</code> permission;
+            calling a gated method without the grant throws.
+          </p>
+          <ApiTable rows={[
+            { signature: "getSelectedAssets(): AssetView[]", description: "The live selection (same as the assets argument to run)." },
+            { signature: "getAsset(id): AssetView | undefined", description: "Look up one asset by id." },
+            { signature: "getParsedGltf(id): Promise<unknown>", description: "The asset's parsed glTF JSON document, for inspection or transformation." },
+            { signature: "getAssetUrls(id): Promise<{ gltf, bin, textures }>", description: "Loadable URLs for the asset's files (e.g. to fetch bytes in JS)." },
+            { signature: "assembleGlb(id): Promise<Uint8Array>", description: "Bake the asset into a single self-contained binary .glb.", perm: "rustExport" },
+            { signature: "performCopy(id, targetDir, stem, preserveStructure): Promise<string[]>", description: "Write a loose copy (.gltf + .bin + textures) under targetDir; returns the relative paths written.", perm: "rustExport" },
+            { signature: "transcodeImage(fileName, bytes): Promise<{ mime, bytes }>", description: "Transcode an image through the host (e.g. normalize texture formats).", perm: "rustExport" },
+            { signature: "placerMerge(libraryJsonPath, subDirRes, assets): Promise<void>", description: "Godot-specific: create or merge an asset_library.json for the asset_placer addon.", perm: "rustExport" },
+          ]} />
+        </section>
+
+        <!-- FS API --------------------------------------------------------- -->
+        <section id="fs-api" class="mt-14 scroll-mt-8">
+          <h2 class="text-2xl font-bold tracking-tight">Filesystem API</h2>
+          <p class="mt-4 leading-relaxed text-slate-300">
+            <code class="ds-code">ctx.fs</code> (an <code class="ds-code">FsApi</code>) is the jailed write
+            surface. Writes go through an <code class="ds-code">authorizedRoot</code> — the user-picked target
+            directory or save-file the run is scoped to — and any path escaping that root is rejected by the
+            host. Writes are gated by the <code class="ds-code">fsWrite</code> permission.
+          </p>
+          <ApiTable rows={[
+            { signature: "writeBytes(authorizedRoot, path, bytes): Promise<void>", description: "Write binary data at path (relative to or inside authorizedRoot).", perm: "fsWrite" },
+            { signature: "writeText(authorizedRoot, path, text): Promise<void>", description: "Write a UTF-8 text file.", perm: "fsWrite" },
+            { signature: "writeJson(authorizedRoot, path, value): Promise<void>", description: "Serialize value as pretty JSON and write it.", perm: "fsWrite" },
+            { signature: "pickDirectory(): Promise<string | null>", description: "Open the OS folder picker." },
+            { signature: "pickSaveFile(defaultName): Promise<string | null>", description: "Open the OS save-file dialog." },
+          ]} />
+        </section>
+
+        <!-- REPORT --------------------------------------------------------- -->
+        <section id="report" class="mt-14 scroll-mt-8">
+          <h2 class="text-2xl font-bold tracking-tight">Reports</h2>
+          <p class="mt-4 leading-relaxed text-slate-300">
+            <code class="ds-code">ctx.report</code> accumulates the run's outcome. Record each written file,
+            skip, or warning as you go, then return <code class="ds-code">report.done()</code> — the host shows
+            the summary.
+          </p>
+          <ApiTable rows={[
+            { signature: "write(path): void", description: "Record a file you wrote." },
+            { signature: "skip(message): void", description: "Record something intentionally skipped." },
+            { signature: "warn(message): void", description: "Record a non-fatal warning." },
+            { signature: "done(): ExportReport", description: "Finalize and return { written, skipped, warnings }." },
+          ]} />
+        </section>
+
+        <!-- TYPES ---------------------------------------------------------- -->
+        <section id="types" class="mt-14 scroll-mt-8">
+          <h2 class="text-2xl font-bold tracking-tight">Asset & data types</h2>
+          <p class="mt-4 leading-relaxed text-slate-300">
+            The read-only view of an asset a plugin sees:
+          </p>
+          <CodeBlock lang="ts">{`interface AssetView {
+  id: string;
+  name: string;
+  fileName: string;
+  relPath: string;
+  pack: string;
+  category: string;
+  fileset: { gltf: string; bin: string; textures: string[] };
+  user: { favorite: boolean; tags: string[] };
+  animation: { clipCount: number; clipNames: string[] };
+}`}</CodeBlock>
+          <p class="leading-relaxed text-slate-300">What an importer produces, and an export run returns:</p>
+          <CodeBlock lang="ts">{`interface SeedEntryInput { id: string; pack: string; category: string; file: string; }
+
+interface ExportReport { written: string[]; skipped: string[]; warnings: string[]; }`}</CodeBlock>
+        </section>
+
+        <!-- PERMISSIONS ---------------------------------------------------- -->
+        <section id="permissions" class="mt-14 scroll-mt-8">
+          <h2 class="text-2xl font-bold tracking-tight">Permissions & security</h2>
+          <p class="mt-4 leading-relaxed text-slate-300">
+            The manifest's <code class="ds-code">permissions</code> gate the host API. A method whose
+            capability isn't granted is replaced with a stub that throws — so the manifest is the
+            <em>advisory</em> boundary.
+          </p>
+          <ApiTable rows={[
+            { signature: "rustExport", description: "Allows the native glTF/GLB primitives on ctx.host (assembleGlb, performCopy, transcodeImage, placerMerge)." },
+            { signature: "fsWrite", description: "Allows ctx.fs.write* (always jailed to the run's authorized root)." },
+            { signature: "fsRead", description: "Allows reads through the host." },
+          ]} />
+          <p class="leading-relaxed text-slate-300">
+            The <strong>real</strong> boundary is enforced in the host's Rust layer: every write is
+            path-jailed to the run's authorized root and rejected if it escapes (no
+            <code class="ds-code">..</code>, no absolute path outside the root), and plugin source is served
+            from a protocol jailed to the plugins directory. A plugin cannot write outside the folder the
+            user picked for the run, regardless of what its manifest claims.
+          </p>
+        </section>
+
+        <!-- RUNTIME -------------------------------------------------------- -->
+        <section id="runtime" class="mt-14 scroll-mt-8">
+          <h2 class="text-2xl font-bold tracking-tight">How loading works</h2>
+          <p class="mt-4 leading-relaxed text-slate-300">
+            Plugin modules load from a custom <code class="ds-code">plugin://</code> protocol origin served by
+            the host (jailed to the plugins directory). Because it's a real origin — not a
+            <code class="ds-code">blob:</code> URL — it's subject to the document's import map, which is the
+            mechanism that lets your bare imports resolve to the host's shared chunks:
+          </p>
+          <CodeBlock lang="ts">{`import * as THREE from "three";              // → the host's one three instance
+import { useState } from "react";            // → the host's one React
+import { defineExporter } from "${sdk}";       // → the host's SDK
+import { Button } from "${sdk}/ui";            // → the host's design system`}</CodeBlock>
+          <p class="leading-relaxed text-slate-300">
+            So you never bundle <code class="ds-code">three</code>, React, or the SDK into your plugin — you
+            import them by bare specifier and the host supplies the single shared instance. This is what
+            keeps r3f's <code class="ds-code">instanceof</code> checks working and React hooks valid across the
+            app/plugin boundary.
+          </p>
+        </section>
+
+        <!-- DEV ------------------------------------------------------------ -->
+        <section id="dev" class="mt-14 scroll-mt-8">
+          <h2 class="text-2xl font-bold tracking-tight">Developing a plugin</h2>
+          <ol class="mt-4 list-decimal space-y-3 pl-5 leading-relaxed text-slate-300 marker:text-slate-500">
+            <li>
+              Create a folder with a <code class="ds-code">manifest.json</code> and a TypeScript entry.
+              Install <code class="ds-code">{sdk}</code> for types.
+            </li>
+            <li>
+              Build your entry (and any panel) to the <code class="ds-code">dist/</code> paths your manifest
+              points at. Keep bare imports — do not bundle <code class="ds-code">three</code>, React, or the SDK.
+            </li>
+            <li>
+              Drop the folder into the app's <code class="ds-code">plugins/</code> directory (or, in a repo
+              checkout, link it in). The app discovers it at startup; a load failure shows in the drawer with
+              its reason rather than breaking the app.
+            </li>
+            <li>
+              Open the export or import drawer to exercise it. Iterate; reload to pick up a rebuild.
+            </li>
+          </ol>
+          <p class="mt-6 leading-relaxed text-slate-300">
+            The bundled <strong>Godot asset_placer</strong> exporter is the reference implementation — a
+            full exporter with a custom panel — and the best worked example to read alongside this page.
+          </p>
+        </section>
+
+        <div class="mt-16 border-t border-hairline pt-8">
+          <a href={import.meta.env.BASE_URL} class="text-sm text-accent-soft hover:text-white transition-colors">← Back to overview</a>
+        </div>
+      </div>
+    </div>
+  </main>
+
+  <Footer />
+</Layout>
+
+<style is:global>
+  /* Inline-code styling for the docs prose. Matches the ds token palette. */
+  .ds-code {
+    font-family: var(--font-mono);
+    font-size: 0.85em;
+    padding: 0.1em 0.4em;
+    border-radius: 0.3em;
+    background: var(--color-slate-850);
+    color: var(--color-accent-soft);
+    white-space: nowrap;
+  }
+</style>

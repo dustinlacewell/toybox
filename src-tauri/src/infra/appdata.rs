@@ -24,6 +24,13 @@ pub fn thumb_dir(app: &AppHandle) -> AppResult<PathBuf> {
     Ok(app_data_dir(app)?.join("thumbs"))
 }
 
+/// The plugins directory: `<app-data>/plugins`. Each subdirectory is one
+/// installed plugin (`<id>/manifest.json` + entry module). The `plugin://`
+/// protocol and the loader's source reads are jailed to this root.
+pub fn plugins_dir(app: &AppHandle) -> AppResult<PathBuf> {
+    Ok(app_data_dir(app)?.join("plugins"))
+}
+
 /// The PNG path for one asset's thumbnail. The asset id contains `uid://` and
 /// other unsafe characters, so it is sanitized into a flat filename.
 pub fn thumb_path(app: &AppHandle, asset_id: &str) -> AppResult<PathBuf> {

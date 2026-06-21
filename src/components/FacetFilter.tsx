@@ -5,8 +5,7 @@
 
 import type { Asset, Category, Pack, PackMeta } from "../domain/catalog";
 import { categoryCounts, packCounts, type Filter } from "../domain/facets";
-import { Checkbox } from "../ds/Checkbox";
-import { Button } from "../ds/Button";
+import { Checkbox, Button } from "@ldlework/toybox-sdk/ui";
 import "./FacetFilter.css";
 
 interface Props {

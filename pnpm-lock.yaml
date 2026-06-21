@@ -8,6 +8,9 @@ importers:
 
   .:
     dependencies:
+      '@ldlework/toybox-sdk':
+        specifier: workspace:*
+        version: link:packages/toybox-sdk
       '@react-three/drei':
         specifier: ^10.7.7
         version: 10.7.7(@react-three/fiber@9.6.1(@types/react@19.2.16)(react-dom@19.2.7(react@19.2.7))(react@19.2.7)(three@0.184.0))(@types/react@19.2.16)(@types/three@0.184.1)(react-dom@19.2.7(react@19.2.7))(react@19.2.7)(three@0.184.0)
@@ -57,12 +60,49 @@ importers:
       '@vitejs/plugin-react':
         specifier: ^4.6.0
         version: 4.7.0(vite@7.3.5)
+      cjs-module-lexer:
+        specifier: ^2.2.0
+        version: 2.2.0
       typescript:
         specifier: ~5.8.3
         version: 5.8.3
       vite:
         specifier: ^7.0.4
         version: 7.3.5
+      vite-import-maps:
+        specifier: ^0.2.6
+        version: 0.2.6(rollup@4.61.1)(vite@7.3.5)
+
+  packages/toybox-sdk:
+    dependencies:
+      react:
+        specifier: ^19
+        version: 19.2.7
+      react-dom:
+        specifier: ^19
+        version: 19.2.7(react@19.2.7)
+    devDependencies:
+      '@types/react':
+        specifier: ^19.1.8
+        version: 19.2.16
+      lucide-react:
+        specifier: ^1.17.0
+        version: 1.17.0(react@19.2.7)
+      typescript:
+        specifier: ~5.8.3
+        version: 5.8.3
+
+  plugins/com.toybox.placer:
+    devDependencies:
+      '@ldlework/toybox-sdk':
+        specifier: workspace:*
+        version: link:../../packages/toybox-sdk
+      '@types/react':
+        specifier: ^19.1.8
+        version: 19.2.16
+      typescript:
+        specifier: ~5.8.3
+        version: 5.8.3
 
 packages:
 
@@ -677,6 +717,9 @@ packages:
   caniuse-lite@1.0.30001793:
     resolution: {integrity: sha512-iwSsYWaCOoh26cV8NwNRViHlrfUvYsHDfRVcbtmw0Kg6PJIZZXwMkj1442FYLBGkeUf1juAsU3DTfxW579mrPA==}
 
+  cjs-module-lexer@2.2.0:
+    resolution: {integrity: sha512-4bHTS2YuzUvtoLjdy+98ykbNB5jS0+07EvFNXerqZQJ89F7DI6ET7OQo/HJuW6K0aVsKA9hj9/RVb2kQVOrPDQ==}
+
   convert-source-map@2.0.0:
     resolution: {integrity: sha512-Kvp459HrV2FEJ1CAsi1Ku+MY3kasH19TFykTz2xWmMeq6bk2NU3XXvfJ+Q61m0xktWwt+1HSYf3JZsTms3aRJg==}
 
@@ -953,6 +996,20 @@ packages:
   utility-types@3.11.0:
     resolution: {integrity: sha512-6Z7Ma2aVEWisaL6TvBCy7P8rm2LQoPv6dJ7ecIaIixHcwfbJ0x7mWdbcwlIM5IGQxPZSFYeqRCqlOOeKoJYMkw==}
     engines: {node: '>= 4'}
+
+  vite-import-maps@0.2.6:
+    resolution: {integrity: sha512-iAp0or+fWK0BerAKu8QgfCkYBAOzGChEhq4LoKbldu6entT9PWVIPArTnKnaCGMmQAddEu9UPMOZQhAASPCmRA==}
+    peerDependencies:
+      rolldown: '>=1.0.0-rc.0'
+      rollup: '>=4.0.0'
+      vite: '>=6.0.0'
+    peerDependenciesMeta:
+      rolldown:
+        optional: true
+      rollup:
+        optional: true
+      vite:
+        optional: true
 
   vite@7.3.5:
     resolution: {integrity: sha512-KuOaNhcnGFN2zIPGA7wRmzF+lJA1sea7rHq17aiJ++9lzY1WWG6Jpwqwe1KNbRVPIqHmr8GLYx7jbrQcN/7/ww==}
@@ -1558,6 +1615,8 @@ snapshots:
 
   caniuse-lite@1.0.30001793: {}
 
+  cjs-module-lexer@2.2.0: {}
+
   convert-source-map@2.0.0: {}
 
   cross-env@7.0.3:
@@ -1828,6 +1887,11 @@ snapshots:
       react: 19.2.7
 
   utility-types@3.11.0: {}
+
+  vite-import-maps@0.2.6(rollup@4.61.1)(vite@7.3.5):
+    optionalDependencies:
+      rollup: 4.61.1
+      vite: 7.3.5
 
   vite@7.3.5:
     dependencies:

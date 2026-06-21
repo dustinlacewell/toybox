@@ -48,17 +48,21 @@ fn parse_one(a: &Value) -> AppResult<SeedEntry> {
     let id = str_field(a, "id")?;
     let pack = str_field(a, "pack")?;
     let category = str_field(a, "category")?;
-    let file_name = str_field(a, "file")?;
+    let file = str_field(a, "file")?;
+    Ok(entry_from_parts(id, pack, category, file))
+}
 
-    let name = file_name
-        .strip_suffix(".gltf")
-        .unwrap_or(&file_name)
-        .to_string();
+/// Build a `SeedEntry` from its four declared fields, reconstructing the
+/// library-relative `gltf`/`bin` paths as `library/<pack>/<category>/<file>`.
+/// Shared by `catalog.json` seeding (`parse_one`) and plugin-driven import
+/// (`commands::import`) so both produce identical entries.
+pub fn entry_from_parts(id: String, pack: String, category: String, file: String) -> SeedEntry {
+    let name = file.strip_suffix(".gltf").unwrap_or(&file).to_string();
     let rel_dir = format!("library/{pack}/{category}");
-    let gltf_rel = format!("{rel_dir}/{file_name}");
+    let gltf_rel = format!("{rel_dir}/{file}");
     let bin_rel = format!("{rel_dir}/{name}.bin");
 
-    Ok(SeedEntry { id, name, file_name, gltf_rel, bin_rel, pack, category })
+    SeedEntry { id, name, file_name: file, gltf_rel, bin_rel, pack, category }
 }
 
 /// Assemble a full `Asset` from a seed entry plus its resolved texture list and

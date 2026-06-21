@@ -1,57 +1,110 @@
 /**
- * Export configuration + run panel. Three intents: a folder of merged .glb, a
- * folder of self-contained loose copies, or a one-way publish into a Godot
- * project's asset_placer library (which additionally writes/merges the addon's
- * asset_library.json). Shows the selected-asset count, the per-intent options,
- * then runs the export and surfaces the report.
+ * Export panel. Two built-in destinations — a folder of merged `.glb` or a
+ * folder of self-contained loose copies — plus any discovered exporter plugins,
+ * rendered side-by-side. Selecting a plugin surfaces its declarative config
+ * fields (the Godot asset_placer publish is now one such plugin, not a hardcoded
+ * mode). Shows the selected-asset count, the per-mode options, then runs the
+ * export and surfaces the report.
  */
 
-import { useState } from "react";
+import { useCallback, useMemo, useState } from "react";
 
-import { Drawer } from "../ds/Drawer";
-import { Button } from "../ds/Button";
-import { Checkbox } from "../ds/Checkbox";
-import { TextInput } from "../ds/TextInput";
-import { Stack } from "../ds/Stack";
-import { Spinner } from "../ds/Spinner";
+import { Drawer, Button, Checkbox, Stack, Spinner, Select } from "@ldlework/toybox-sdk/ui";
 import {
   exportCopy,
   exportGlb,
-  exportPlacer,
-  type PlacerFormat,
   type ExportReport as Report,
 } from "../services/tauriApi";
+import type { PluginConfig } from "@ldlework/toybox-sdk";
+import {
+  runExporter,
+  type LoadedExporter,
+  type PluginLoadError,
+} from "../services/pluginRegistry";
 import { pickDirectory } from "../services/pickDirectory";
-import { pickSaveFile } from "../services/pickSaveFile";
+import { ExportPanelHost } from "./plugin-ui/ExportPanelHost";
 import "./ExportDrawer.css";
-
-type Mode = "glb" | "copy" | "placer";
 
 interface Props {
   open: boolean;
   selectedIds: string[];
+  exporters: LoadedExporter[];
+  pluginErrors: PluginLoadError[];
   onClose: () => void;
 }
 
-const DEFAULT_SUB_DIR = "assets/exported";
+/** The active destination: a built-in mode or a discovered plugin. */
+type Selection =
+  | { kind: "native"; id: "glb" | "copy" }
+  | { kind: "plugin"; id: string };
 
-export function ExportDrawer({ open, selectedIds, onClose }: Props) {
-  const [mode, setMode] = useState<Mode>("glb");
+const NATIVE_MODES = [
+  {
+    id: "glb" as const,
+    title: "Folder of merged .glb (recommended)",
+    desc: "One self-contained binary file per asset, textures embedded. Lossless.",
+  },
+  {
+    id: "copy" as const,
+    title: "Folder of self-contained copies",
+    desc: "Loose .gltf + .bin + textures, paths rewritten. Shared textures deduped.",
+  },
+];
+
+export function ExportDrawer({ open, selectedIds, exporters, pluginErrors, onClose }: Props) {
+  const [selection, setSelection] = useState<Selection>({ kind: "native", id: "glb" });
   const [preserve, setPreserve] = useState(true);
   const [targetDir, setTargetDir] = useState<string | null>(null);
-  // Placer-only:
-  const [placerFormat, setPlacerFormat] = useState<PlacerFormat>("glb");
-  const [subDir, setSubDir] = useState(DEFAULT_SUB_DIR);
-  const [libraryJson, setLibraryJson] = useState<string | null>(null);
+  // Config + readiness pushed up by whichever export-config path renders (a
+  // plugin's custom panel, or the host's declarative fields).
+  const [panelConfig, setPanelConfig] = useState<Record<string, unknown>>({});
+  const [panelReady, setPanelReady] = useState(false);
 
   const [running, setRunning] = useState(false);
   const [report, setReport] = useState<Report | null>(null);
   const [error, setError] = useState<string | null>(null);
 
+  const activePlugin =
+    selection.kind === "plugin"
+      ? exporters.find((e) => e.manifest.id === selection.id)
+      : undefined;
+
+  // Stable so the panel's config-reporting effects don't re-fire each render.
+  const onPanelConfig = useCallback((values: Record<string, unknown>, ready: boolean) => {
+    setPanelConfig(values);
+    setPanelReady(ready);
+  }, []);
+
+  // Native modes + discovered exporters as one dropdown. Each option's value
+  // encodes its kind; the description for the selected mode shows beneath.
+  const options = useMemo(
+    () => [
+      ...NATIVE_MODES.map((m) => ({ value: `native:${m.id}`, label: m.title, desc: m.desc })),
+      ...exporters.map((e) => ({
+        value: `plugin:${e.manifest.id}`,
+        label: e.manifest.name,
+        desc: e.manifest.description ?? "",
+      })),
+    ],
+    [exporters],
+  );
+  const selectedValue =
+    selection.kind === "native" ? `native:${selection.id}` : `plugin:${selection.id}`;
+  const selectedDesc = options.find((o) => o.value === selectedValue)?.desc ?? "";
+
+  const onSelectMode = (value: string) => {
+    if (value.startsWith("native:")) {
+      setSelection({ kind: "native", id: value.slice(7) as "glb" | "copy" });
+    } else {
+      setSelection({ kind: "plugin", id: value.slice(7) });
+      setPanelReady(false);
+    }
+  };
+
   const ready =
     selectedIds.length > 0 &&
     !!targetDir &&
-    (mode !== "placer" || !!libraryJson);
+    (selection.kind === "native" || panelReady);
 
   const run = async () => {
     if (!targetDir) return;
@@ -59,7 +112,7 @@ export function ExportDrawer({ open, selectedIds, onClose }: Props) {
     setReport(null);
     setError(null);
     try {
-      setReport(await runExport());
+      setReport(await runSelected(targetDir));
     } catch (e) {
       setError(String(e));
     } finally {
@@ -67,19 +120,18 @@ export function ExportDrawer({ open, selectedIds, onClose }: Props) {
     }
   };
 
-  const runExport = (): Promise<Report> => {
-    if (mode === "placer") {
-      return exportPlacer({
-        assetIds: selectedIds,
-        targetDir: targetDir!,
-        subDir,
-        preserveStructure: preserve,
-        format: placerFormat,
-        libraryJsonPath: libraryJson!,
-      });
+  const runSelected = (target: string): Promise<Report> => {
+    if (selection.kind === "native") {
+      const fn = selection.id === "glb" ? exportGlb : exportCopy;
+      return fn(selectedIds, target, preserve);
     }
-    const fn = mode === "glb" ? exportGlb : exportCopy;
-    return fn(selectedIds, targetDir!, preserve);
+    if (!activePlugin) return Promise.reject(new Error("plugin not loaded"));
+    const config: PluginConfig = {
+      ...panelConfig,
+      targetDir: target,
+      preserveStructure: preserve,
+    };
+    return runExporter(activePlugin, selectedIds, config, new AbortController().signal);
   };
 
   return (
@@ -92,36 +144,21 @@ export function ExportDrawer({ open, selectedIds, onClose }: Props) {
 
         <section className="export__section">
           <div className="export__label">Destination</div>
-          <ModeOption
-            active={mode === "glb"}
-            onClick={() => setMode("glb")}
-            title="Folder of merged .glb (recommended)"
-            desc="One self-contained binary file per asset, textures embedded. Lossless."
-          />
-          <ModeOption
-            active={mode === "copy"}
-            onClick={() => setMode("copy")}
-            title="Folder of self-contained copies"
-            desc="Loose .gltf + .bin + textures, paths rewritten. Shared textures deduped."
-          />
-          <ModeOption
-            active={mode === "placer"}
-            onClick={() => setMode("placer")}
-            title="asset_placer library (Godot)"
-            desc="Publish into a Godot project and create/merge its asset_library.json so the dock sees them."
-          />
+          <Select value={selectedValue} options={options} onChange={onSelectMode} />
+          {selectedDesc && <div className="export__hint">{selectedDesc}</div>}
+          {pluginErrors.map((err) => (
+            <div className="export__error" key={err.manifest.id}>
+              Plugin “{err.manifest.name || err.manifest.id}” failed to load: {err.error}
+            </div>
+          ))}
         </section>
 
-        {mode === "placer" && (
-          <PlacerOptions
-            format={placerFormat}
-            onFormat={setPlacerFormat}
-            subDir={subDir}
-            onSubDir={setSubDir}
-            libraryJson={libraryJson}
-            onPickLibraryJson={async () =>
-              setLibraryJson((await pickSaveFile("asset_library.json")) ?? libraryJson)
-            }
+        {activePlugin && (
+          <ExportPanelHost
+            key={activePlugin.manifest.id}
+            plugin={activePlugin}
+            shared={{ targetDir, preserveStructure: preserve }}
+            onConfig={onPanelConfig}
           />
         )}
 
@@ -135,7 +172,7 @@ export function ExportDrawer({ open, selectedIds, onClose }: Props) {
 
         <section className="export__section">
           <div className="export__label">
-            {mode === "placer" ? "Godot project folder" : "Target folder"}
+            {selection.kind === "plugin" ? "Target folder (project root)" : "Target folder"}
           </div>
           <Stack dir="row" gap={8} align="center">
             <Button onClick={async () => setTargetDir(await pickDirectory())}>
@@ -158,85 +195,6 @@ export function ExportDrawer({ open, selectedIds, onClose }: Props) {
         {report && <ReportView report={report} />}
       </div>
     </Drawer>
-  );
-}
-
-/** Options unique to the asset_placer publish: per-file format, target subfolder,
- *  and the asset_library.json to create or merge. */
-function PlacerOptions({
-  format,
-  onFormat,
-  subDir,
-  onSubDir,
-  libraryJson,
-  onPickLibraryJson,
-}: {
-  format: PlacerFormat;
-  onFormat: (f: PlacerFormat) => void;
-  subDir: string;
-  onSubDir: (s: string) => void;
-  libraryJson: string | null;
-  onPickLibraryJson: () => void;
-}) {
-  return (
-    <>
-      <section className="export__section">
-        <div className="export__label">Per-asset file format</div>
-        <ModeOption
-          active={format === "glb"}
-          onClick={() => onFormat("glb")}
-          title="Merged .glb"
-          desc="One embedded binary per asset. Cleanest to drop into a project."
-        />
-        <ModeOption
-          active={format === "copy"}
-          onClick={() => onFormat("copy")}
-          title="Loose .gltf copy"
-          desc="Editable .gltf + .bin + textures in-project."
-        />
-      </section>
-
-      <section className="export__section">
-        <div className="export__label">Project subfolder</div>
-        <TextInput
-          value={subDir}
-          onChange={(e) => onSubDir(e.currentTarget.value)}
-          placeholder="assets/exported"
-        />
-        <div className="export__hint">
-          Relative to the project; also the <code>res://</code> prefix for each asset's id.
-        </div>
-      </section>
-
-      <section className="export__section">
-        <div className="export__label">asset_library.json</div>
-        <Stack dir="row" gap={8} align="center">
-          <Button onClick={onPickLibraryJson}>Choose file…</Button>
-          <span className="export__path" title={libraryJson ?? ""}>
-            {libraryJson ?? "No file chosen — create or merge"}
-          </span>
-        </Stack>
-      </section>
-    </>
-  );
-}
-
-function ModeOption({
-  active,
-  onClick,
-  title,
-  desc,
-}: {
-  active: boolean;
-  onClick: () => void;
-  title: string;
-  desc: string;
-}) {
-  return (
-    <button className={`export__mode ${active ? "is-active" : ""}`} onClick={onClick}>
-      <div className="export__mode-title">{title}</div>
-      <div className="export__mode-desc">{desc}</div>
-    </button>
   );
 }
 

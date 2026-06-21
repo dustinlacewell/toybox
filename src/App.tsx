@@ -1,5 +1,5 @@
 import { LibraryView } from "./views/LibraryView";
-import { Stack } from "./ds/Stack";
+import { Stack } from "@ldlework/toybox-sdk/ui";
 import "./App.css";
 
 function App() {

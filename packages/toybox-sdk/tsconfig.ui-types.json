@@ -1,0 +1,22 @@
+{
+  // Generates the types-only `/ui` entry. The design system lives in the app
+  // (src/ds); plugin authors only need its *types* to type-check panels, so we
+  // emit declarations from src/ds into dist/ui/ — no JS, no CSS. The runtime
+  // host import map (vite.config.ts) is what actually wires plugins to the live
+  // primitives. css.d.ts supplies the `*.css` module shim for src/ds's
+  // side-effect stylesheet imports.
+  "compilerOptions": {
+    "target": "ES2022",
+    "module": "ESNext",
+    "moduleResolution": "bundler",
+    "lib": ["ES2022", "DOM", "DOM.Iterable"],
+    "jsx": "react-jsx",
+    "strict": true,
+    "skipLibCheck": true,
+    "declaration": true,
+    "emitDeclarationOnly": true,
+    "outDir": "dist/ui",
+    "rootDir": "../../src/ds"
+  },
+  "include": ["../../src/ds"]
+}

@@ -1,0 +1,28 @@
+{
+  "name": "@ldlework/toybox-sdk",
+  "version": "0.1.0",
+  "description": "Plugin authoring SDK for Toybox — the plugin contract (types + define* helpers) plus types-only declarations for the host's design-system primitives.",
+  "type": "module",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "default": "./dist/index.js"
+    },
+    "./ui": {
+      "types": "./dist/ui/index.d.ts"
+    }
+  },
+  "files": ["dist", "src"],
+  "scripts": {
+    "build": "tsc -p tsconfig.json && tsc -p tsconfig.ui-types.json"
+  },
+  "peerDependencies": {
+    "react": "^19",
+    "react-dom": "^19"
+  },
+  "devDependencies": {
+    "@types/react": "^19.1.8",
+    "lucide-react": "^1.17.0",
+    "typescript": "~5.8.3"
+  }
+}

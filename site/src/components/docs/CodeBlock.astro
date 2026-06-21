@@ -1,0 +1,23 @@
+---
+/**
+ * A styled code block for the docs pages. Content goes in the default slot as
+ * raw text (already-escaped by Astro). `lang` is shown as a small corner label;
+ * `title` (optional) labels a file. No syntax highlighting — the palette and
+ * mono font carry it, matching the rest of the site.
+ */
+interface Props {
+  lang?: string;
+  title?: string;
+}
+const { lang, title } = Astro.props;
+---
+
+<div class="group relative my-4 overflow-hidden rounded-lg border border-hairline bg-slate-900/80">
+  {(title || lang) && (
+    <div class="flex items-center justify-between border-b border-hairline bg-slate-850/60 px-4 py-2">
+      <span class="font-mono text-xs text-slate-400">{title}</span>
+      {lang && <span class="font-mono text-[10px] uppercase tracking-widest text-slate-500">{lang}</span>}
+    </div>
+  )}
+  <pre class="overflow-x-auto p-4 text-[13px] leading-relaxed text-slate-200"><code class="font-mono"><slot /></code></pre>
+</div>

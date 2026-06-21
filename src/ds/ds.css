@@ -151,3 +151,26 @@
   flex-direction: column;
   overflow: auto;
 }
+
+.ds-select {
+  padding: var(--space-2) var(--space-3);
+  padding-right: calc(var(--space-3) + 16px);
+  background: var(--bg-1);
+  color: var(--text-0);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-1);
+  font-size: var(--fs-md);
+  font-family: inherit;
+  width: 100%;
+  cursor: pointer;
+  appearance: none;
+  -webkit-appearance: none;
+  /* chevron */
+  background-image: url("data:image/svg+xml;charset=US-ASCII,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20width%3D%2210%22%20height%3D%226%22%20viewBox%3D%220%200%2010%206%22%3E%3Cpath%20fill%3D%22none%22%20stroke%3D%22%238a8a8a%22%20stroke-width%3D%221.5%22%20d%3D%22M1%201l4%204%204-4%22%2F%3E%3C%2Fsvg%3E");
+  background-repeat: no-repeat;
+  background-position: right var(--space-3) center;
+}
+.ds-select:focus {
+  outline: none;
+  border-color: var(--accent);
+}

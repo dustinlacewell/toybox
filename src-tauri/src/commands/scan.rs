@@ -7,12 +7,13 @@ use std::path::Path;
 use tauri::AppHandle;
 
 use crate::config;
-use crate::domain::catalog_model::{AnimationMeta, Catalog};
-use crate::domain::{gltf_parse, merge, paths, seed};
+use crate::domain::catalog_model::Catalog;
+use crate::domain::{merge, paths, seed};
 use crate::error::{AppError, AppResult};
 use crate::infra::fsio;
 
 use super::catalog::{load_catalog_inner, save_catalog_inner};
+use super::catalog_build::build_catalog;
 
 #[tauri::command]
 pub async fn scan_library(app: AppHandle, force_reseed: bool) -> AppResult<Catalog> {
@@ -29,8 +30,8 @@ pub async fn scan_library(app: AppHandle, force_reseed: bool) -> AppResult<Catal
     Ok(result)
 }
 
-/// Read `catalog.json`, then resolve each asset's textures by parsing its
-/// glTF. Produces a catalog with default `user`/`thumb` metadata.
+/// Read `catalog.json` and assemble the catalog from its entries (textures and
+/// animation resolved per asset). Produces default `user`/`thumb` metadata.
 fn build_catalog_from_seed() -> AppResult<Catalog> {
     let root = config::LIBRARY_ROOT;
     let seed_abs = paths::abs_under_root(root, config::SEED_REL);
@@ -38,58 +39,7 @@ fn build_catalog_from_seed() -> AppResult<Catalog> {
     let seed_doc = serde_json::from_str(&seed_text)?;
 
     let entries = seed::parse_seed_entries(&seed_doc)?;
-
-    let mut assets = Vec::with_capacity(entries.len());
-    for entry in entries {
-        let facets = read_asset_facets(root, &entry.gltf_rel)?;
-        assets.push(seed::build_asset(entry, facets.textures, facets.animation));
-    }
-
-    Ok(Catalog {
-        schema_version: config::SCHEMA_VERSION,
-        library_root: root.to_string(),
-        assets,
-    })
-}
-
-/// Facts read from one glTF: its texture set and animation clips.
-struct AssetFacets {
-    textures: Vec<String>,
-    animation: AnimationMeta,
-}
-
-/// Parse one glTF once, returning its unique deduped texture paths (library-
-/// relative) and its real animation clips.
-fn read_asset_facets(root: &str, gltf_rel: &str) -> AppResult<AssetFacets> {
-    let gltf_abs = paths::abs_under_root(root, gltf_rel);
-    let text = fsio::read_text(&gltf_abs)?;
-    let doc = gltf_parse::parse(&text)?;
-
-    let rel_dir = parent_rel(gltf_rel);
-    let mut textures: Vec<String> = Vec::new();
-    for image in gltf_parse::image_uris(&doc) {
-        let tex_rel = paths::resolve_uri_rel(&rel_dir, &image.uri);
-        if !textures.contains(&tex_rel) {
-            textures.push(tex_rel);
-        }
-    }
-
-    let clip_names = gltf_parse::animation_clip_names(&doc);
-    let animation = AnimationMeta {
-        clip_count: clip_names.len() as u32,
-        clip_names,
-    };
-
-    Ok(AssetFacets { textures, animation })
-}
-
-/// The directory portion of a library-relative path.
-fn parent_rel(rel: &str) -> String {
-    Path::new(rel)
-        .parent()
-        .map(|p| p.to_string_lossy().replace('\\', "/"))
-        .ok_or(())
-        .unwrap_or_default()
+    build_catalog(entries)
 }
 
 /// Surface a clear error if the library root is missing entirely.
