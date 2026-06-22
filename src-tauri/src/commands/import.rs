@@ -15,6 +15,7 @@ use crate::domain::catalog_model::Catalog;
 use crate::domain::merge;
 use crate::domain::seed::entry_from_parts;
 use crate::error::AppResult;
+use crate::infra::library;
 
 use super::catalog::{load_catalog_inner, save_catalog_inner};
 use super::catalog_build::build_catalog;
@@ -35,11 +36,12 @@ pub async fn merge_seed_entries(
     app: AppHandle,
     entries: Vec<SeedEntryInputDto>,
 ) -> AppResult<Catalog> {
+    let root = library::resolve(&app)?;
     let seed_entries = entries
         .into_iter()
         .map(|e| entry_from_parts(e.id, e.pack, e.category, e.file))
         .collect();
-    let fresh = build_catalog(seed_entries)?;
+    let fresh = build_catalog(&root.to_string_lossy(), seed_entries)?;
 
     let result = match load_catalog_inner(&app)? {
         Some(prior) => merge::merge_preserving_user(&prior, fresh),

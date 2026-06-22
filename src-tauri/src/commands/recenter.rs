@@ -6,11 +6,10 @@
 
 use tauri::AppHandle;
 
-use crate::config;
 use crate::domain::gltf_origin::{recenter, Aabb, Align, Axis};
 use crate::domain::{gltf_parse, paths};
 use crate::error::{AppError, AppResult};
-use crate::infra::{appdata, fsio};
+use crate::infra::{appdata, fsio, library};
 
 use super::catalog::load_catalog_inner;
 
@@ -31,8 +30,8 @@ pub async fn recenter_asset(
         .find(|a| a.id == asset_id)
         .ok_or_else(|| AppError::msg(format!("asset not found: {asset_id}")))?;
 
-    let root = config::LIBRARY_ROOT;
-    let gltf_abs = paths::abs_under_root(root, &asset.fileset.gltf);
+    let root = library::resolve(&app)?;
+    let gltf_abs = paths::abs_under_root(&root.to_string_lossy(), &asset.fileset.gltf);
 
     let text = fsio::read_text(&gltf_abs)?;
     let doc = gltf_parse::parse(&text)?;

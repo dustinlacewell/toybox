@@ -42,6 +42,12 @@ export const saveCatalog = async (_catalog: Catalog): Promise<void> => {};
 
 export const libraryRoot = async (): Promise<string> => "polygon_prototype";
 
+// The demo's library is the bundled fixture — always "configured", so the
+// first-run picker never appears and re-pointing is a no-op.
+export const getLibraryRoot = async (): Promise<string | null> => "polygon_prototype";
+
+export const setLibraryRoot = async (_path: string): Promise<void> => {};
+
 export const loadPacks = async (): Promise<PackMeta[]> => DEMO_PACKS;
 
 export const resolveAssetPath = async (relPath: string): Promise<string> => relPath;

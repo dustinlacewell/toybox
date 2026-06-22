@@ -2,3 +2,5 @@
 
 pub mod appdata;
 pub mod fsio;
+pub mod library;
+pub mod settings;

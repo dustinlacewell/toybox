@@ -19,6 +19,11 @@ pub fn catalog_path(app: &AppHandle) -> AppResult<PathBuf> {
     Ok(app_data_dir(app)?.join("catalog.json"))
 }
 
+/// The settings JSON path: `<app-data>/settings.json` (holds the library root).
+pub fn settings_path(app: &AppHandle) -> AppResult<PathBuf> {
+    Ok(app_data_dir(app)?.join("settings.json"))
+}
+
 /// The thumbnail cache directory: `<app-data>/thumbs`.
 pub fn thumb_dir(app: &AppHandle) -> AppResult<PathBuf> {
     Ok(app_data_dir(app)?.join("thumbs"))

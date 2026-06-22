@@ -4,19 +4,25 @@
 
 use std::path::Path;
 
-use crate::config;
+use tauri::AppHandle;
+
 use crate::domain::pack_meta::PackMeta;
 use crate::error::AppResult;
-use crate::infra::fsio;
+use crate::infra::{fsio, library};
 
 #[tauri::command]
-pub fn load_packs() -> AppResult<Vec<PackMeta>> {
-    let library = Path::new(config::LIBRARY_ROOT).join("library");
+pub fn load_packs(app: AppHandle) -> AppResult<Vec<PackMeta>> {
+    read_packs_under(&library::resolve(&app)?.join("library"))
+}
+
+/// Read every `<pack>/pack.json` directly under `library`. An absent directory
+/// yields an empty list (a freshly-pointed library may have no packs yet).
+fn read_packs_under(library: &Path) -> AppResult<Vec<PackMeta>> {
     let mut packs = Vec::new();
     if !library.exists() {
         return Ok(packs);
     }
-    for entry in std::fs::read_dir(&library)? {
+    for entry in std::fs::read_dir(library)? {
         let dir = entry?.path();
         if !dir.is_dir() {
             continue;
@@ -38,10 +44,12 @@ mod tests {
     use super::*;
     use std::collections::BTreeMap;
 
+    const REAL_LIB: &str = r"D:\code\games\assets";
+
     #[test]
     #[ignore = "requires the real asset library on disk"]
     fn loads_all_pack_metadata() {
-        let packs = load_packs().expect("load packs");
+        let packs = read_packs_under(&Path::new(REAL_LIB).join("library")).expect("load packs");
         let by_slug: BTreeMap<_, _> = packs.iter().map(|p| (p.slug.as_str(), p)).collect();
 
         // All five packs self-describe via pack.json.

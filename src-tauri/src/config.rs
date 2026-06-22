@@ -1,11 +1,9 @@
-//! Static configuration. The library root is pinned here and must stay in sync
-//! with the asset-protocol scope in `tauri.conf.json` (the webview can only load
-//! files under that scope).
+//! Static configuration. The library *root* is no longer pinned here — it is a
+//! runtime, user-chosen value (see `infra::library`). What remains is genuinely
+//! static: the root-relative location of the seed file and the cache schema
+//! version.
 
-/// Absolute path to the asset library root.
-pub const LIBRARY_ROOT: &str = r"D:\code\games\assets";
-
-/// Toybox's native catalog source file, relative to `LIBRARY_ROOT`.
+/// Toybox's native catalog source file, relative to the library root.
 pub const SEED_REL: &str = "_library_config/catalog.json";
 
 /// Catalog schema version we write. Bump whenever the *derivation* of any cached

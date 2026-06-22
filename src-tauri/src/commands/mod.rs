@@ -8,6 +8,7 @@ pub mod export_glb;
 pub mod export_plugin;
 pub mod export_util;
 pub mod import;
+pub mod library;
 pub mod packs;
 pub mod plugins;
 pub mod recenter;

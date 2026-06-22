@@ -22,6 +22,15 @@ export const saveCatalog = (catalog: Catalog): Promise<void> =>
 
 export const libraryRoot = (): Promise<string> => invoke("library_root");
 
+/** The configured library root, or null if the user hasn't picked one yet. */
+export const getLibraryRoot = (): Promise<string | null> =>
+  invoke("get_library_root");
+
+/** Adopt a user-chosen folder as the library root. Rejects (with a message)
+ *  if the folder isn't a Toybox-style library. */
+export const setLibraryRoot = (path: string): Promise<void> =>
+  invoke("set_library_root", { path });
+
 export const loadPacks = (): Promise<PackMeta[]> => invoke("load_packs");
 
 export const resolveAssetPath = (relPath: string): Promise<string> =>

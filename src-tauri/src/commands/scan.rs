@@ -2,24 +2,23 @@
 //! `catalog.json` source, resolving each asset's full fileset by reading its
 //! glTF. Thin orchestration: infra-read -> domain-transform -> infra-write.
 
-use std::path::Path;
-
 use tauri::AppHandle;
 
 use crate::config;
 use crate::domain::catalog_model::Catalog;
 use crate::domain::{merge, paths, seed};
-use crate::error::{AppError, AppResult};
-use crate::infra::fsio;
+use crate::error::AppResult;
+use crate::infra::{fsio, library};
 
 use super::catalog::{load_catalog_inner, save_catalog_inner};
 use super::catalog_build::build_catalog;
 
 #[tauri::command]
 pub async fn scan_library(app: AppHandle, force_reseed: bool) -> AppResult<Catalog> {
+    let root = library::resolve(&app)?;
     let prior = if force_reseed { None } else { load_catalog_inner(&app)? };
 
-    let fresh = build_catalog_from_seed()?;
+    let fresh = build_catalog_from_seed(&root.to_string_lossy())?;
 
     let result = match prior {
         Some(prior) => merge::merge_preserving_user(&prior, fresh),
@@ -32,26 +31,13 @@ pub async fn scan_library(app: AppHandle, force_reseed: bool) -> AppResult<Catal
 
 /// Read `catalog.json` and assemble the catalog from its entries (textures and
 /// animation resolved per asset). Produces default `user`/`thumb` metadata.
-fn build_catalog_from_seed() -> AppResult<Catalog> {
-    let root = config::LIBRARY_ROOT;
+fn build_catalog_from_seed(root: &str) -> AppResult<Catalog> {
     let seed_abs = paths::abs_under_root(root, config::SEED_REL);
     let seed_text = fsio::read_text(&seed_abs)?;
     let seed_doc = serde_json::from_str(&seed_text)?;
 
     let entries = seed::parse_seed_entries(&seed_doc)?;
-    build_catalog(entries)
-}
-
-/// Surface a clear error if the library root is missing entirely.
-#[allow(dead_code)]
-fn require_root_exists() -> AppResult<()> {
-    if !Path::new(config::LIBRARY_ROOT).exists() {
-        return Err(AppError::msg(format!(
-            "library root not found: {}",
-            config::LIBRARY_ROOT
-        )));
-    }
-    Ok(())
+    build_catalog(root, entries)
 }
 
 #[cfg(test)]
@@ -59,13 +45,18 @@ mod tests {
     use super::*;
     use std::collections::BTreeSet;
 
+    /// The maintainer's on-disk library, for the `--ignored` integration tests
+    /// only. The app itself no longer hardcodes a root (it's user-chosen at
+    /// runtime); these dev tests still need a concrete tree to seed from.
+    const REAL_LIB: &str = r"D:\code\games\assets";
+
     /// Full seed against the real on-disk library. Asserts the verified counts
     /// from the plan. Run with `cargo test -- --ignored` on a machine that has
-    /// the library at `config::LIBRARY_ROOT`.
+    /// the library at `REAL_LIB`.
     #[test]
     #[ignore = "requires the real asset library on disk"]
     fn seeds_real_library() {
-        let catalog = build_catalog_from_seed().expect("seed");
+        let catalog = build_catalog_from_seed(REAL_LIB).expect("seed");
         // 1535 original + 665 from the ingested Polygon SciFi Space pack.
         assert_eq!(catalog.assets.len(), 2200, "asset count");
 

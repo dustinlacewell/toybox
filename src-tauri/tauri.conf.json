@@ -24,7 +24,6 @@
         "enable": true,
         "scope": {
           "allow": [
-            "D:/code/games/assets/**",
             "$APPDATA/**"
           ],
           "deny": []

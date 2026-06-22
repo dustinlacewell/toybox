@@ -16,8 +16,8 @@ use crate::infra::fsio;
 /// Assemble a full catalog from already-parsed seed entries, resolving each
 /// asset's textures/animation by reading its glTF. Produces default
 /// `user`/`thumb` metadata; the caller merges to preserve prior user metadata.
-pub fn build_catalog(entries: Vec<SeedEntry>) -> AppResult<Catalog> {
-    let root = config::LIBRARY_ROOT;
+/// `root` is the live library root the assets are read from and stamped with.
+pub fn build_catalog(root: &str, entries: Vec<SeedEntry>) -> AppResult<Catalog> {
     let mut assets = Vec::with_capacity(entries.len());
     for entry in entries {
         let facets = read_asset_facets(root, &entry.gltf_rel)?;

@@ -8,6 +8,10 @@ pub enum AppError {
     Io(#[from] std::io::Error),
     #[error("json error: {0}")]
     Json(#[from] serde_json::Error),
+    /// No library configured yet. Serialized as a stable sentinel so the
+    /// frontend can route this to the picker instead of the error screen.
+    #[error("no library configured")]
+    NoLibrary,
     #[error("{0}")]
     Other(String),
 }

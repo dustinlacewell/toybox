@@ -7,7 +7,7 @@ use crate::config;
 use crate::domain::catalog_model::{Catalog, ThumbState};
 use crate::domain::paths;
 use crate::error::AppResult;
-use crate::infra::{appdata, fsio};
+use crate::infra::{appdata, fsio, library};
 
 /// Frontend entry point: hand back the cache only if it was built under the
 /// current schema. A cache from an older schema may carry stale *derived* fields
@@ -26,16 +26,17 @@ pub async fn save_catalog(app: AppHandle, catalog: Catalog) -> AppResult<()> {
 }
 
 #[tauri::command]
-pub fn library_root() -> String {
-    config::LIBRARY_ROOT.to_string()
+pub fn library_root(app: AppHandle) -> AppResult<String> {
+    Ok(library::resolve(&app)?.to_string_lossy().to_string())
 }
 
 /// Map a library-relative path to an absolute path the asset protocol can serve.
 #[tauri::command]
-pub fn resolve_asset_path(rel_path: String) -> String {
-    paths::abs_under_root(config::LIBRARY_ROOT, &rel_path)
+pub fn resolve_asset_path(app: AppHandle, rel_path: String) -> AppResult<String> {
+    let root = library::resolve(&app)?;
+    Ok(paths::abs_under_root(&root.to_string_lossy(), &rel_path)
         .to_string_lossy()
-        .to_string()
+        .to_string())
 }
 
 #[tauri::command]

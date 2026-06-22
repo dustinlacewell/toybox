@@ -5,9 +5,10 @@ mod error;
 mod infra;
 
 use commands::{
-    catalog, export_copy, export_glb, export_plugin, import, packs, plugins, recenter, scan,
-    thumbs,
+    catalog, export_copy, export_glb, export_plugin, import, library, packs, plugins, recenter,
+    scan, thumbs,
 };
+use infra::library::LibraryState;
 
 /// Re-exports of the pure domain modules for integration tests in `tests/`.
 /// Integration tests link against the public crate API only.
@@ -25,8 +26,18 @@ pub fn run() {
     tauri::Builder::default()
         .plugin(tauri_plugin_opener::init())
         .plugin(tauri_plugin_dialog::init())
+        .manage(LibraryState::default())
+        .setup(|app| {
+            // Restore the persisted library root (if any) and re-open the asset
+            // scope to it, so a returning user skips the picker and the viewer
+            // can serve files immediately.
+            infra::library::hydrate(app.handle())?;
+            Ok(())
+        })
         .register_uri_scheme_protocol("plugin", serve_plugin_asset)
         .invoke_handler(tauri::generate_handler![
+            library::get_library_root,
+            library::set_library_root,
             scan::scan_library,
             catalog::load_catalog,
             catalog::save_catalog,

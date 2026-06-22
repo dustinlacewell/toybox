@@ -7,7 +7,7 @@
  */
 
 import type { ReactNode } from "react";
-import { Download, RefreshCw, ScanLine, Upload, X } from "lucide-react";
+import { Download, FolderOpen, RefreshCw, ScanLine, Upload, X } from "lucide-react";
 
 import { Toolbar, TextInput, IconButton, IconStrip } from "@ldlework/toybox-sdk/ui";
 
@@ -23,6 +23,8 @@ interface Props {
   onImport?: () => void;
   /** Library-only: rebuild the catalog. Omitted by the web demo. */
   onRescan?: () => void;
+  /** Library-only: re-point at a different library folder. Omitted by the demo. */
+  onChangeLibrary?: () => void;
   /** Library-only: regenerate every thumbnail. Omitted by the web demo. */
   onRegenerate?: () => void;
   /** The thumbnail-generation control/progress, when the surface has one. */
@@ -39,6 +41,7 @@ export function LibraryToolbar({
   onExport,
   onImport,
   onRescan,
+  onChangeLibrary,
   onRegenerate,
   thumbControl,
 }: Props) {
@@ -63,6 +66,9 @@ export function LibraryToolbar({
           <IconButton icon={RefreshCw} label="Regenerate thumbnails" onClick={onRegenerate} />
         )}
         {onRescan && <IconButton icon={ScanLine} label="Rescan library" onClick={onRescan} />}
+        {onChangeLibrary && (
+          <IconButton icon={FolderOpen} label="Change library…" onClick={onChangeLibrary} />
+        )}
         <IconButton
           icon={X}
           label="Clear selection"

@@ -7,7 +7,6 @@ use std::path::Path;
 use serde_json::Value;
 use tauri::AppHandle;
 
-use crate::config;
 use crate::domain::catalog_model::Asset;
 use crate::domain::export_copy_plan::CopyPlan;
 use crate::domain::export_model::ExportReport;
@@ -46,11 +45,6 @@ pub fn read_gltf(root: &str, asset: &Asset) -> AppResult<Value> {
 /// Read an asset's single buffer (`.bin`) bytes.
 pub fn read_bin(root: &str, asset: &Asset) -> AppResult<Vec<u8>> {
     fsio::read_bytes(&paths::abs_under_root(root, &asset.fileset.bin))
-}
-
-/// Library root accessor (keeps commands from each reaching into config).
-pub fn library_root() -> &'static str {
-    config::LIBRARY_ROOT
 }
 
 /// Write a planned loose-copy fileset (rewritten glTF + bin + textures) under

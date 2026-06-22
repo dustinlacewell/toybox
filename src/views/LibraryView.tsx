@@ -8,13 +8,19 @@ import { useEffect, useMemo, useState } from "react";
 
 import type { Catalog, PackMeta } from "../domain/catalog";
 import { applyFilter } from "../domain/facets";
-import { loadCatalog, loadPacks, scanLibrary } from "../services/tauriApi";
+import {
+  getLibraryRoot,
+  loadCatalog,
+  loadPacks,
+  scanLibrary,
+} from "../services/tauriApi";
 import { useStore } from "../state/store";
 import { AssetGrid } from "../components/AssetGrid";
 import { AssetViewer } from "../components/AssetViewer";
 import { ExportDrawer } from "../components/ExportDrawer";
 import { ImportDrawer } from "../components/ImportDrawer";
 import { FacetFilter } from "../components/FacetFilter";
+import { LibraryPicker } from "../components/LibraryPicker";
 import { LibraryToolbar } from "../components/LibraryToolbar";
 import { ThumbProgress } from "../components/ThumbProgress";
 import { useThumbGeneration } from "../components/useThumbGeneration";
@@ -48,11 +54,17 @@ export function LibraryView() {
 
   const [exportOpen, setExportOpen] = useState(false);
   const [importOpen, setImportOpen] = useState(false);
+  // null = library configured; "first-run" / "repoint" = show the picker.
+  const [pickMode, setPickMode] = useState<"first-run" | "repoint" | null>(null);
   const registry = usePluginRegistry();
 
+  const deps = { setCatalog, setPacks, setLoading, setError, setPickMode };
+
   useEffect(() => {
-    void initCatalog({ setCatalog, setPacks, setLoading, setError });
-  }, [setCatalog, setPacks, setLoading, setError]);
+    void initCatalog(deps);
+    // deps is rebuilt each render but its setters are stable; init once on mount.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   const assets = catalog?.assets ?? [];
   const visible = useMemo(() => applyFilter(assets, filter), [assets, filter]);
@@ -71,8 +83,19 @@ export function LibraryView() {
 
   const { toggleFavorite } = useFavorites();
 
-  const rescan = () =>
-    void initCatalog({ setCatalog, setPacks, setLoading, setError }, true);
+  const rescan = () => void initCatalog(deps, true);
+
+  if (pickMode) {
+    return (
+      <LibraryPicker
+        onPicked={() => {
+          setPickMode(null);
+          void initCatalog(deps, true);
+        }}
+        onCancel={pickMode === "repoint" ? () => setPickMode(null) : undefined}
+      />
+    );
+  }
 
   if (loading) {
     return (
@@ -116,6 +139,7 @@ export function LibraryView() {
             onExport={() => setExportOpen(true)}
             onImport={() => setImportOpen(true)}
             onRescan={rescan}
+            onChangeLibrary={() => setPickMode("repoint")}
             onRegenerate={() => void regenerateThumbs()}
             thumbControl={
               <ThumbProgress
@@ -168,10 +192,17 @@ interface InitDeps {
   setPacks: (p: PackMeta[]) => void;
   setLoading: (b: boolean) => void;
   setError: (e: string | null) => void;
+  setPickMode: (m: "first-run" | "repoint" | null) => void;
 }
 
 async function initCatalog(deps: InitDeps, forceScan = false) {
-  const { setCatalog, setPacks, setLoading, setError } = deps;
+  const { setCatalog, setPacks, setLoading, setError, setPickMode } = deps;
+  // No library configured → route to the picker, not the scan (which would
+  // otherwise fail reading a nonexistent seed path).
+  if ((await getLibraryRoot()) === null) {
+    setPickMode("first-run");
+    return;
+  }
   setLoading(true);
   setError(null);
   try {

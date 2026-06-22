@@ -15,14 +15,16 @@ use crate::domain::glb_assemble::{assemble, EmbedImage};
 use crate::domain::image_embed::prepare_for_glb;
 use crate::domain::{gltf_parse, paths};
 use crate::error::AppResult;
-use crate::infra::fsio;
+use crate::infra::{fsio, library};
 
-use super::export_util::{collect_assets, library_root, read_bin, read_gltf};
+use super::export_util::{collect_assets, read_bin, read_gltf};
 
 #[tauri::command]
 pub async fn export_glb(app: AppHandle, req: ExportGlbReq) -> AppResult<ExportReport> {
     let (assets, mut report) = collect_assets(&app, &req.asset_ids)?;
-    let root = library_root();
+    let root = library::resolve(&app)?;
+    let root = root.to_string_lossy();
+    let root = root.as_ref();
     let target = Path::new(&req.target_dir);
     let mut used_stems: HashSet<String> = HashSet::new();
 

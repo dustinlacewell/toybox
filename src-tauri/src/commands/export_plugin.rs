@@ -29,18 +29,17 @@ use crate::domain::glb_assemble::assemble;
 use crate::domain::image_embed::prepare_for_glb;
 use crate::domain::placer_library::{self, PlacerAsset};
 use crate::error::{AppError, AppResult};
-use crate::infra::fsio;
+use crate::infra::{fsio, library};
 
 use super::export_glb::gather_images;
-use super::export_util::{
-    collect_assets, execute_copy_plan, library_root, read_bin, read_gltf,
-};
+use super::export_util::{collect_assets, execute_copy_plan, read_bin, read_gltf};
 
 /// Resolve and parse one catalog asset's glTF document.
 #[tauri::command]
 pub async fn read_asset_gltf(app: AppHandle, asset_id: String) -> AppResult<Value> {
     let asset = one_asset(&app, &asset_id)?;
-    read_gltf(library_root(), &asset)
+    let root = library::resolve(&app)?;
+    read_gltf(&root.to_string_lossy(), &asset)
 }
 
 /// Bake one asset to a self-contained `.glb` and return its bytes. Reuses the
@@ -48,7 +47,9 @@ pub async fn read_asset_gltf(app: AppHandle, asset_id: String) -> AppResult<Valu
 #[tauri::command]
 pub async fn assemble_glb_for_asset(app: AppHandle, asset_id: String) -> AppResult<Vec<u8>> {
     let asset = one_asset(&app, &asset_id)?;
-    let root = library_root();
+    let root = library::resolve(&app)?;
+    let root = root.to_string_lossy();
+    let root = root.as_ref();
     let doc = read_gltf(root, &asset)?;
     let bin = read_bin(root, &asset)?;
     let mut report = ExportReport::default(); // image warnings are returned separately when needed
@@ -68,7 +69,9 @@ pub async fn perform_asset_copy(
     preserve_structure: bool,
 ) -> AppResult<Vec<String>> {
     let asset = one_asset(&app, &asset_id)?;
-    let root = library_root();
+    let root = library::resolve(&app)?;
+    let root = root.to_string_lossy();
+    let root = root.as_ref();
     let doc = read_gltf(root, &asset)?;
     let plan = plan_copy(
         &doc,

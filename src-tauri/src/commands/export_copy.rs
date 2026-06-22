@@ -8,18 +8,20 @@ use std::path::Path;
 
 use tauri::AppHandle;
 
-use crate::config;
 use crate::domain::catalog_model::Asset;
 use crate::domain::export_copy_plan::plan_copy;
 use crate::domain::export_model::{ExportCopyReq, ExportReport};
 use crate::error::AppResult;
+use crate::infra::library;
 
 use super::export_util::{collect_assets, execute_copy_plan, read_gltf};
 
 #[tauri::command]
 pub async fn export_copy(app: AppHandle, req: ExportCopyReq) -> AppResult<ExportReport> {
     let (assets, mut report) = collect_assets(&app, &req.asset_ids)?;
-    let root = config::LIBRARY_ROOT;
+    let root = library::resolve(&app)?;
+    let root = root.to_string_lossy();
+    let root = root.as_ref();
     let target = Path::new(&req.target_dir);
 
     // Track written gltf stems (to guard flatten collisions) and copied textures
