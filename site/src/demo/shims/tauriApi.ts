@@ -48,6 +48,8 @@ export const getLibraryRoot = async (): Promise<string | null> => "polygon_proto
 
 export const setLibraryRoot = async (_path: string): Promise<void> => {};
 
+export const createLibrary = async (_path: string): Promise<void> => {};
+
 export const loadPacks = async (): Promise<PackMeta[]> => DEMO_PACKS;
 
 export const resolveAssetPath = async (relPath: string): Promise<string> => relPath;

@@ -1,14 +1,18 @@
 /**
- * First-run / re-point gate: prompts the user to choose their asset library
- * folder. Shown whenever no library is configured (and reused by the toolbar's
- * "Change library…" action). On a successful pick the parent re-initializes the
- * catalog; a rejected folder (not a Toybox library) is surfaced inline.
+ * First-run / re-point gate: lets the user either open an existing asset library
+ * or create a new, empty one. Shown whenever no library is configured (and
+ * reused by the toolbar's "Change library…" action). On success the parent
+ * re-initializes the catalog; a rejected folder is surfaced inline.
+ *
+ * Both verbs end at the same place — a validated, scoped, persisted root — so
+ * they differ only in the command they commit through: open adopts an existing
+ * Toybox library, create scaffolds an empty one first.
  */
 
 import { useState } from "react";
 
 import { pickDirectory } from "../services/pickDirectory";
-import { setLibraryRoot } from "../services/tauriApi";
+import { createLibrary, setLibraryRoot } from "../services/tauriApi";
 import { Button, Spinner, Stack } from "@ldlework/toybox-sdk/ui";
 
 interface Props {
@@ -22,13 +26,14 @@ export function LibraryPicker({ onPicked, onCancel }: Props) {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  const choose = async () => {
+  // Pick a folder, commit it through the given command, and hand off on success.
+  const run = (commit: (path: string) => Promise<void>) => async () => {
     const dir = await pickDirectory();
     if (!dir) return;
     setBusy(true);
     setError(null);
     try {
-      await setLibraryRoot(dir);
+      await commit(dir);
       onPicked();
     } catch (e) {
       setError(String(e));
@@ -49,20 +54,25 @@ export function LibraryPicker({ onPicked, onCancel }: Props) {
   return (
     <Stack grow align="center" justify="center" gap={16}>
       <Stack align="center" gap={4}>
-        <strong>Choose your asset library</strong>
-        <span style={{ color: "var(--text-2)", textAlign: "center", maxWidth: 420 }}>
-          Pick the folder that contains your Toybox library
-          (it should have a <code>_library_config/catalog.json</code> inside).
+        <strong>Set up your asset library</strong>
+        <span style={{ color: "var(--text-2)", textAlign: "center", maxWidth: 440 }}>
+          Open an existing Toybox library, or create a new, empty one in a folder
+          and add assets to it later via Import.
         </span>
       </Stack>
       {error && <span style={{ color: "var(--danger)" }}>{error}</span>}
       <Stack dir="row" gap={8}>
         {onCancel && (
-          <Button onClick={onCancel} variant="ghost">
+          <Button variant="ghost" onClick={onCancel}>
             Cancel
           </Button>
         )}
-        <Button onClick={() => void choose()}>Choose folder…</Button>
+        <Button variant="ghost" onClick={() => void run(setLibraryRoot)()}>
+          Open existing…
+        </Button>
+        <Button variant="primary" onClick={() => void run(createLibrary)()}>
+          Create new…
+        </Button>
       </Stack>
     </Stack>
   );

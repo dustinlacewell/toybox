@@ -38,6 +38,7 @@ pub fn run() {
         .invoke_handler(tauri::generate_handler![
             library::get_library_root,
             library::set_library_root,
+            library::create_library,
             scan::scan_library,
             catalog::load_catalog,
             catalog::save_catalog,

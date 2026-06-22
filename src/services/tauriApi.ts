@@ -31,6 +31,11 @@ export const getLibraryRoot = (): Promise<string | null> =>
 export const setLibraryRoot = (path: string): Promise<void> =>
   invoke("set_library_root", { path });
 
+/** Scaffold a new, empty library in the chosen folder and adopt it. Rejects
+ *  (with a message) if the folder isn't empty (and isn't already a library). */
+export const createLibrary = (path: string): Promise<void> =>
+  invoke("create_library", { path });
+
 export const loadPacks = (): Promise<PackMeta[]> => invoke("load_packs");
 
 export const resolveAssetPath = (relPath: string): Promise<string> =>

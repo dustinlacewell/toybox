@@ -22,3 +22,11 @@ pub fn get_library_root(app: AppHandle) -> Option<String> {
 pub fn set_library_root(app: AppHandle, path: String) -> AppResult<()> {
     library::set(&app, &PathBuf::from(path))
 }
+
+/// Establish a new, empty library in the chosen folder and adopt it. The folder
+/// must be empty (or already a library). Errors (with a message the picker
+/// shows) otherwise.
+#[tauri::command]
+pub fn create_library(app: AppHandle, path: String) -> AppResult<()> {
+    library::create(&app, &PathBuf::from(path))
+}

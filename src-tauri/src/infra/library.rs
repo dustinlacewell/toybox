@@ -64,6 +64,19 @@ pub fn set(app: &AppHandle, root: &Path) -> AppResult<()> {
     Ok(())
 }
 
+/// Establish a new, empty library in `root`, then adopt it. An already-valid
+/// library is adopted as-is (idempotent); otherwise the folder must be empty, so
+/// scaffolding can never clobber unrelated files. The skeleton is the minimum a
+/// scan accepts: an empty seed catalog and the `library/` packs directory that
+/// importers populate.
+pub fn create(app: &AppHandle, root: &Path) -> AppResult<()> {
+    if validate(root).is_err() {
+        require_empty_dir(root)?;
+        scaffold(root)?;
+    }
+    set(app, root)
+}
+
 /// A valid library is a Toybox-curated tree: it must carry the native catalog
 /// seed at `_library_config/catalog.json`. Anything else is rejected with a
 /// message the picker shows verbatim.
@@ -83,6 +96,43 @@ fn validate(root: &Path) -> AppResult<()> {
     Ok(())
 }
 
+/// Refuse to scaffold into a folder that already holds files. Creating into an
+/// empty (or not-yet-existing) folder is fine; anything else risks surprising
+/// the user, so it's an error they can act on.
+fn require_empty_dir(root: &Path) -> AppResult<()> {
+    if !root.exists() {
+        return Ok(());
+    }
+    if !root.is_dir() {
+        return Err(AppError::msg(format!(
+            "not a folder: {}",
+            root.to_string_lossy()
+        )));
+    }
+    let mut entries = std::fs::read_dir(root)?;
+    if entries.next().is_some() {
+        return Err(AppError::msg(
+            "folder is not empty — choose an empty folder for a new library".to_string(),
+        ));
+    }
+    Ok(())
+}
+
+/// Lay down the minimum a library needs: an empty seed catalog at
+/// `_library_config/catalog.json` (the parent dir is created by the write) and
+/// the `library/` directory importers add packs under.
+fn scaffold(root: &Path) -> AppResult<()> {
+    let seed = paths::abs_under_root(&root.to_string_lossy(), config::SEED_REL);
+    fsio::write_text(&seed, EMPTY_SEED)?;
+    std::fs::create_dir_all(root.join("library"))?;
+    Ok(())
+}
+
+/// The native seed source for an empty library. `schemaVersion: 1` is the
+/// *source* schema the seed parser reads (distinct from the cache
+/// `config::SCHEMA_VERSION`); `assets: []` is what an empty library declares.
+const EMPTY_SEED: &str = "{\n  \"schemaVersion\": 1,\n  \"assets\": []\n}\n";
+
 /// Allow the webview's asset protocol to serve files under `root`. Without this
 /// the catalog scans fine but every gltf/texture/thumbnail 404s in the viewer.
 fn extend_scope(app: &AppHandle, root: &Path) {
@@ -93,4 +143,54 @@ fn extend_scope(app: &AppHandle, root: &Path) {
 
 fn store(app: &AppHandle, root: Option<PathBuf>) {
     *app.state::<LibraryState>().0.lock().unwrap() = root;
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::domain::seed::parse_seed_entries;
+
+    /// A unique temp dir for one test, removed on drop so a failed run doesn't
+    /// leak. Names are derived from the test, not a clock/RNG, so they're stable.
+    struct TmpDir(PathBuf);
+    impl TmpDir {
+        fn new(tag: &str) -> Self {
+            let dir = std::env::temp_dir().join(format!("toybox_lib_test_{tag}"));
+            let _ = std::fs::remove_dir_all(&dir);
+            std::fs::create_dir_all(&dir).unwrap();
+            TmpDir(dir)
+        }
+    }
+    impl Drop for TmpDir {
+        fn drop(&mut self) {
+            let _ = std::fs::remove_dir_all(&self.0);
+        }
+    }
+
+    #[test]
+    fn scaffold_produces_a_library_that_validates_and_scans_empty() {
+        let tmp = TmpDir::new("scaffold");
+        scaffold(&tmp.0).expect("scaffold");
+
+        // The skeleton is a valid library, with the packs dir present.
+        validate(&tmp.0).expect("scaffolded dir should validate");
+        assert!(tmp.0.join("library").is_dir(), "library/ dir created");
+
+        // The seed the scan reads parses as an empty asset list — no crash, no
+        // phantom assets.
+        let seed = paths::abs_under_root(&tmp.0.to_string_lossy(), config::SEED_REL);
+        let doc: serde_json::Value =
+            serde_json::from_str(&fsio::read_text(&seed).unwrap()).unwrap();
+        assert!(parse_seed_entries(&doc).unwrap().is_empty(), "empty seed");
+    }
+
+    #[test]
+    fn require_empty_dir_accepts_empty_or_absent_and_rejects_occupied() {
+        let tmp = TmpDir::new("empty");
+        require_empty_dir(&tmp.0).expect("fresh empty dir is allowed");
+        require_empty_dir(&tmp.0.join("does-not-exist")).expect("absent dir is allowed");
+
+        fsio::write_text(&tmp.0.join("stray.txt"), "x").unwrap();
+        assert!(require_empty_dir(&tmp.0).is_err(), "occupied dir is rejected");
+    }
 }
