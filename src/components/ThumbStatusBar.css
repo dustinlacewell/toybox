@@ -1,0 +1,49 @@
+.thumbbar {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  height: 40px;
+  flex: 0 0 auto;
+  padding: 0 var(--space-4);
+  background: var(--bg-1);
+  border-top: 1px solid var(--border);
+}
+
+/* The bar takes the slack so the row's total width is stable regardless of how
+   long the current-asset name is. */
+.thumbbar__bar {
+  flex: 1 1 auto;
+  min-width: 80px;
+  height: 6px;
+  background: var(--bg-3);
+  border-radius: 3px;
+  overflow: hidden;
+}
+.thumbbar__fill {
+  height: 100%;
+  background: var(--accent);
+  transition: width 0.2s;
+}
+
+/* Width-reserved so it doesn't jitter as digits change (5/200 → 200/200). */
+.thumbbar__count {
+  flex: 0 0 auto;
+  min-width: 5ch;
+  text-align: right;
+  font-size: var(--fs-sm);
+  color: var(--text-1);
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+/* Truncates within its own cap; min-width:0 lets it shrink instead of pushing. */
+.thumbbar__name {
+  flex: 0 1 auto;
+  min-width: 0;
+  max-width: 240px;
+  font-size: var(--fs-sm);
+  color: var(--text-2);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}

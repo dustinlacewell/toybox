@@ -22,7 +22,7 @@ import { ImportDrawer } from "../components/ImportDrawer";
 import { FacetFilter } from "../components/FacetFilter";
 import { LibraryPicker } from "../components/LibraryPicker";
 import { LibraryToolbar } from "../components/LibraryToolbar";
-import { ThumbProgress } from "../components/ThumbProgress";
+import { ThumbStatusBar } from "../components/ThumbStatusBar";
 import { useThumbGeneration } from "../components/useThumbGeneration";
 import { useFavorites } from "../components/useFavorites";
 import { usePluginRegistry } from "../components/usePluginRegistry";
@@ -141,14 +141,6 @@ export function LibraryView() {
             onRescan={rescan}
             onChangeLibrary={() => setPickMode("repoint")}
             onRegenerate={() => void regenerateThumbs()}
-            thumbControl={
-              <ThumbProgress
-                progress={progress}
-                pendingCount={pendingCount}
-                onStart={() => void startThumbs()}
-                onPause={pauseThumbs}
-              />
-            }
           />
 
           <AssetGrid
@@ -157,6 +149,13 @@ export function LibraryView() {
             onToggleSelect={toggleSelected}
             onToggleFavorite={toggleFavorite}
             onOpen={setPreview}
+          />
+
+          <ThumbStatusBar
+            progress={progress}
+            pendingCount={pendingCount}
+            onStart={() => void startThumbs()}
+            onPause={pauseThumbs}
           />
         </Stack>
       </Stack>

@@ -6,7 +6,6 @@
  * explainer instead of the OS dialog).
  */
 
-import type { ReactNode } from "react";
 import { Download, FolderOpen, RefreshCw, ScanLine, Upload, X } from "lucide-react";
 
 import { Toolbar, TextInput, IconButton, IconStrip } from "@ldlework/toybox-sdk/ui";
@@ -27,8 +26,6 @@ interface Props {
   onChangeLibrary?: () => void;
   /** Library-only: regenerate every thumbnail. Omitted by the web demo. */
   onRegenerate?: () => void;
-  /** The thumbnail-generation control/progress, when the surface has one. */
-  thumbControl?: ReactNode;
 }
 
 export function LibraryToolbar({
@@ -43,7 +40,6 @@ export function LibraryToolbar({
   onRescan,
   onChangeLibrary,
   onRegenerate,
-  thumbControl,
 }: Props) {
   const hasSelection = selectedCount > 0;
   return (
@@ -58,7 +54,6 @@ export function LibraryToolbar({
         {visibleCount} / {totalCount}
       </span>
       <div style={{ flex: 1 }} />
-      {thumbControl}
       <span className="lib__count">{selectedCount} selected</span>
       <IconStrip>
         {onImport && <IconButton icon={Upload} label="Import assets…" onClick={onImport} />}
