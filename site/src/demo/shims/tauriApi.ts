@@ -50,6 +50,17 @@ export const setLibraryRoot = async (_path: string): Promise<void> => {};
 
 export const createLibrary = async (_path: string): Promise<void> => {};
 
+// Plugin source-read primitives — inert in the browser (no filesystem to walk).
+export const pluginReadDir = async (
+  _sourceRoot: string,
+  _path: string,
+): Promise<{ name: string; relPath: string; isDir: boolean }[]> => [];
+
+export const pluginReadBytes = async (
+  _sourceRoot: string,
+  _path: string,
+): Promise<Uint8Array> => new Uint8Array();
+
 export const loadPacks = async (): Promise<PackMeta[]> => DEMO_PACKS;
 
 export const resolveAssetPath = async (relPath: string): Promise<string> => relPath;

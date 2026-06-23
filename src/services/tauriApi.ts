@@ -7,7 +7,7 @@
 import { invoke } from "@tauri-apps/api/core";
 
 import type { Catalog, PackMeta, ThumbState } from "../domain/catalog";
-import type { ExportReport, PluginUi, SeedEntryInput } from "@ldlework/toybox-sdk";
+import type { DirEntry, ExportReport, PluginUi, SeedEntryInput } from "@ldlework/toybox-sdk";
 
 export type { ExportReport };
 
@@ -102,6 +102,17 @@ export const pluginReadText = (path: string): Promise<string> =>
 
 export const pluginExists = (path: string): Promise<boolean> =>
   invoke("plugin_exists", { path });
+
+/** List one directory level under a user-authorized source root. `relPath` is
+ *  source-root-relative, so the caller recurses by passing it back as `path`. */
+export const pluginReadDir = (sourceRoot: string, path: string): Promise<DirEntry[]> =>
+  invoke("plugin_read_dir", { sourceRoot, path });
+
+export const pluginReadBytes = async (
+  sourceRoot: string,
+  path: string,
+): Promise<Uint8Array> =>
+  Uint8Array.from(await invoke<number[]>("plugin_read_bytes", { sourceRoot, path }));
 
 export const pluginWriteBytes = (
   authorizedRoot: string,

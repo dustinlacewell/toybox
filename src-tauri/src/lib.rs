@@ -59,6 +59,8 @@ pub fn run() {
             plugins::list_plugins,
             plugins::plugin_read_text,
             plugins::plugin_exists,
+            plugins::plugin_read_dir,
+            plugins::plugin_read_bytes,
             plugins::plugin_write_bytes,
             plugins::plugin_write_text,
             // Per-asset export primitives plugins orchestrate.

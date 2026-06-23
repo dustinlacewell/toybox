@@ -27,6 +27,8 @@ import {
   assembleGlbForAsset,
   performAssetCopy,
   placerMergeFile,
+  pluginReadBytes,
+  pluginReadDir,
   pluginWriteBytes,
   pluginWriteText,
   readAssetGltf,
@@ -97,9 +99,20 @@ function buildHostApi(pluginId: string, perms: PluginPermissions): HostApi {
   };
 }
 
-function buildFsApi(pluginId: string, perms: PluginPermissions): FsApi {
+/** The jailed fs an importer panel and an exporter run both receive. Reads are
+ *  gated on `fsRead`, writes on `fsWrite`; an ungranted method throws when called
+ *  (advisory — the real boundary is the Rust path jail). Exported so the import
+ *  drawer can build the same fs for an importer panel. */
+export function buildFsApi(pluginId: string, perms: PluginPermissions): FsApi {
+  const gatedRead = gate(pluginId, "fsRead", perms.fsRead);
   const gatedWrite = gate(pluginId, "fsWrite", perms.fsWrite);
   return {
+    readDir: gatedRead((sourceRoot: string, path: string) =>
+      pluginReadDir(sourceRoot, path),
+    ),
+    readBytes: gatedRead((sourceRoot: string, path: string) =>
+      pluginReadBytes(sourceRoot, path),
+    ),
     writeBytes: gatedWrite((root: string, path: string, bytes: Uint8Array) =>
       pluginWriteBytes(root, path, bytes),
     ),

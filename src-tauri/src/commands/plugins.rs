@@ -110,6 +110,56 @@ fn read_manifest(plugin_dir: &Path) -> Option<PluginManifestDto> {
 
 // --- jailed filesystem surface --------------------------------------------
 
+/// One entry of a plugin's source-directory walk. `rel_path` is relative to the
+/// `source_root` the read was authorized against (forward-slashed), so a plugin
+/// recurses by feeding it straight back as the next `path`.
+#[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct DirEntryDto {
+    pub name: String,
+    pub rel_path: String,
+    pub is_dir: bool,
+}
+
+/// List one directory level under a user-authorized `source_root` (the folder
+/// the user picked to import from). Jailed to `source_root` the same lexical way
+/// writes are. Importers use this to walk a source tree they don't own.
+#[tauri::command]
+pub async fn plugin_read_dir(source_root: String, path: String) -> AppResult<Vec<DirEntryDto>> {
+    read_dir_under(Path::new(&source_root), &path)
+}
+
+/// List one directory level under `source_root`, jailed and with source-root-
+/// relative `rel_path`s. Pure (no app handle) so it is directly testable.
+fn read_dir_under(source_root: &Path, path: &str) -> AppResult<Vec<DirEntryDto>> {
+    let abs = jail(source_root, path)?;
+    let base = path.trim_end_matches(['/', '\\']);
+    let mut out = Vec::new();
+    for entry in std::fs::read_dir(&abs)? {
+        let entry = entry?;
+        let name = entry.file_name().to_string_lossy().to_string();
+        // `entry.path().is_dir()` (not `file_type()`) so directory junctions —
+        // how dev tooling links folders on Windows — are followed, matching
+        // `list_plugins` above.
+        let is_dir = entry.path().is_dir();
+        let rel_path = if base.is_empty() || base == "." {
+            name.clone()
+        } else {
+            format!("{base}/{name}")
+        };
+        out.push(DirEntryDto { name, rel_path, is_dir });
+    }
+    Ok(out)
+}
+
+/// Read a file's bytes under a user-authorized `source_root`. Same jail as
+/// `plugin_read_dir`; importers use it to pull source asset bytes for copy/unpack.
+#[tauri::command]
+pub async fn plugin_read_bytes(source_root: String, path: String) -> AppResult<Vec<u8>> {
+    let abs = jail(Path::new(&source_root), &path)?;
+    fsio::read_bytes(&abs)
+}
+
 /// Read a UTF-8 file the plugin loader needs, jailed to `plugins_dir`.
 #[tauri::command]
 pub async fn plugin_read_text(app: AppHandle, path: String) -> AppResult<String> {
@@ -216,5 +266,38 @@ mod tests {
     fn jail_rejects_absolute_outside_root() {
         let root = Path::new(r"C:\proj\out");
         assert!(jail(root, r"C:\windows\system32\evil.dll").is_err());
+    }
+
+    #[test]
+    fn read_dir_walks_with_recursable_rel_paths() {
+        // A unique temp source tree, removed at both ends so a prior failure
+        // can't poison the run.
+        let src = std::env::temp_dir().join("toybox_plugins_read_dir_test");
+        let _ = std::fs::remove_dir_all(&src);
+        std::fs::create_dir_all(src.join("pack")).unwrap();
+        std::fs::write(src.join("top.gltf"), "{}").unwrap();
+        std::fs::write(src.join("pack").join("a.gltf"), "{}").unwrap();
+
+        // Top level: rel_path is name-only for "." so JS can recurse from it.
+        let top = read_dir_under(&src, ".").unwrap();
+        let pack = top.iter().find(|e| e.name == "pack").expect("pack dir");
+        assert!(pack.is_dir);
+        assert_eq!(pack.rel_path, "pack");
+
+        // Recurse using the returned rel_path verbatim; nested rel_path is
+        // source-root-relative and forward-slashed.
+        let nested = read_dir_under(&src, &pack.rel_path).unwrap();
+        let a = nested.iter().find(|e| e.name == "a.gltf").expect("a.gltf");
+        assert_eq!(a.rel_path, "pack/a.gltf");
+        assert!(!a.is_dir);
+
+        // The rel_path round-trips through the jail into a byte read.
+        let abs = jail(&src, &a.rel_path).unwrap();
+        assert_eq!(fsio::read_bytes(&abs).unwrap(), b"{}");
+
+        // A parent escape is rejected for reads too.
+        assert!(jail(&src, "../escape").is_err());
+
+        let _ = std::fs::remove_dir_all(&src);
     }
 }

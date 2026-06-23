@@ -9,6 +9,7 @@
 import type { SlotHost } from "@ldlework/toybox-sdk";
 import { useStore } from "../state/store";
 import { selectedAssets } from "./pluginHost";
+import { getLibraryRoot } from "./tauriApi";
 import { pickDirectory } from "./pickDirectory";
 import { pickSaveFile } from "./pickSaveFile";
 
@@ -16,6 +17,7 @@ export function buildSlotHost(): SlotHost {
   return {
     getSelectedAssets: () => selectedAssets([...useStore.getState().selection]),
     getAsset: (id) => useStore.getState().catalog?.assets.find((a) => a.id === id),
+    getLibraryRoot: () => getLibraryRoot(),
     pickDirectory,
     pickSaveFile,
   };

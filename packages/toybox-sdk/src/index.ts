@@ -143,8 +143,21 @@ export interface PlacerAssetInput {
   name: string;
 }
 
-/** Jailed filesystem escape hatch. Gated by `permissions.fsRead`/`fsWrite`. */
+/** One entry of a source-directory walk. `relPath` is relative to the
+ *  `sourceRoot` it was read under, so a plugin recurses by passing it back. */
+export interface DirEntry {
+  name: string;
+  relPath: string;
+  isDir: boolean;
+}
+
+/** Jailed filesystem escape hatch. Reads are jailed to a caller-supplied
+ *  `sourceRoot`, writes to a caller-supplied `authorizedRoot`; both reject any
+ *  path that escapes their root. Reads gated by `permissions.fsRead`, writes by
+ *  `permissions.fsWrite`. */
 export interface FsApi {
+  readDir(sourceRoot: string, path: string): Promise<DirEntry[]>;
+  readBytes(sourceRoot: string, path: string): Promise<Uint8Array>;
   writeBytes(authorizedRoot: string, path: string, bytes: Uint8Array): Promise<void>;
   writeText(authorizedRoot: string, path: string, text: string): Promise<void>;
   writeJson(authorizedRoot: string, path: string, value: unknown): Promise<void>;
@@ -191,6 +204,8 @@ export interface SlotComponentProps<Ctx> {
 export interface SlotHost {
   getSelectedAssets(): AssetView[];
   getAsset(id: string): AssetView | undefined;
+  /** The configured library root, or null if none — where an importer writes. */
+  getLibraryRoot(): Promise<string | null>;
   pickDirectory(): Promise<string | null>;
   pickSaveFile(defaultName: string): Promise<string | null>;
 }
@@ -202,9 +217,13 @@ export interface ExportPanelCtx {
   setConfig(values: Record<string, unknown>, ready: boolean): void;
 }
 
-/** Context for an importer's `importPanel`. */
+/** Context for an importer's `importPanel`. Unlike an exporter (whose fs fires
+ *  at run time), an importer does its file work during the panel session —
+ *  walking a picked source and writing into the library before `commit` — so it
+ *  carries the jailed `fs` directly. */
 export interface ImportPanelCtx {
   host: SlotHost;
+  fs: FsApi;
   commit(entries: SeedEntryInput[]): Promise<void>;
   close(): void;
 }

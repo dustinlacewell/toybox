@@ -17,6 +17,7 @@ import {
   type LoadedImporter,
   type PluginLoadError,
 } from "../services/pluginRegistry";
+import { buildFsApi } from "../services/pluginHost";
 import { buildSlotHost } from "../services/slotHost";
 import { mergeSeedEntries } from "../services/tauriApi";
 import { PluginSlot } from "./plugin-ui/PluginSlot";
@@ -40,6 +41,7 @@ export function ImportDrawer({ open, importers, pluginErrors, onClose, onCommitt
 
   const ctx: ImportPanelCtx = {
     host: buildSlotHost(),
+    fs: buildFsApi(active?.manifest.id ?? "", active?.manifest.permissions ?? {}),
     commit: async (entries: SeedEntryInput[]) => {
       setError(null);
       try {
