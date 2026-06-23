@@ -42,6 +42,10 @@
   "bundle": {
     "active": true,
     "targets": "all",
+    "resources": {
+      "../plugins/com.toybox.gltf-importer/manifest.json": "plugins/com.toybox.gltf-importer/manifest.json",
+      "../plugins/com.toybox.gltf-importer/dist": "plugins/com.toybox.gltf-importer/dist"
+    },
     "icon": [
       "icons/32x32.png",
       "icons/128x128.png",

@@ -38,6 +38,9 @@ pub fn run() {
             // scope to it, so a returning user skips the picker and the viewer
             // can serve files immediately.
             infra::library::hydrate(app.handle())?;
+            // Install bundled plugins (the importer) into the user's plugins dir
+            // on first run, so a built app ships with a working import path.
+            infra::bundled::seed_bundled_plugins(app.handle())?;
             Ok(())
         })
         .register_uri_scheme_protocol("plugin", serve_plugin_asset)

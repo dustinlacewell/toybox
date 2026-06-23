@@ -5,7 +5,7 @@
   "type": "module",
   "scripts": {
     "dev": "vite",
-    "build": "tsc && vite build",
+    "build": "pnpm plugins:build && tsc && vite build",
     "preview": "vite preview",
     "tauri": "tauri",
     "sdk:build": "tsc -p packages/toybox-sdk/tsconfig.json && tsc -p packages/toybox-sdk/tsconfig.ui-types.json",

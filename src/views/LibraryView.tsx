@@ -148,13 +148,25 @@ export function LibraryView() {
             onRegenerate={() => void regenerateThumbs()}
           />
 
-          <AssetGrid
-            assets={visible}
-            selection={selection}
-            onToggleSelect={toggleSelected}
-            onToggleFavorite={toggleFavorite}
-            onOpen={setPreview}
-          />
+          {assets.length === 0 ? (
+            <Stack grow align="center" justify="center" gap={12}>
+              <strong>Your library is empty</strong>
+              <span style={{ color: "var(--text-2)" }}>
+                Import .gltf, .glb, or .fbx assets to get started.
+              </span>
+              <Button variant="primary" onClick={() => setImportOpen(true)}>
+                Import assets…
+              </Button>
+            </Stack>
+          ) : (
+            <AssetGrid
+              assets={visible}
+              selection={selection}
+              onToggleSelect={toggleSelected}
+              onToggleFavorite={toggleFavorite}
+              onOpen={setPreview}
+            />
+          )}
 
           <ThumbStatusBar
             progress={progress}
