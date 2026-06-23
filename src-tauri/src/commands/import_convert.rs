@@ -55,7 +55,7 @@ pub async fn convert_to_gltf(
 /// breaking the viewer and every exporter. We rewrite `buffers[0].uri` to
 /// `<stem>.bin`, write the buffer there, and copy textures verbatim. Returns the
 /// library-relative paths written, `.gltf` first.
-fn promote(gltf: &Path, dest_abs: &Path, dest_rel: &str, stem: &str) -> AppResult<Vec<String>> {
+pub fn promote(gltf: &Path, dest_abs: &Path, dest_rel: &str, stem: &str) -> AppResult<Vec<String>> {
     let produced_dir = gltf
         .parent()
         .ok_or_else(|| AppError::msg("converted gltf has no parent dir".to_string()))?;

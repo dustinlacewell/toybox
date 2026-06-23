@@ -21,6 +21,12 @@ pub mod testing_origin {
     pub use crate::domain::gltf_origin::{recenter, world_aabb, Aabb, Align, Axis};
 }
 
+/// FBX-conversion surface for the real end-to-end integration test.
+pub mod testing_convert {
+    pub use crate::commands::import_convert::promote;
+    pub use crate::infra::converter::convert_fbx;
+}
+
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     tauri::Builder::default()
