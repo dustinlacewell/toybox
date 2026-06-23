@@ -6,7 +6,7 @@
  * explainer instead of the OS dialog).
  */
 
-import { Download, FolderOpen, RefreshCw, ScanLine, Upload, X } from "lucide-react";
+import { Download, RefreshCw, ScanLine, Settings, Upload, X } from "lucide-react";
 
 import { Toolbar, TextInput, IconButton, IconStrip } from "@ldlework/toybox-sdk/ui";
 
@@ -22,8 +22,8 @@ interface Props {
   onImport?: () => void;
   /** Library-only: rebuild the catalog. Omitted by the web demo. */
   onRescan?: () => void;
-  /** Library-only: re-point at a different library folder. Omitted by the demo. */
-  onChangeLibrary?: () => void;
+  /** Library-only: open the settings drawer (library + FBX converter). */
+  onOpenSettings?: () => void;
   /** Library-only: regenerate every thumbnail. Omitted by the web demo. */
   onRegenerate?: () => void;
 }
@@ -38,7 +38,7 @@ export function LibraryToolbar({
   onExport,
   onImport,
   onRescan,
-  onChangeLibrary,
+  onOpenSettings,
   onRegenerate,
 }: Props) {
   const hasSelection = selectedCount > 0;
@@ -61,8 +61,8 @@ export function LibraryToolbar({
           <IconButton icon={RefreshCw} label="Regenerate thumbnails" onClick={onRegenerate} />
         )}
         {onRescan && <IconButton icon={ScanLine} label="Rescan library" onClick={onRescan} />}
-        {onChangeLibrary && (
-          <IconButton icon={FolderOpen} label="Change library…" onClick={onChangeLibrary} />
+        {onOpenSettings && (
+          <IconButton icon={Settings} label="Settings…" onClick={onOpenSettings} />
         )}
         <IconButton
           icon={X}

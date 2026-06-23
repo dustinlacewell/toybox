@@ -5,8 +5,8 @@ mod error;
 mod infra;
 
 use commands::{
-    catalog, export_copy, export_glb, export_plugin, import, library, packs, plugins, recenter,
-    scan, thumbs,
+    catalog, export_copy, export_glb, export_plugin, import, import_convert, library, packs,
+    plugins, recenter, scan, settings, thumbs,
 };
 use infra::library::LibraryState;
 
@@ -39,6 +39,9 @@ pub fn run() {
             library::get_library_root,
             library::set_library_root,
             library::create_library,
+            settings::get_fbx2gltf_path,
+            settings::set_fbx2gltf_path,
+            import_convert::convert_to_gltf,
             scan::scan_library,
             catalog::load_catalog,
             catalog::save_catalog,

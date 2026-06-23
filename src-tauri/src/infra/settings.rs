@@ -13,6 +13,10 @@ use crate::infra::{appdata, fsio};
 pub struct AppSettings {
     /// Absolute path to the asset library the user picked, if any.
     pub library_root: Option<String>,
+    /// Absolute path to the user's FBX2glTF executable, if configured. Used by
+    /// the importer to convert `.fbx` sources; absent means FBX import is off.
+    #[serde(default)]
+    pub fbx2gltf_path: Option<String>,
 }
 
 /// Load settings, defaulting to empty whenever the file can't be read as our

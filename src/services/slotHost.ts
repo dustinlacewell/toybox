@@ -6,18 +6,28 @@
  * they are not exposed during render.
  */
 
-import type { SlotHost } from "@ldlework/toybox-sdk";
+import type { PluginPermissions, SlotHost } from "@ldlework/toybox-sdk";
 import { useStore } from "../state/store";
-import { selectedAssets } from "./pluginHost";
-import { getLibraryRoot } from "./tauriApi";
+import { gate, selectedAssets } from "./pluginHost";
+import { convertToGltf, getLibraryRoot } from "./tauriApi";
 import { pickDirectory } from "./pickDirectory";
 import { pickSaveFile } from "./pickSaveFile";
 
-export function buildSlotHost(): SlotHost {
+/** The render-time host for a slot panel. `perms`/`pluginId` gate the converter
+ *  primitive (importers only); export panels pass nothing and never see it. */
+export function buildSlotHost(
+  pluginId = "",
+  perms: PluginPermissions = {},
+): SlotHost {
+  const gatedConvert = gate(pluginId, "rustConvert", perms.rustConvert);
   return {
     getSelectedAssets: () => selectedAssets([...useStore.getState().selection]),
     getAsset: (id) => useStore.getState().catalog?.assets.find((a) => a.id === id),
     getLibraryRoot: () => getLibraryRoot(),
+    convertToGltf: gatedConvert(
+      (srcPath: string, pack: string, category: string, stem: string) =>
+        convertToGltf(srcPath, pack, category, stem),
+    ),
     pickDirectory,
     pickSaveFile,
   };

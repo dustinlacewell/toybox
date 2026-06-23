@@ -87,6 +87,8 @@ export interface PluginPermissions {
   fsRead?: boolean;
   /** May call the Rust export primitives on `ctx.host`. */
   rustExport?: boolean;
+  /** May call `ctx.host.convertToGltf` (shells the user's FBX2glTF). */
+  rustConvert?: boolean;
 }
 
 /** One declarative config input. The host maps each to a ds primitive. */
@@ -206,6 +208,15 @@ export interface SlotHost {
   getAsset(id: string): AssetView | undefined;
   /** The configured library root, or null if none — where an importer writes. */
   getLibraryRoot(): Promise<string | null>;
+  /** Convert one `.fbx` into loose glTF under `library/<pack>/<category>/`,
+   *  returning the library-relative paths written (`.gltf` first). Shells the
+   *  user's FBX2glTF; rejects if none is configured. Gated by `rustConvert`. */
+  convertToGltf(
+    srcPath: string,
+    pack: string,
+    category: string,
+    stem: string,
+  ): Promise<string[]>;
   pickDirectory(): Promise<string | null>;
   pickSaveFile(defaultName: string): Promise<string | null>;
 }

@@ -55,10 +55,10 @@ pub fn current(app: &AppHandle) -> Option<PathBuf> {
 pub fn set(app: &AppHandle, root: &Path) -> AppResult<()> {
     validate(root)?;
     let root = root.to_path_buf();
-    settings::save(
-        app,
-        &settings::AppSettings { library_root: Some(root.to_string_lossy().to_string()) },
-    )?;
+    // Preserve any other settings (e.g. the converter path) — only the root changes.
+    let mut settings = settings::load(app)?;
+    settings.library_root = Some(root.to_string_lossy().to_string());
+    settings::save(app, &settings)?;
     extend_scope(app, &root);
     store(app, Some(root));
     Ok(())

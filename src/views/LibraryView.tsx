@@ -22,6 +22,7 @@ import { ImportDrawer } from "../components/ImportDrawer";
 import { FacetFilter } from "../components/FacetFilter";
 import { LibraryPicker } from "../components/LibraryPicker";
 import { LibraryToolbar } from "../components/LibraryToolbar";
+import { SettingsModal } from "../components/SettingsModal";
 import { ThumbStatusBar } from "../components/ThumbStatusBar";
 import { useThumbGeneration } from "../components/useThumbGeneration";
 import { useFavorites } from "../components/useFavorites";
@@ -54,6 +55,8 @@ export function LibraryView() {
 
   const [exportOpen, setExportOpen] = useState(false);
   const [importOpen, setImportOpen] = useState(false);
+  const [settingsOpen, setSettingsOpen] = useState(false);
+  const [libraryRoot, setLibraryRoot] = useState<string | null>(null);
   // null = library configured; "first-run" / "repoint" = show the picker.
   const [pickMode, setPickMode] = useState<"first-run" | "repoint" | null>(null);
   const registry = usePluginRegistry();
@@ -62,6 +65,7 @@ export function LibraryView() {
 
   useEffect(() => {
     void initCatalog(deps);
+    void getLibraryRoot().then(setLibraryRoot);
     // deps is rebuilt each render but its setters are stable; init once on mount.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
@@ -90,6 +94,7 @@ export function LibraryView() {
       <LibraryPicker
         onPicked={() => {
           setPickMode(null);
+          void getLibraryRoot().then(setLibraryRoot);
           void initCatalog(deps, true);
         }}
         onCancel={pickMode === "repoint" ? () => setPickMode(null) : undefined}
@@ -139,7 +144,7 @@ export function LibraryView() {
             onExport={() => setExportOpen(true)}
             onImport={() => setImportOpen(true)}
             onRescan={rescan}
-            onChangeLibrary={() => setPickMode("repoint")}
+            onOpenSettings={() => setSettingsOpen(true)}
             onRegenerate={() => void regenerateThumbs()}
           />
 
@@ -180,6 +185,16 @@ export function LibraryView() {
         onCommitted={() => {
           setImportOpen(false);
           rescan();
+        }}
+      />
+
+      <SettingsModal
+        open={settingsOpen}
+        onClose={() => setSettingsOpen(false)}
+        libraryRoot={libraryRoot}
+        onChangeLibrary={() => {
+          setSettingsOpen(false);
+          setPickMode("repoint");
         }}
       />
     </>

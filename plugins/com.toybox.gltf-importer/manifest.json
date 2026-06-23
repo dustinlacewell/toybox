@@ -3,10 +3,11 @@
   "name": "glTF / glb folder importer",
   "version": "1.0.0",
   "kind": "importer",
-  "description": "Import an existing folder of .gltf (+.bin) or single-file .glb assets into your library.",
+  "description": "Import a folder of .gltf (+.bin), .glb, or .fbx (via FBX2glTF) assets into your library.",
   "permissions": {
     "fsRead": true,
-    "fsWrite": true
+    "fsWrite": true,
+    "rustConvert": true
   },
   "ui": {
     "importPanel": "dist/ui/Import.js"

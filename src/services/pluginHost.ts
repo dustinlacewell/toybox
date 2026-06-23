@@ -129,7 +129,7 @@ export function buildFsApi(pluginId: string, perms: PluginPermissions): FsApi {
 
 /** Wrap a method so that, unless `granted`, calling it throws a clear
  *  permission error naming the plugin and the missing capability. */
-function gate(pluginId: string, capability: keyof PluginPermissions, granted?: boolean) {
+export function gate(pluginId: string, capability: keyof PluginPermissions, granted?: boolean) {
   return function <A extends unknown[], R>(fn: (...args: A) => R) {
     if (granted) return fn;
     return (..._args: A): R => {

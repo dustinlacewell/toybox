@@ -53,6 +53,12 @@ export default defineImportPanel(function ImportPanel({ ctx }: { ctx: ImportPane
       const libraryRoot = await ctx.host.getLibraryRoot();
       if (!libraryRoot) throw new Error("no library configured");
 
+      const io = {
+        fs: ctx.fs,
+        convert: ctx.host.convertToGltf,
+        sourceRoot: source,
+        libraryRoot,
+      };
       const entries: SeedEntryInput[] = [];
       const warnings: string[] = [];
       const seenStems = new Set<string>();
@@ -68,7 +74,7 @@ export default defineImportPanel(function ImportPanel({ ctx }: { ctx: ImportPane
           continue;
         }
 
-        const result = await materialize(ctx.fs, source, libraryRoot, f, pack, category);
+        const result = await materialize(io, f, pack, category);
         if ("rejected" in result) {
           skipped += 1;
           warnings.push(`skipped ${f.relPath}: ${result.rejected}`);

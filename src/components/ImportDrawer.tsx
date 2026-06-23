@@ -40,7 +40,7 @@ export function ImportDrawer({ open, importers, pluginErrors, onClose, onCommitt
   const panel = active?.manifest.ui?.importPanel;
 
   const ctx: ImportPanelCtx = {
-    host: buildSlotHost(),
+    host: buildSlotHost(active?.manifest.id ?? "", active?.manifest.permissions ?? {}),
     fs: buildFsApi(active?.manifest.id ?? "", active?.manifest.permissions ?? {}),
     commit: async (entries: SeedEntryInput[]) => {
       setError(null);

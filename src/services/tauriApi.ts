@@ -31,6 +31,24 @@ export const getLibraryRoot = (): Promise<string | null> =>
 export const setLibraryRoot = (path: string): Promise<void> =>
   invoke("set_library_root", { path });
 
+/** The configured FBX2glTF executable path, or null if unset. */
+export const getFbx2gltfPath = (): Promise<string | null> =>
+  invoke("get_fbx2gltf_path");
+
+/** Set (or clear, with null) the FBX2glTF executable path. */
+export const setFbx2gltfPath = (path: string | null): Promise<void> =>
+  invoke("set_fbx2gltf_path", { path });
+
+/** Convert one `.fbx` into loose glTF under library/<pack>/<category>/, returning
+ *  the library-relative paths written (`.gltf` first). */
+export const convertToGltf = (
+  srcPath: string,
+  pack: string,
+  category: string,
+  stem: string,
+): Promise<string[]> =>
+  invoke("convert_to_gltf", { srcPath, pack, category, stem });
+
 /** Scaffold a new, empty library in the chosen folder and adopt it. Rejects
  *  (with a message) if the folder isn't empty (and isn't already a library). */
 export const createLibrary = (path: string): Promise<void> =>

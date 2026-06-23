@@ -61,6 +61,16 @@ export const pluginReadBytes = async (
   _path: string,
 ): Promise<Uint8Array> => new Uint8Array();
 
+// Settings / FBX conversion — no filesystem or process in the browser.
+export const getFbx2gltfPath = async (): Promise<string | null> => null;
+export const setFbx2gltfPath = async (_path: string | null): Promise<void> => {};
+export const convertToGltf = async (
+  _srcPath: string,
+  _pack: string,
+  _category: string,
+  _stem: string,
+): Promise<string[]> => [];
+
 export const loadPacks = async (): Promise<PackMeta[]> => DEMO_PACKS;
 
 export const resolveAssetPath = async (relPath: string): Promise<string> => relPath;

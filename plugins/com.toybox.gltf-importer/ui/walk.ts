@@ -8,16 +8,25 @@
 import type { FsApi } from "@ldlework/toybox-sdk";
 import { unpackGlb, type GlbReject } from "./glb.js";
 
+/** Shells the user's FBX2glTF for one `.fbx`, landing loose glTF in the library
+ *  and returning the library-relative paths written (`.gltf` first). */
+export type ConvertFbx = (
+  srcPath: string,
+  pack: string,
+  category: string,
+  stem: string,
+) => Promise<string[]>;
+
 /** A model file discovered under the source root. */
 export interface Found {
   /** Source-root-relative path (forward-slashed), as returned by readDir. */
   relPath: string;
   /** Basename without extension — the asset name and target stem. */
   stem: string;
-  kind: "gltf" | "glb";
+  kind: "gltf" | "glb" | "fbx";
 }
 
-/** Recursively list every `.gltf`/`.glb` under `sourceRoot`. */
+/** Recursively list every `.gltf`/`.glb`/`.fbx` under `sourceRoot`. */
 export async function findModels(fs: FsApi, sourceRoot: string): Promise<Found[]> {
   const out: Found[] = [];
   const queue: string[] = ["."];
@@ -43,28 +52,38 @@ export interface Materialized {
   warnings: string[];
 }
 
-/** A rejection reason that also covers loose-glTF shapes the library can't hold. */
-export type Reject = GlbReject | "multi-buffer" | "bad-gltf";
+/** A rejection reason: the glb/loose shape rejects, or a free-form converter
+ *  failure message. */
+export type Reject = GlbReject | "multi-buffer" | "bad-gltf" | (string & {});
+
+/** The host capabilities `materialize` needs: the jailed fs, the FBX converter,
+ *  and the picked source root (used to form an absolute path for the converter). */
+export interface Imports {
+  fs: FsApi;
+  convert: ConvertFbx;
+  sourceRoot: string;
+  libraryRoot: string;
+}
 
 /**
- * Copy/unpack one found model into `library/<pack>/<category>/` under the library
- * root, normalizing it to the library invariant the index assumes: a loose glTF
- * whose single buffer is `<stem>.bin`, sitting beside its `.bin` and textures.
+ * Land one found model into `library/<pack>/<category>/`, normalizing it to the
+ * library invariant the index assumes: a loose glTF whose single buffer is
+ * `<stem>.bin`, beside its `.bin` and textures.
  *
  * The native index (`entry_from_parts`) hardcodes the catalog's bin to
- * `<stem>.bin` regardless of what the source named it, so we must rename the
- * buffer to match — otherwise the viewer and exporters resolve a bin the catalog
- * doesn't know. Both source kinds funnel through the same rename, so glb and
- * loose produce byte-identical library shapes.
+ * `<stem>.bin` regardless of what the source named it, so glb/loose paths rename
+ * the buffer to match. An `.fbx` is delegated to the user's FBX2glTF (via the
+ * Rust converter), which writes loose glTF into the library directly.
  */
 export async function materialize(
-  fs: FsApi,
-  sourceRoot: string,
-  libraryRoot: string,
+  io: Imports,
   found: Found,
   pack: string,
   category: string,
 ): Promise<Materialized | { rejected: Reject }> {
+  if (found.kind === "fbx") return convertFbx(io, found, pack, category);
+
+  const { fs, sourceRoot, libraryRoot } = io;
   const destDir = `library/${pack}/${category}`;
   const gltfFile = `${found.stem}.gltf`;
   const warnings: string[] = [];
@@ -81,6 +100,25 @@ export async function materialize(
   await copyReferenced(fs, sourceRoot, libraryRoot, srcDir, destDir, imageUris(doc), warnings);
 
   return { file: gltfFile, warnings };
+}
+
+/** Convert one `.fbx` via the host's FBX2glTF; it writes loose glTF into the
+ *  library and returns the paths. The `.gltf` filename is the seed entry's file. */
+async function convertFbx(
+  io: Imports,
+  found: Found,
+  pack: string,
+  category: string,
+): Promise<Materialized | { rejected: Reject }> {
+  const srcAbs = `${io.sourceRoot}/${found.relPath}`;
+  try {
+    const written = await io.convert(srcAbs, pack, category, found.stem);
+    const gltf = written.find((p) => p.toLowerCase().endsWith(".gltf"));
+    if (!gltf) return { rejected: "bad-gltf" };
+    return { file: basename(gltf), warnings: [] };
+  } catch (e) {
+    return { rejected: `convert failed: ${String(e)}` };
+  }
 }
 
 /** Bring either source kind to the canonical shape: a parsed glTF doc whose
@@ -148,10 +186,11 @@ async function copyReferenced(
 
 // --- pure helpers ------------------------------------------------------------
 
-function modelKind(name: string): "gltf" | "glb" | null {
+function modelKind(name: string): "gltf" | "glb" | "fbx" | null {
   const lower = name.toLowerCase();
   if (lower.endsWith(".gltf")) return "gltf";
   if (lower.endsWith(".glb")) return "glb";
+  if (lower.endsWith(".fbx")) return "fbx";
   return null;
 }
 
@@ -162,6 +201,11 @@ function stemOf(name: string): string {
 function dirOf(relPath: string): string {
   const i = relPath.lastIndexOf("/");
   return i < 0 ? "" : relPath.slice(0, i);
+}
+
+function basename(relPath: string): string {
+  const i = relPath.lastIndexOf("/");
+  return i < 0 ? relPath : relPath.slice(i + 1);
 }
 
 /** Resolve a relative uri against a dir, collapsing `.`/`..` — mirrors the
