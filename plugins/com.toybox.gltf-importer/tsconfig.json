@@ -1,0 +1,18 @@
+{
+  "compilerOptions": {
+    "target": "ES2022",
+    "module": "ESNext",
+    "moduleResolution": "bundler",
+    "lib": ["ES2022", "DOM"],
+    "jsx": "react-jsx",
+    "strict": true,
+    "skipLibCheck": true,
+    "isolatedModules": true,
+    "verbatimModuleSyntax": true,
+    "rootDir": ".",
+    "outDir": "dist"
+    // Same externals as the placer: `@ldlework/toybox-sdk` (+ `/ui`) and `react`
+    // resolve at runtime via the app's import map; types come from the linked SDK.
+  },
+  "include": ["ui/**/*.tsx", "ui/**/*.ts"]
+}

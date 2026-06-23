@@ -1,0 +1,14 @@
+{
+  "id": "com.toybox.gltf-importer",
+  "name": "glTF / glb folder importer",
+  "version": "1.0.0",
+  "kind": "importer",
+  "description": "Import an existing folder of .gltf (+.bin) or single-file .glb assets into your library.",
+  "permissions": {
+    "fsRead": true,
+    "fsWrite": true
+  },
+  "ui": {
+    "importPanel": "dist/ui/Import.js"
+  }
+}

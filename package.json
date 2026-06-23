@@ -9,7 +9,7 @@
     "preview": "vite preview",
     "tauri": "tauri",
     "sdk:build": "tsc -p packages/toybox-sdk/tsconfig.json && tsc -p packages/toybox-sdk/tsconfig.ui-types.json",
-    "plugins:build": "pnpm sdk:build && tsc -p plugins/com.toybox.placer/tsconfig.json",
+    "plugins:build": "pnpm sdk:build && tsc -p plugins/com.toybox.placer/tsconfig.json && tsc -p plugins/com.toybox.gltf-importer/tsconfig.json",
     "plugins:link": "node scripts/link-plugins.mjs",
     "plugins:dev": "pnpm plugins:build && pnpm plugins:link"
   },
