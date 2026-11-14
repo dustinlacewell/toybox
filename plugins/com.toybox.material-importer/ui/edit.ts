@@ -31,6 +31,16 @@ export function setIncluded(items: ReviewItem[], index: number, included: boolea
   return updateItem(items, index, (item) => ({ ...item, included }));
 }
 
+/** Set `included` on every item whose index is in `indexes`. */
+export function setAllIncluded(
+  items: ReviewItem[],
+  indexes: number[],
+  included: boolean,
+): ReviewItem[] {
+  const chosen = new Set(indexes);
+  return items.map((item, i) => (chosen.has(i) ? { ...item, included } : item));
+}
+
 export function rename(items: ReviewItem[], index: number, name: string): ReviewItem[] {
   return updateItem(items, index, (item) => ({ ...item, draft: { ...item.draft, name } }));
 }

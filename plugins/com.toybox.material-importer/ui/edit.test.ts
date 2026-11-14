@@ -5,6 +5,7 @@ import {
   problemsFor,
   rename,
   setChannel,
+  setAllIncluded,
   setIncluded,
   setUse,
   type ReviewItem,
@@ -26,6 +27,14 @@ describe("edits", () => {
     const next = setIncluded(items, 1, false);
     expect(next.map((i) => i.included)).toEqual([true, false]);
     expect(items[1].included).toBe(true);
+  });
+
+  it("setAllIncluded sets only the listed items and leaves the input alone", () => {
+    const items = [item("A"), item("B", false), item("C")];
+    const next = setAllIncluded(items, [1, 2], false);
+    expect(next.map((i) => i.included)).toEqual([true, false, false]);
+    expect(setAllIncluded(items, [1], true).map((i) => i.included)).toEqual([true, true, true]);
+    expect(items.map((i) => i.included)).toEqual([true, false, true]);
   });
 
   it("rename changes one draft's name", () => {
