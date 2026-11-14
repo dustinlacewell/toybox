@@ -13,7 +13,7 @@ use crate::infra::appdata;
 
 /// The bundled plugin ids to seed. Each must have a matching `bundle.resources`
 /// entry (`plugins/<id>/manifest.json` + `plugins/<id>/dist`) in tauri.conf.json.
-const BUNDLED_PLUGINS: &[&str] = &["com.toybox.gltf-importer"];
+const BUNDLED_PLUGINS: &[&str] = &["com.toybox.gltf-importer", "com.toybox.material-importer"];
 
 /// Copy any not-yet-installed bundled plugin into the app-data plugins dir.
 /// Best-effort and idempotent: a present plugin is skipped, and a copy failure
@@ -63,6 +63,14 @@ fn copy_dir(src: &Path, dst: &Path) -> std::io::Result<()> {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn bundled_ids_are_unique() {
+        let mut ids: Vec<&str> = BUNDLED_PLUGINS.to_vec();
+        ids.sort();
+        ids.dedup();
+        assert_eq!(ids.len(), BUNDLED_PLUGINS.len());
+    }
 
     #[test]
     fn seeds_when_absent_and_never_overwrites() {

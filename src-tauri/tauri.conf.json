@@ -44,7 +44,9 @@
     "targets": "all",
     "resources": {
       "../plugins/com.toybox.gltf-importer/manifest.json": "plugins/com.toybox.gltf-importer/manifest.json",
-      "../plugins/com.toybox.gltf-importer/dist": "plugins/com.toybox.gltf-importer/dist"
+      "../plugins/com.toybox.gltf-importer/dist": "plugins/com.toybox.gltf-importer/dist",
+      "../plugins/com.toybox.material-importer/manifest.json": "plugins/com.toybox.material-importer/manifest.json",
+      "../plugins/com.toybox.material-importer/dist": "plugins/com.toybox.material-importer/dist"
     },
     "icon": [
       "icons/32x32.png",
