@@ -1,53 +1,47 @@
-//! `merge_seed_entries`: the importer commit. Turns plugin-supplied seed entries
-//! into catalog assets and merges them in, preserving prior user metadata —
-//! exactly the pipeline `scan_library` runs, but seeded from a plugin instead of
-//! the hardcoded `catalog.json`. This is what finally opens the previously-closed
-//! inbound format: any importer plugin can contribute assets by producing entries.
+//! `merge_seed_entries`: the importer commit. An importer's entries have exactly
+//! the shape of a manifest (`_library_config/catalog.json`) entry; the manifest is
+//! the single source of truth, so the commit upserts them into it and the cached
+//! catalog gains the new assets without losing any other.
 //!
-//! The referenced files must already exist under `library/<pack>/<category>/` for
-//! the glTF facet read to resolve (same requirement as scan); a missing file
-//! surfaces a clear error rather than a partial catalog.
+//! Order matters: every entry is parsed and its files validated (via
+//! `build_catalog`) before anything is written, so a bad import leaves the
+//! library untouched. The referenced files must already exist under the library.
 
-use serde::Deserialize;
+use serde_json::Value;
 use tauri::AppHandle;
 
+use crate::config;
 use crate::domain::catalog_model::Catalog;
-use crate::domain::merge;
-use crate::domain::seed::entry_from_parts;
+use crate::domain::{merge, paths, seed};
 use crate::error::AppResult;
-use crate::infra::library;
+use crate::infra::{fsio, library};
 
 use super::catalog::{load_catalog_inner, save_catalog_inner};
 use super::catalog_build::build_catalog;
-
-/// One entry an importer produced. Mirrors the four declared fields of the native
-/// `catalog.json` source (`id`, `pack`, `category`, `file`).
-#[derive(Debug, Clone, Deserialize)]
-#[serde(rename_all = "camelCase")]
-pub struct SeedEntryInputDto {
-    pub id: String,
-    pub pack: String,
-    pub category: String,
-    pub file: String,
-}
+use super::scan::build_catalog_from_seed;
 
 #[tauri::command]
-pub async fn merge_seed_entries(
-    app: AppHandle,
-    entries: Vec<SeedEntryInputDto>,
-) -> AppResult<Catalog> {
-    let root = library::resolve(&app)?;
-    let seed_entries = entries
-        .into_iter()
-        .map(|e| entry_from_parts(e.id, e.pack, e.category, e.file))
-        .collect();
-    let fresh = build_catalog(&root.to_string_lossy(), seed_entries)?;
+pub async fn merge_seed_entries(app: AppHandle, entries: Vec<Value>) -> AppResult<Catalog> {
+    let root = library::resolve(&app)?.to_string_lossy().to_string();
+
+    let parsed = entries.iter().map(seed::parse_entry).collect::<AppResult<Vec<_>>>()?;
+    let fresh = build_catalog(&root, parsed)?;
+
+    upsert_into_manifest(&root, entries)?;
 
     let result = match load_catalog_inner(&app)? {
-        Some(prior) => merge::merge_preserving_user(&prior, fresh),
-        None => fresh,
+        Some(prior) => merge::upsert_assets(prior, fresh.assets),
+        None => build_catalog_from_seed(&root)?,
     };
 
     save_catalog_inner(&app, &result)?;
     Ok(result)
+}
+
+/// Read the manifest, upsert `entries` into it, and write it back pretty-printed.
+fn upsert_into_manifest(root: &str, entries: Vec<Value>) -> AppResult<()> {
+    let path = paths::abs_under_root(root, config::SEED_REL);
+    let doc = serde_json::from_str(&fsio::read_text(&path)?)?;
+    let updated = seed::upsert_entries(doc, entries)?;
+    fsio::write_text(&path, &serde_json::to_string_pretty(&updated)?)
 }

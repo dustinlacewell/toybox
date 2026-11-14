@@ -31,7 +31,7 @@ pub async fn scan_library(app: AppHandle, force_reseed: bool) -> AppResult<Catal
 
 /// Read `catalog.json` and assemble the catalog from its entries (textures and
 /// animation resolved per asset). Produces default `user`/`thumb` metadata.
-fn build_catalog_from_seed(root: &str) -> AppResult<Catalog> {
+pub(super) fn build_catalog_from_seed(root: &str) -> AppResult<Catalog> {
     let seed_abs = paths::abs_under_root(root, config::SEED_REL);
     let seed_text = fsio::read_text(&seed_abs)?;
     let seed_doc = serde_json::from_str(&seed_text)?;

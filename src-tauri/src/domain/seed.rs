@@ -52,15 +52,26 @@ pub fn parse_seed_entries(doc: &Value) -> AppResult<Vec<SeedEntry>> {
         .get("assets")
         .and_then(|v| v.as_array())
         .ok_or_else(|| AppError::msg("catalog.json has no assets[]"))?;
-    assets.iter().map(parse_one).collect()
+    assets.iter().map(parse_entry).collect()
 }
 
-fn parse_one(a: &Value) -> AppResult<SeedEntry> {
+/// Category reserved for material sets: `library/<pack>/materials/` holds them,
+/// so a model may not claim it.
+const RESERVED_MATERIALS_CATEGORY: &str = "materials";
+
+/// Parse one manifest entry (a `catalog.json` asset, or an importer's entry —
+/// they share one shape). The single parser both paths go through.
+pub fn parse_entry(a: &Value) -> AppResult<SeedEntry> {
     let id = str_field(a, "id")?;
     let pack = str_field(a, "pack")?;
     let category = str_field(a, "category")?;
     match a.get("kind").map(|k| k.as_str()) {
         None | Some(Some("model")) => {
+            if category == RESERVED_MATERIALS_CATEGORY {
+                return Err(AppError::msg(format!(
+                    "asset {id}: category '{RESERVED_MATERIALS_CATEGORY}' is reserved for material sets"
+                )));
+            }
             let file = str_field(a, "file")?;
             Ok(entry_from_parts(id, pack, category, file))
         }
@@ -75,7 +86,7 @@ fn parse_one(a: &Value) -> AppResult<SeedEntry> {
 
 /// Build a model `SeedEntry` from its four declared fields, reconstructing the
 /// library-relative `gltf`/`bin` paths as `library/<pack>/<category>/<file>`.
-/// Shared by `catalog.json` seeding (`parse_one`) and plugin-driven import
+/// Shared by `catalog.json` seeding (`parse_entry`) and plugin-driven import
 /// (`commands::import`) so both produce identical entries.
 pub fn entry_from_parts(id: String, pack: String, category: String, file: String) -> SeedEntry {
     let name = file.strip_suffix(".gltf").unwrap_or(&file).to_string();
@@ -121,6 +132,24 @@ pub fn material_entry_from_parts(
         category,
         content: SeedContent::Material { material: decl },
     })
+}
+
+/// Write `entries` into the manifest document `doc`: an entry whose `id` is
+/// already in `assets[]` replaces that object in place, any other is appended.
+/// Existing order and every other top-level field are left untouched.
+pub fn upsert_entries(mut doc: Value, entries: Vec<Value>) -> AppResult<Value> {
+    let assets = doc
+        .get_mut("assets")
+        .and_then(|v| v.as_array_mut())
+        .ok_or_else(|| AppError::msg("catalog.json has no assets[]"))?;
+    for entry in entries {
+        let id = str_field(&entry, "id")?;
+        match assets.iter().position(|a| a.get("id").and_then(|v| v.as_str()) == Some(&id)) {
+            Some(i) => assets[i] = entry,
+            None => assets.push(entry),
+        }
+    }
+    Ok(doc)
 }
 
 /// Assemble a model `Asset` from a seed entry plus its resolved texture list and
@@ -312,5 +341,51 @@ mod tests {
     #[test]
     fn rejects_missing_assets_array() {
         assert!(parse_seed_entries(&json!({ "schemaVersion": 1 })).is_err());
+    }
+
+    #[test]
+    fn rejects_model_in_reserved_materials_category() {
+        let mut doc = sample_doc();
+        doc["assets"][0]["category"] = json!("materials");
+        assert!(parse_entry(&doc["assets"][0]).is_err());
+    }
+
+    #[test]
+    fn material_entry_may_use_materials_category() {
+        let mut doc = material_doc();
+        doc["assets"][0]["category"] = json!("materials");
+        assert!(parse_entry(&doc["assets"][0]).is_ok());
+    }
+
+    fn entry(id: &str, file: &str) -> Value {
+        json!({ "id": id, "pack": "p", "category": "c", "file": file })
+    }
+
+    #[test]
+    fn upsert_appends_a_new_entry() {
+        let doc = json!({ "assets": [entry("a", "a.gltf")] });
+        let out = upsert_entries(doc, vec![entry("b", "b.gltf")]).unwrap();
+        assert_eq!(out["assets"], json!([entry("a", "a.gltf"), entry("b", "b.gltf")]));
+    }
+
+    #[test]
+    fn upsert_replaces_same_id_in_place() {
+        let doc = json!({ "assets": [entry("a", "a.gltf"), entry("b", "b.gltf")] });
+        let out = upsert_entries(doc, vec![entry("a", "a2.gltf")]).unwrap();
+        assert_eq!(out["assets"], json!([entry("a", "a2.gltf"), entry("b", "b.gltf")]));
+    }
+
+    #[test]
+    fn upsert_leaves_top_level_fields_untouched() {
+        let doc = json!({ "schemaVersion": 1, "note": "x", "assets": [] });
+        let out = upsert_entries(doc, vec![entry("a", "a.gltf")]).unwrap();
+        assert_eq!(out["schemaVersion"], json!(1));
+        assert_eq!(out["note"], json!("x"));
+    }
+
+    #[test]
+    fn upsert_errors_without_assets_or_id() {
+        assert!(upsert_entries(json!({ "schemaVersion": 1 }), vec![entry("a", "a.gltf")]).is_err());
+        assert!(upsert_entries(json!({ "assets": [] }), vec![json!({ "pack": "p" })]).is_err());
     }
 }
