@@ -1,0 +1,99 @@
+.matview {
+  position: absolute;
+  inset: 0;
+  display: flex;
+}
+
+/* Positioned so the shared loading/error overlays and the toolbar sit over this
+   area only, not the map column. */
+.matview__main {
+  position: relative;
+  flex: 1;
+  min-width: 0;
+}
+.matview__main canvas {
+  display: block;
+}
+
+.matview__image {
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+}
+
+/* Floating toolbar, same look as the model viewer's. */
+.mtoolbar {
+  position: absolute;
+  top: var(--space-3);
+  left: var(--space-3);
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  padding: var(--space-1);
+  background: color-mix(in srgb, var(--bg-1) 88%, transparent);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-2);
+  backdrop-filter: blur(6px);
+  z-index: 2;
+}
+.mtoolbar__field {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+}
+.mtoolbar__label {
+  font-size: var(--fs-sm);
+  color: var(--text-2);
+}
+
+/* Map column. */
+.maplist {
+  flex: none;
+  width: 240px;
+  margin: 0;
+  padding: var(--space-2);
+  list-style: none;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+  overflow-y: auto;
+  background: var(--bg-1);
+  border-left: 1px solid var(--border);
+}
+
+.maplist__row {
+  all: unset;
+  box-sizing: border-box;
+  width: 100%;
+  display: flex;
+  align-items: baseline;
+  gap: var(--space-2);
+  padding: var(--space-2) var(--space-3);
+  border-radius: var(--radius-1);
+  font-size: var(--fs-sm);
+  color: var(--text-1);
+  cursor: pointer;
+}
+.maplist__row:hover {
+  background: var(--bg-3);
+}
+.maplist__row.is-active {
+  background: var(--accent-soft);
+  color: var(--accent);
+}
+
+.maplist__role {
+  font-weight: 600;
+}
+.maplist__channel {
+  color: var(--text-2);
+  font-weight: 600;
+}
+.maplist__file {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: var(--text-2);
+}

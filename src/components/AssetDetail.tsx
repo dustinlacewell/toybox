@@ -8,7 +8,7 @@ import type { ComponentType } from "react";
 
 import type { Asset, AssetKind } from "../domain/catalog";
 import { ModelViewer } from "./ModelViewer";
-import { ViewerFrame } from "./ViewerFrame";
+import { MaterialViewer } from "./MaterialViewer";
 
 interface DetailProps {
   asset: Asset;
@@ -21,11 +21,6 @@ type ViewerProps<K extends AssetKind> = {
 };
 
 type ViewerLookup = { [K in AssetKind]: ComponentType<ViewerProps<K>> };
-
-/** Placeholder until the material viewer exists: the frame with an empty stage. */
-function MaterialViewer({ asset, onClose }: ViewerProps<"material">) {
-  return <ViewerFrame asset={asset} onClose={onClose} />;
-}
 
 const VIEWERS: ViewerLookup = {
   model: ModelViewer,
