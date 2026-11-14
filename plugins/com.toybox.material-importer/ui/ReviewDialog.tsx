@@ -1,13 +1,16 @@
 /**
- * The review screen: a large two-pane dialog. The left pane lists the materials
- * (filterable, with include-all); the right pane edits the selected one. Holds
- * only view state — which item is open and which filter is on. The edits
- * themselves live in the panel, so closing the dialog keeps them.
+ * The review screen: a large three-column dialog. The left column lists the
+ * materials (filterable, with include-all); the centre shows the selected one in
+ * 3D; the right column edits it. Holds only view state — which item is open and
+ * which filter is on. The edits themselves live in the panel, so closing the
+ * dialog keeps them.
  */
 
 import { useMemo, useState } from "react";
+import type { PanelWidgets } from "@ldlework/toybox-sdk";
 import { Button, Checkbox, Dialog, Segmented, Stack } from "@ldlework/toybox-sdk/ui";
-import { importable, problemsFor, type ReviewItem } from "./edit.js";
+import { DraftPreview } from "./DraftPreview.js";
+import { canImport, importable, problemsFor, type ReviewItem } from "./edit.js";
 import type { ReviewHandlers } from "./handlers.js";
 import { MaterialEditor } from "./MaterialEditor.js";
 import { MaterialList } from "./MaterialList.js";
@@ -21,6 +24,10 @@ interface Props extends ReviewHandlers {
   pack: string;
   category: string;
   loader: ThumbLoader;
+  /** The host's 3D material preview. */
+  Preview: PanelWidgets["MaterialPreview"];
+  /** The item first shown. */
+  initialSelected: number;
   onClose: () => void;
   onImport: () => void;
 }
@@ -30,6 +37,8 @@ export function ReviewDialog({
   pack,
   category,
   loader,
+  Preview,
+  initialSelected,
   onClose,
   onImport,
   onInclude,
@@ -38,7 +47,7 @@ export function ReviewDialog({
   onUse,
   onChannel,
 }: Props) {
-  const [selected, setSelected] = useState(0);
+  const [selected, setSelected] = useState(initialSelected);
   const [filter, setFilter] = useState<Filter>("all");
 
   const problems = useMemo(
@@ -53,7 +62,7 @@ export function ReviewDialog({
     [filter, attention, items],
   );
   const allListedIncluded = listed.length > 0 && listed.every((i) => items[i].included);
-  const ready = count > 0 && pack.trim().length > 0 && category.trim().length > 0;
+  const ready = canImport(items, pack, category);
   const open = items[selected];
 
   return (
@@ -73,7 +82,7 @@ export function ReviewDialog({
       <div style={{ display: "flex", flex: 1, minWidth: 0, minHeight: 0 }}>
         <div
           style={{
-            width: 380,
+            width: 300,
             flex: "none",
             display: "flex",
             flexDirection: "column",
@@ -105,7 +114,18 @@ export function ReviewDialog({
             onInclude={onInclude}
           />
         </div>
-        <div style={{ flex: 1, minWidth: 0, overflowY: "auto", padding: 16 }}>
+        <div style={{ flex: 1, minWidth: 0, position: "relative" }}>
+          {open && <DraftPreview draft={open.draft} loader={loader} Preview={Preview} />}
+        </div>
+        <div
+          style={{
+            width: 320,
+            flex: "none",
+            overflowY: "auto",
+            padding: 12,
+            borderLeft: "1px solid var(--border)",
+          }}
+        >
           {open ? (
             <MaterialEditor
               item={open}

@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import type { DraftFile, FileUse } from "./draft.js";
 import {
+  canImport,
   importable,
   problemsFor,
   rename,
@@ -91,5 +92,15 @@ describe("importable", () => {
     const bad: ReviewItem = { included: true, draft: { name: "Bad", dir: "d", files: [] } };
     const items = [item("A"), item("B", false), bad, item("C")];
     expect(importable(items, "p", "c").map((i) => i.draft.name)).toEqual(["A", "C"]);
+  });
+});
+
+describe("canImport", () => {
+  it("needs an importable item, a pack and a category", () => {
+    const items = [item("A")];
+    expect(canImport(items, "p", "c")).toBe(true);
+    expect(canImport(items, " ", "c")).toBe(false);
+    expect(canImport(items, "p", "")).toBe(false);
+    expect(canImport([item("A", false)], "p", "c")).toBe(false);
   });
 });

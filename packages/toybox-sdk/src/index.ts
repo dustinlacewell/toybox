@@ -278,6 +278,9 @@ export interface MaterialPreviewProps {
   flipNormalGreen?: boolean;
   /** The URL to fetch a map's `file` from (e.g. an object URL of a source image). */
   resolveUrl(file: string): Promise<string>;
+  /** Names the place the files come from. The preview reloads when it changes,
+   *  so two sources with the same file names do not share a material. */
+  sourceKey?: string;
 }
 
 /** Host-built components a panel can mount. */

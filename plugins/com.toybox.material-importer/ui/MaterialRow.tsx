@@ -1,6 +1,7 @@
 /**
  * One material in the review list: an include checkbox, a preview, the name over
- * the roles its files supply, and a "!" when it has problems. Clicking selects it.
+ * the roles its files supply, and a "!" when it has problems. Clicking selects it;
+ * double-clicking opens it.
  */
 
 import { Checkbox } from "@ldlework/toybox-sdk/ui";
@@ -12,19 +13,31 @@ import type { ThumbLoader } from "./thumbs.js";
 interface Props {
   item: ReviewItem;
   problems: string[];
-  selected: boolean;
+  /** Highlight the row; omit where nothing is selected. */
+  selected?: boolean;
   loader: ThumbLoader;
-  onSelect: () => void;
+  onSelect?: () => void;
+  /** Double-click. */
+  onOpen?: () => void;
   onInclude: (included: boolean) => void;
 }
 
 const ONE_LINE = { overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" } as const;
 
-export function MaterialRow({ item, problems, selected, loader, onSelect, onInclude }: Props) {
+export function MaterialRow({
+  item,
+  problems,
+  selected,
+  loader,
+  onSelect,
+  onOpen,
+  onInclude,
+}: Props) {
   const { draft, included } = item;
   return (
     <div
       onClick={onSelect}
+      onDoubleClick={onOpen}
       style={{
         display: "flex",
         alignItems: "center",

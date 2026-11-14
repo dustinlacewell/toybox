@@ -1,7 +1,7 @@
 /**
  * The host's 3D material preview as a panel widget (`ctx.widgets.MaterialPreview`).
  * Builds a material from the plugin's maps and renders it in a MaterialStudio.
- * The material rebuilds when the maps or the flip flag change; a new
+ * The material rebuilds when the maps, the flip flag or `sourceKey` change; a new
  * `resolveUrl` function identity does not.
  */
 
@@ -11,8 +11,13 @@ import { buildMaterial } from "../../services/materialLoad";
 import { MaterialStudio } from "../material/MaterialStudio";
 import { useMaterial } from "../material/useMaterial";
 
-export function MaterialPreviewWidget({ maps, flipNormalGreen = false, resolveUrl }: MaterialPreviewProps) {
-  const key = JSON.stringify({ maps, flipNormalGreen });
+export function MaterialPreviewWidget({
+  maps,
+  flipNormalGreen = false,
+  resolveUrl,
+  sourceKey,
+}: MaterialPreviewProps) {
+  const key = JSON.stringify({ sourceKey, maps, flipNormalGreen });
   const state = useMaterial(key, () =>
     buildMaterial({ maps: maps.map(toDomainMap), flipNormalGreen, resolveUrl }),
   );

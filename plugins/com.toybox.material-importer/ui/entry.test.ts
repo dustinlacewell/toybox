@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import type { DraftFile, FileUse, MaterialDraft } from "./draft.js";
-import { toEntry, usedFiles } from "./entry.js";
+import { draftMaps, toEntry, usedFiles } from "./entry.js";
 
 const file = (fileName: string, use: FileUse): DraftFile => ({
   relPath: `d/${fileName}`,
@@ -89,6 +89,38 @@ describe("toEntry", () => {
     const dup = { ...albedo, relPath: "other/Cobble_albedo.png", use: { use: "unassigned" } as FileUse };
     const res = toEntry(draft(albedo, dup), "p", "c");
     expect("problems" in res && res.problems).toEqual(["file name used twice: Cobble_albedo.png"]);
+  });
+});
+
+describe("draftMaps", () => {
+  it("returns the other maps when there is no albedo", () => {
+    expect(draftMaps(draft(orm))).toEqual({
+      maps: [
+        { role: "ao", file: "Cobble_orm.png", channel: "r" },
+        { role: "roughness", file: "Cobble_orm.png", channel: "g" },
+        { role: "metallic", file: "Cobble_orm.png", channel: "b" },
+      ],
+      flipNormalGreen: false,
+    });
+  });
+
+  it("returns no maps for unassigned files", () => {
+    const extra = file("notes.png", { use: "unassigned" });
+    expect(draftMaps(draft(extra))).toEqual({ maps: [], flipNormalGreen: false });
+  });
+
+  it("maps a packed file to one map per used channel", () => {
+    const res = draftMaps(draft(albedo, orm));
+    expect(res.maps).toHaveLength(4);
+    expect(res.maps.filter((m) => m.file === "Cobble_orm.png")).toHaveLength(3);
+  });
+
+  it("sets flipNormalGreen for a DirectX normal", () => {
+    const nrm = file("Cobble_normal_dx.png", { use: "normal", directX: true });
+    expect(draftMaps(draft(nrm))).toEqual({
+      maps: [{ role: "normal", file: "Cobble_normal_dx.png" }],
+      flipNormalGreen: true,
+    });
   });
 });
 

@@ -1,13 +1,13 @@
 /**
- * The open material: its editable name, its problems, and a grid of its image
- * files as texture cards.
+ * The open material as a narrow column: its editable name, its problems, and one
+ * compact row per image file.
  */
 
 import { Stack, TextInput } from "@ldlework/toybox-sdk/ui";
 import type { ChannelRole, FileUse } from "./draft.js";
 import type { ReviewItem } from "./edit.js";
 import type { Channel } from "./handlers.js";
-import { TextureCard } from "./TextureCard.js";
+import { TextureRow } from "./TextureRow.js";
 import type { ThumbLoader } from "./thumbs.js";
 
 interface Props {
@@ -21,12 +21,12 @@ interface Props {
 
 export function MaterialEditor({ item, problems, loader, onRename, onUse, onChannel }: Props) {
   return (
-    <Stack gap={16}>
+    <Stack gap={14}>
       <Stack gap={6}>
         <TextInput
           value={item.draft.name}
           onChange={(e) => onRename(e.currentTarget.value)}
-          style={{ width: "100%", maxWidth: 480 }}
+          style={{ width: "100%" }}
         />
         {item.included &&
           problems.map((p) => (
@@ -35,23 +35,15 @@ export function MaterialEditor({ item, problems, loader, onRename, onUse, onChan
             </div>
           ))}
       </Stack>
-      <div
-        style={{
-          display: "grid",
-          gridTemplateColumns: "repeat(auto-fill, minmax(220px, 1fr))",
-          gap: 16,
-        }}
-      >
-        {item.draft.files.map((f, i) => (
-          <TextureCard
-            key={f.relPath}
-            file={f}
-            loader={loader}
-            onUse={(use) => onUse(i, use)}
-            onChannel={(c, role) => onChannel(i, c, role)}
-          />
-        ))}
-      </div>
+      {item.draft.files.map((f, i) => (
+        <TextureRow
+          key={f.relPath}
+          file={f}
+          loader={loader}
+          onUse={(use) => onUse(i, use)}
+          onChannel={(c, role) => onChannel(i, c, role)}
+        />
+      ))}
     </Stack>
   );
 }

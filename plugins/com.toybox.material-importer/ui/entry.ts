@@ -13,12 +13,21 @@ export function usedFiles(draft: MaterialDraft): DraftFile[] {
   return draft.files.filter((f) => mapsOf(f).length > 0);
 }
 
+/** The maps the draft's file uses assign right now, problems or not, and whether
+ *  the normal map needs its green channel flipped. What a live preview renders. */
+export function draftMaps(draft: MaterialDraft): {
+  maps: MaterialMapInput[];
+  flipNormalGreen: boolean;
+} {
+  return { maps: draft.files.flatMap(mapsOf), flipNormalGreen: flipsGreen(draft) };
+}
+
 export function toEntry(
   draft: MaterialDraft,
   pack: string,
   category: string,
 ): { entry: MaterialSeedEntry } | { problems: string[] } {
-  const maps = draft.files.flatMap(mapsOf);
+  const { maps, flipNormalGreen } = draftMaps(draft);
   const problems = [...nameProblems(draft), ...mapProblems(maps)];
   if (problems.length > 0) return { problems };
 
@@ -30,7 +39,7 @@ export function toEntry(
       category,
       name: draft.name,
       maps,
-      flipNormalGreen: flipsGreen(draft),
+      flipNormalGreen,
     },
   };
 }

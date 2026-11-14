@@ -114,3 +114,8 @@ function usedByOther(items: ReviewItem[], index: number, name: string): boolean 
 export function importable(items: ReviewItem[], pack: string, category: string): ReviewItem[] {
   return items.filter((item, i) => item.included && problemsFor(items, i, pack, category).length === 0);
 }
+
+/** Whether an import may start: something to import and a pack and category named. */
+export function canImport(items: ReviewItem[], pack: string, category: string): boolean {
+  return importable(items, pack, category).length > 0 && pack.trim() !== "" && category.trim() !== "";
+}

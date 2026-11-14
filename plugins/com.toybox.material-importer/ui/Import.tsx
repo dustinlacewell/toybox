@@ -29,6 +29,7 @@ import {
 import { toEntry } from "./entry.js";
 import { groupMaterials } from "./group.js";
 import { ReviewDialog } from "./ReviewDialog.js";
+import { ScannedView } from "./ScannedView.js";
 import { useThumbLoader } from "./useThumbLoader.js";
 import { copyMaterial, findImages } from "./walk.js";
 
@@ -43,7 +44,8 @@ export default defineImportPanel(function ImportPanel({ ctx }: { ctx: ImportPane
   const [pack, setPack] = useState("imported");
   const [category, setCategory] = useState("uncategorized");
   const [phase, setPhase] = useState<Phase>({ step: "idle" });
-  const [reviewOpen, setReviewOpen] = useState(false);
+  // The item the review dialog opens on; undefined while it is closed.
+  const [reviewAt, setReviewAt] = useState<number>();
   const loader = useThumbLoader(ctx.fs, phase.step === "scanned" ? phase.source : undefined);
 
   const scan = async () => {
@@ -53,7 +55,7 @@ export default defineImportPanel(function ImportPanel({ ctx }: { ctx: ImportPane
       const drafts = groupMaterials(await findImages(ctx.fs, source));
       const items = drafts.map((draft) => ({ draft, included: true }));
       setPhase({ step: "scanned", source, items });
-      setReviewOpen(true);
+      setReviewAt(0);
     } catch (e) {
       setPhase({ step: "error", message: String(e) });
     }
@@ -63,7 +65,7 @@ export default defineImportPanel(function ImportPanel({ ctx }: { ctx: ImportPane
     setPhase((p) => (p.step === "scanned" ? { ...p, items: change(p.items) } : p));
 
   const runImport = async (source: string, items: ReviewItem[]) => {
-    setReviewOpen(false);
+    setReviewAt(undefined);
     setPhase({ step: "importing" });
     try {
       const libraryRoot = await ctx.host.getLibraryRoot();
@@ -116,20 +118,31 @@ export default defineImportPanel(function ImportPanel({ ctx }: { ctx: ImportPane
         </Stack>
       </section>
 
-      <PhaseView
-        phase={phase}
-        onScan={() => void scan()}
-        onReview={() => setReviewOpen(true)}
-        onClose={ctx.close}
-      />
+      {phase.step === "scanned" ? (
+        <ScannedView
+          items={phase.items}
+          folder={folderName(phase.source)}
+          pack={pack}
+          category={category}
+          loader={loader}
+          onOpen={setReviewAt}
+          onInclude={(i, included) => edit((items) => setIncluded(items, i, included))}
+          onScan={() => void scan()}
+          onImport={() => void runImport(phase.source, phase.items)}
+        />
+      ) : (
+        <PhaseView phase={phase} onScan={() => void scan()} onClose={ctx.close} />
+      )}
 
-      {phase.step === "scanned" && reviewOpen && loader && (
+      {phase.step === "scanned" && reviewAt !== undefined && loader && (
         <ReviewDialog
           items={phase.items}
           pack={pack}
           category={category}
           loader={loader}
-          onClose={() => setReviewOpen(false)}
+          Preview={ctx.widgets.MaterialPreview}
+          initialSelected={reviewAt}
+          onClose={() => setReviewAt(undefined)}
           onImport={() => void runImport(phase.source, phase.items)}
           onInclude={(i, included) => edit((items) => setIncluded(items, i, included))}
           onIncludeAll={(indexes, included) =>
@@ -148,15 +161,14 @@ function folderName(path: string): string {
   return path.split(/[\\/]/).filter(Boolean).pop() ?? path;
 }
 
+/** The phases that need no list: idle, importing, done and error. */
 function PhaseView({
   phase,
   onScan,
-  onReview,
   onClose,
 }: {
-  phase: Phase;
+  phase: Exclude<Phase, { step: "scanned" }>;
   onScan: () => void;
-  onReview: () => void;
   onClose: () => void;
 }) {
   if (phase.step === "importing") {
@@ -177,23 +189,6 @@ function PhaseView({
           <div className="export__hint">…and {phase.warnings.length - 12} more.</div>
         )}
         <Button onClick={onClose}>Done</Button>
-      </section>
-    );
-  }
-
-  if (phase.step === "scanned") {
-    const n = phase.items.length;
-    return (
-      <section className="export__section">
-        <div className="export__hint">
-          {n} material{n === 1 ? "" : "s"} found in {folderName(phase.source)}
-        </div>
-        <Stack dir="row" gap={8}>
-          <Button variant="primary" onClick={onReview}>
-            Review…
-          </Button>
-          <Button onClick={onScan}>Choose a different folder…</Button>
-        </Stack>
       </section>
     );
   }
