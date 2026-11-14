@@ -1,6 +1,7 @@
 /**
- * Interactive 3D viewer for a single asset. Mounts an r3f <Canvas> only while an
- * asset is open (so the grid never pays for a live GL context). The model is
+ * Interactive 3D viewer for a single model asset, shown inside ViewerFrame.
+ * Mounts an r3f <Canvas> only while an asset is open (so the grid never pays
+ * for a live GL context). The model is
  * shown at its authored glTF origin (not recentered) over an infinite origin
  * grid with RGB axis arrows, so its true pivot is visible. The camera auto-frames
  * the model; the grid/axes stay origin-anchored. GPU resources are disposed when
@@ -15,13 +16,10 @@ import type { AnimationClip, Group } from "three";
 import type { ModelAsset } from "../domain/catalog";
 import { loadAssetScene } from "../services/gltfLoad";
 import { disposeScene } from "../services/disposeScene";
-import { revealAsset } from "../services/reveal";
 import { recenterAsset, type Align, type Axis } from "../services/tauriApi";
-import { FolderOpen } from "lucide-react";
 
-import { Spinner, IconButton } from "@ldlework/toybox-sdk/ui";
-import { FavoriteStar } from "./FavoriteStar";
-import { useFavorites } from "./useFavorites";
+import { Spinner } from "@ldlework/toybox-sdk/ui";
+import { ViewerFrame } from "./ViewerFrame";
 import { OriginGrid } from "./viewer/OriginGrid";
 import { OriginAxes } from "./viewer/OriginAxes";
 import { GeometryCenterMarker } from "./viewer/GeometryCenterMarker";
@@ -34,7 +32,6 @@ import { AnimationDriver } from "./viewer/AnimationDriver";
 import { useAnimation } from "./viewer/useAnimation";
 import { defaultWidgetVisibility, type WidgetKey } from "./viewer/widgets";
 import { measureExtent, type ModelExtent } from "./viewer/modelExtent";
-import "./AssetViewer.css";
 
 interface Props {
   asset: ModelAsset;
@@ -49,10 +46,9 @@ type LoadState =
 /** Stable empty-clip reference so useAnimation's deps don't churn when idle. */
 const EMPTY_CLIPS: AnimationClip[] = [];
 
-export function AssetViewer({ asset, onClose }: Props) {
+export function ModelViewer({ asset, onClose }: Props) {
   const [reloadNonce, setReloadNonce] = useState(0);
   const state = useAssetScene(asset, reloadNonce);
-  const { toggleFavorite } = useFavorites();
   const [orbitTarget, setOrbitTarget] = useState<OrbitTarget>("geometry");
   const [widgets, setWidgets] = useState(defaultWidgetVisibility);
   const [aligning, setAligning] = useState(false);
@@ -74,93 +70,66 @@ export function AssetViewer({ asset, onClose }: Props) {
   };
 
   return (
-    <div className="viewer" onClick={(e) => e.target === e.currentTarget && onClose()}>
-      <div className="viewer__panel">
-        <header className="viewer__header">
-          <div>
-            <div className="viewer__name">{asset.name}</div>
-            <div className="viewer__meta">
-              {asset.pack} · {asset.category}
-            </div>
-          </div>
-          <div className="viewer__actions">
-            <FavoriteStar
-              favorited={asset.user.favorite}
-              onToggle={() => toggleFavorite(asset.id)}
-            />
-            <IconButton
-              icon={FolderOpen}
-              label="Reveal in Explorer"
-              onClick={() => void revealAsset(asset)}
-            />
-            <button className="viewer__close" onClick={onClose} title="Close">
-              ✕
-            </button>
-          </div>
-        </header>
+    <ViewerFrame asset={asset} onClose={onClose}>
+      {state.kind === "ready" && (
+        <>
+          <ViewerToolbar
+            visibility={widgets}
+            onToggle={toggleWidget}
+            orbitTarget={orbitTarget}
+            onCycleOrbitTarget={() =>
+              setOrbitTarget((t) => (t === "geometry" ? "origin" : "geometry"))
+            }
+          />
+          <AlignTools onAlign={onAlign} busy={aligning} />
+          <AnimationBar controls={anim} />
+        </>
+      )}
+      <Canvas camera={{ position: [3, 2, 4], fov: 45 }} dpr={[1, 2]}>
+        <ambientLight intensity={0.5} />
+        <hemisphereLight args={["#cfd8e3", "#2b2f38", 0.8]} />
+        <directionalLight position={[5, 8, 5]} intensity={1.2} />
+        <directionalLight position={[-4, 2, -3]} intensity={0.4} />
+        {state.kind === "ready" && (
+          <>
+            {/* Model at its authored local origin (no recentering) so its
+                true placement relative to the origin is visible. */}
+            <primitive object={state.group} />
 
-        <div className="viewer__stage">
-          {state.kind === "ready" && (
-            <>
-              <ViewerToolbar
-                visibility={widgets}
-                onToggle={toggleWidget}
-                orbitTarget={orbitTarget}
-                onCycleOrbitTarget={() =>
-                  setOrbitTarget((t) => (t === "geometry" ? "origin" : "geometry"))
-                }
+            {/* Reference widgets — toggled from the viewer toolbar. */}
+            {widgets.grid && <OriginGrid modelSize={state.extent.size} />}
+            {widgets.axes && <OriginAxes length={state.extent.radius} />}
+            {widgets.geometryCenter && (
+              <GeometryCenterMarker
+                position={state.extent.center}
+                scale={state.extent.radius}
               />
-              <AlignTools onAlign={onAlign} busy={aligning} />
-              <AnimationBar controls={anim} />
-            </>
-          )}
-          <Canvas camera={{ position: [3, 2, 4], fov: 45 }} dpr={[1, 2]}>
-            <ambientLight intensity={0.5} />
-            <hemisphereLight args={["#cfd8e3", "#2b2f38", 0.8]} />
-            <directionalLight position={[5, 8, 5]} intensity={1.2} />
-            <directionalLight position={[-4, 2, -3]} intensity={0.4} />
-            {state.kind === "ready" && (
-              <>
-                {/* Model at its authored local origin (no recentering) so its
-                    true placement relative to the origin is visible. */}
-                <primitive object={state.group} />
-
-                {/* Reference widgets — toggled from the viewer toolbar. */}
-                {widgets.grid && <OriginGrid modelSize={state.extent.size} />}
-                {widgets.axes && <OriginAxes length={state.extent.radius} />}
-                {widgets.geometryCenter && (
-                  <GeometryCenterMarker
-                    position={state.extent.center}
-                    scale={state.extent.radius}
-                  />
-                )}
-                {widgets.boundingBox && (
-                  <BoundingBoxWire min={state.extent.min} max={state.extent.max} />
-                )}
-
-                <ViewerCamera
-                  center={state.extent.center}
-                  radius={state.extent.radius}
-                  target={orbitTarget}
-                  frameKey={asset.id}
-                />
-                <AnimationDriver tick={anim.tick} />
-              </>
             )}
-            <OrbitControls makeDefault enableDamping />
-          </Canvas>
+            {widgets.boundingBox && (
+              <BoundingBoxWire min={state.extent.min} max={state.extent.max} />
+            )}
 
-          {state.kind === "loading" && (
-            <div className="viewer__loading">
-              <Spinner />
-            </div>
-          )}
-          {state.kind === "error" && (
-            <div className="viewer__error">Failed to load: {state.message}</div>
-          )}
+            <ViewerCamera
+              center={state.extent.center}
+              radius={state.extent.radius}
+              target={orbitTarget}
+              frameKey={asset.id}
+            />
+            <AnimationDriver tick={anim.tick} />
+          </>
+        )}
+        <OrbitControls makeDefault enableDamping />
+      </Canvas>
+
+      {state.kind === "loading" && (
+        <div className="viewer__loading">
+          <Spinner />
         </div>
-      </div>
-    </div>
+      )}
+      {state.kind === "error" && (
+        <div className="viewer__error">Failed to load: {state.message}</div>
+      )}
+    </ViewerFrame>
   );
 }
 

@@ -6,7 +6,7 @@
 
 import { useEffect, useMemo, useState } from "react";
 
-import { isModel, type Catalog, type PackMeta } from "../domain/catalog";
+import type { Catalog, PackMeta } from "../domain/catalog";
 import { applyFilter } from "../domain/facets";
 import {
   getLibraryRoot,
@@ -16,7 +16,7 @@ import {
 } from "../services/tauriApi";
 import { useStore } from "../state/store";
 import { AssetGrid } from "../components/AssetGrid";
-import { AssetViewer } from "../components/AssetViewer";
+import { AssetDetail } from "../components/AssetDetail";
 import { ExportDrawer } from "../components/ExportDrawer";
 import { ImportDrawer } from "../components/ImportDrawer";
 import { FacetFilter } from "../components/FacetFilter";
@@ -177,8 +177,8 @@ export function LibraryView() {
         </Stack>
       </Stack>
 
-      {previewAsset && isModel(previewAsset) && (
-        <AssetViewer asset={previewAsset} onClose={() => setPreview(null)} />
+      {previewAsset && (
+        <AssetDetail asset={previewAsset} onClose={() => setPreview(null)} />
       )}
 
       <ExportDrawer
