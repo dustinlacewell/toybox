@@ -6,7 +6,7 @@
 
 import { invoke } from "@tauri-apps/api/core";
 
-import type { Catalog, PackMeta, ThumbState } from "../domain/catalog";
+import type { AssetKind, Catalog, PackMeta, ThumbState } from "../domain/catalog";
 import type { DirEntry, ExportReport, PluginUi, SeedEntryInput } from "@ldlework/toybox-sdk";
 
 export type { ExportReport };
@@ -102,6 +102,7 @@ export interface PluginManifestDto {
   kind: "exporter" | "importer";
   entry: string;
   description?: string;
+  assetKinds: AssetKind[];
   permissions: { fsWrite?: boolean; fsRead?: boolean; rustExport?: boolean };
   fields: unknown[];
   ui?: PluginUi;
@@ -131,6 +132,14 @@ export const pluginReadBytes = async (
   path: string,
 ): Promise<Uint8Array> =>
   Uint8Array.from(await invoke<number[]>("plugin_read_bytes", { sourceRoot, path }));
+
+/** PNG bytes of an image under a source root, scaled to fit `maxSize`. */
+export const pluginImageThumb = async (
+  sourceRoot: string,
+  path: string,
+  maxSize: number,
+): Promise<Uint8Array> =>
+  Uint8Array.from(await invoke<number[]>("plugin_image_thumb", { sourceRoot, path, maxSize }));
 
 export const pluginWriteBytes = (
   authorizedRoot: string,

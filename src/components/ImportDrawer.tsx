@@ -13,7 +13,9 @@ import { useState } from "react";
 
 import { Drawer, Select } from "@ldlework/toybox-sdk/ui";
 import type { ImportPanelCtx, SeedEntryInput } from "@ldlework/toybox-sdk";
+import type { AssetKind } from "../domain/catalog";
 import {
+  importersFor,
   type LoadedImporter,
   type PluginLoadError,
 } from "../services/pluginRegistry";
@@ -26,15 +28,18 @@ import "./ExportDrawer.css";
 interface Props {
   open: boolean;
   importers: LoadedImporter[];
+  /** The asset kind the library is showing; only importers producing it are listed. */
+  kind: AssetKind;
   pluginErrors: PluginLoadError[];
   onClose: () => void;
   /** Called after a successful commit so the view can refresh the catalog. */
   onCommitted: () => void;
 }
 
-export function ImportDrawer({ open, importers, pluginErrors, onClose, onCommitted }: Props) {
+export function ImportDrawer({ open, importers: all, kind, pluginErrors, onClose, onCommitted }: Props) {
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const importers = importersFor(all, kind);
 
   const active = importers.find((i) => i.manifest.id === selectedId);
   const panel = active?.manifest.ui?.importPanel;

@@ -125,6 +125,7 @@ const toc = [
           <ApiTable rows={[
             { signature: "id: string", description: "Reverse-DNS identifier. MUST equal the folder name, or the plugin is skipped." },
             { signature: 'kind: "exporter" | "importer"', description: "Which contract the plugin fulfils." },
+            { signature: 'assetKinds?: ("model" | "material")[]', description: "The asset kinds the plugin works with; for an importer, what it produces. The import drawer lists only importers for the kind the library is showing. Defaults to [\"model\"]." },
             { signature: "entry: string", description: "Path (relative to the plugin folder) of the exporter's entry module. Required for exporters; importers are panel-only and may omit it." },
             { signature: "permissions: {…}", description: "Capability flags gating the host API — see Permissions below." },
             { signature: "fields?: FieldSpec[]", description: "Optional declarative config inputs (the zero-code UI path). Ignored when a UI panel is present." },
@@ -301,6 +302,7 @@ export default defineExportPanel(function Panel({ ctx }: { ctx: ExportPanelCtx }
             host. Writes are gated by the <code class="ds-code">fsWrite</code> permission.
           </p>
           <ApiTable rows={[
+            { signature: "readImageThumb(sourceRoot, path, maxSize): Promise<Uint8Array>", description: "PNG bytes of the image at path, scaled down to fit maxSize (never enlarged). Much lighter than reading the whole file for a preview.", perm: "fsRead" },
             { signature: "writeBytes(authorizedRoot, path, bytes): Promise<void>", description: "Write binary data at path (relative to or inside authorizedRoot).", perm: "fsWrite" },
             { signature: "writeText(authorizedRoot, path, text): Promise<void>", description: "Write a UTF-8 text file.", perm: "fsWrite" },
             { signature: "writeJson(authorizedRoot, path, value): Promise<void>", description: "Serialize value as pretty JSON and write it.", perm: "fsWrite" },

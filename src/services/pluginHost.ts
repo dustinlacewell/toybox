@@ -28,6 +28,7 @@ import {
   assembleGlbForAsset,
   performAssetCopy,
   placerMergeFile,
+  pluginImageThumb,
   pluginReadBytes,
   pluginReadDir,
   pluginWriteBytes,
@@ -123,6 +124,9 @@ export function buildFsApi(pluginId: string, perms: PluginPermissions): FsApi {
     ),
     readBytes: gatedRead((sourceRoot: string, path: string) =>
       pluginReadBytes(sourceRoot, path),
+    ),
+    readImageThumb: gatedRead((sourceRoot: string, path: string, maxSize: number) =>
+      pluginImageThumb(sourceRoot, path, maxSize),
     ),
     writeBytes: gatedWrite((root: string, path: string, bytes: Uint8Array) =>
       pluginWriteBytes(root, path, bytes),

@@ -50,6 +50,9 @@ export interface ExportReport {
 
 export type PluginKind = "exporter" | "importer";
 
+/** What an asset is: a 3D model or a PBR material set. */
+export type AssetKind = "model" | "material";
+
 /** What a plugin folder's `manifest.json` declares. */
 export interface PluginManifest {
   /** Reverse-dns id; must match the plugin's folder name. */
@@ -60,6 +63,9 @@ export interface PluginManifest {
   /** Entry module, relative to the plugin dir (e.g. `index.js`). */
   entry: string;
   description?: string;
+  /** The asset kinds this plugin works with (an importer: what it produces).
+   *  Absent means `["model"]`. */
+  assetKinds?: AssetKind[];
   permissions: PluginPermissions;
   /** Config inputs the host renders before a run (the zero-code path). */
   fields?: FieldSpec[];
@@ -160,6 +166,10 @@ export interface DirEntry {
 export interface FsApi {
   readDir(sourceRoot: string, path: string): Promise<DirEntry[]>;
   readBytes(sourceRoot: string, path: string): Promise<Uint8Array>;
+  /** PNG bytes of the image at `path`, scaled down to fit `maxSize` × `maxSize`
+   *  (aspect kept, never enlarged). Cheaper than `readBytes` for previews.
+   *  Gated by `fsRead`. */
+  readImageThumb(sourceRoot: string, path: string, maxSize: number): Promise<Uint8Array>;
   writeBytes(authorizedRoot: string, path: string, bytes: Uint8Array): Promise<void>;
   writeText(authorizedRoot: string, path: string, text: string): Promise<void>;
   writeJson(authorizedRoot: string, path: string, value: unknown): Promise<void>;

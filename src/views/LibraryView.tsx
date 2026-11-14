@@ -196,6 +196,7 @@ export function LibraryView() {
       <ImportDrawer
         open={importOpen}
         importers={registry.importers}
+        kind={filter.kind}
         pluginErrors={registry.errors}
         onClose={() => setImportOpen(false)}
         onCommitted={() => {

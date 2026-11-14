@@ -15,6 +15,7 @@ use std::path::{Component, Path, PathBuf};
 use serde::Serialize;
 use tauri::AppHandle;
 
+use crate::domain::image_embed;
 use crate::error::{AppError, AppResult};
 use crate::infra::{appdata, fsio};
 
@@ -31,6 +32,9 @@ pub struct PluginManifestDto {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub description: Option<String>,
     pub permissions: serde_json::Value,
+    /// Asset kinds the plugin works with (an importer: what it produces);
+    /// `["model"]` when the manifest omits it. Opaque here, like `ui`.
+    pub asset_kinds: serde_json::Value,
     pub fields: serde_json::Value,
     /// Plugin-shipped slot UI modules ({ exportPanel?, importPanel? }), opaque
     /// here — the frontend loader validates and mounts them.
@@ -102,6 +106,7 @@ fn read_manifest(plugin_dir: &Path) -> Option<PluginManifestDto> {
         entry,
         description: doc.get("description").and_then(|v| v.as_str()).map(String::from),
         permissions: doc.get("permissions").cloned().unwrap_or_else(|| serde_json::json!({})),
+        asset_kinds: doc.get("assetKinds").cloned().unwrap_or_else(|| serde_json::json!(["model"])),
         fields: doc.get("fields").cloned().unwrap_or_else(|| serde_json::json!([])),
         ui: doc.get("ui").cloned().unwrap_or_else(|| serde_json::json!({})),
         entry_abs_path: entry_abs.to_string_lossy().to_string(),
@@ -158,6 +163,20 @@ fn read_dir_under(source_root: &Path, path: &str) -> AppResult<Vec<DirEntryDto>>
 pub async fn plugin_read_bytes(source_root: String, path: String) -> AppResult<Vec<u8>> {
     let abs = jail(Path::new(&source_root), &path)?;
     fsio::read_bytes(&abs)
+}
+
+/// Read an image under `source_root` as PNG bytes scaled down to fit
+/// `max_size` × `max_size`. Same jail as `plugin_read_bytes`; previews use it
+/// instead of shipping a whole texture through IPC.
+#[tauri::command]
+pub async fn plugin_image_thumb(
+    source_root: String,
+    path: String,
+    max_size: u32,
+) -> AppResult<Vec<u8>> {
+    let abs = jail(Path::new(&source_root), &path)?;
+    let format = image::ImageFormat::from_path(&abs).ok();
+    image_embed::thumb_png(&fsio::read_bytes(&abs)?, format, max_size)
 }
 
 /// Read a UTF-8 file the plugin loader needs, jailed to `plugins_dir`.

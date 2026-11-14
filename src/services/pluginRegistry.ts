@@ -9,6 +9,7 @@
 import type { ExporterPlugin, PluginConfig } from "@ldlework/toybox-sdk";
 import type { ExportReport } from "./tauriApi";
 import { buildExportCtx, selectedAssets } from "./pluginHost";
+import type { AssetKind } from "../domain/catalog";
 import { loadPlugin } from "./pluginLoader";
 import { listPlugins, type PluginManifestDto } from "./tauriApi";
 
@@ -61,6 +62,12 @@ export async function loadRegistry(): Promise<PluginRegistry> {
   );
 
   return registry;
+}
+
+/** The importers that produce `kind`. A manifest without `assetKinds` is a model
+ *  importer. */
+export function importersFor(importers: LoadedImporter[], kind: AssetKind): LoadedImporter[] {
+  return importers.filter((i) => (i.manifest.assetKinds ?? ["model"]).includes(kind));
 }
 
 /** Run one exporter plugin over the current selection and return its report. */
