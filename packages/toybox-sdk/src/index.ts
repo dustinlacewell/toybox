@@ -186,13 +186,47 @@ export interface ImporterPlugin {
   readonly kind?: "importer";
 }
 
-/** What an importer produces — mirrors the Rust seed-entry shape. */
-export interface SeedEntryInput {
+export type MapRole =
+  | "albedo"
+  | "normal"
+  | "roughness"
+  | "metallic"
+  | "ao"
+  | "height"
+  | "emissive"
+  | "opacity";
+export type MapChannel = "r" | "g" | "b" | "a";
+
+/** One texture map of a material set: a role, the image file, and optionally the
+ *  channel of that file the scalar lives in. `invert` marks a scalar stored
+ *  inverted (smoothness in place of roughness). */
+export interface MaterialMapInput {
+  role: MapRole;
+  file: string;
+  channel?: MapChannel;
+  invert?: boolean;
+}
+
+export interface ModelSeedEntry {
+  kind?: "model";
   id: string;
   pack: string;
   category: string;
   file: string;
 }
+
+export interface MaterialSeedEntry {
+  kind: "material";
+  id: string;
+  pack: string;
+  category: string;
+  name: string;
+  maps: MaterialMapInput[];
+  flipNormalGreen?: boolean;
+}
+
+/** What an importer produces — exactly the shape of a library manifest entry. */
+export type SeedEntryInput = ModelSeedEntry | MaterialSeedEntry;
 
 // --- slot UI (plugin-shipped React panels) -----------------------------------
 
