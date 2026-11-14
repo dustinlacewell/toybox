@@ -1,0 +1,48 @@
+/* Dialog: a centred modal. Same surface/border idiom as .ds-drawer; its scrim
+   sits above .ds-drawer-scrim (z-index 50) because it opens from inside the drawer. */
+
+.ds-dialog-scrim {
+  position: fixed;
+  inset: 0;
+  background: #0008;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 60;
+}
+.ds-dialog {
+  width: min(1200px, 92vw);
+  height: 86vh;
+  background: var(--bg-1);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-2);
+  box-shadow: 0 16px 48px #000a;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+.ds-dialog__header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-3);
+  padding: var(--space-3) var(--space-4);
+  border-bottom: 1px solid var(--border);
+}
+.ds-dialog__title {
+  font-size: var(--fs-lg);
+  color: var(--text-0);
+}
+.ds-dialog__body {
+  flex: 1;
+  min-height: 0;
+  overflow: hidden;
+  display: flex;
+}
+.ds-dialog__footer {
+  display: flex;
+  justify-content: flex-end;
+  gap: var(--space-2);
+  padding: var(--space-3) var(--space-4);
+  border-top: 1px solid var(--border);
+}
