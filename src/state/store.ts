@@ -7,7 +7,14 @@
 
 import { create } from "zustand";
 
-import type { Asset, Catalog, Category, Pack, PackMeta } from "../domain/catalog";
+import type {
+  Asset,
+  AssetKind,
+  Catalog,
+  Category,
+  Pack,
+  PackMeta,
+} from "../domain/catalog";
 import { emptyFilter, type Filter } from "../domain/facets";
 
 /** The fields the host updates in place; common to every asset kind. */
@@ -31,6 +38,8 @@ interface AppState {
   setLoading: (loading: boolean) => void;
   setError: (error: string | null) => void;
 
+  /** Switch the library to another asset kind. Categories differ per kind, so they reset. */
+  setKind: (kind: AssetKind) => void;
   setText: (text: string) => void;
   togglePack: (pack: Pack) => void;
   toggleCategory: (category: Category) => void;
@@ -61,13 +70,15 @@ export const useStore = create<AppState>((set) => ({
   setLoading: (loading) => set({ loading }),
   setError: (error) => set({ error }),
 
+  setKind: (kind) =>
+    set((s) => ({ filter: { ...s.filter, kind, categories: new Set() } })),
   setText: (text) => set((s) => ({ filter: { ...s.filter, text } })),
   togglePack: (pack) => set((s) => ({ filter: toggleInSet(s.filter, "packs", pack) })),
   toggleCategory: (category) =>
     set((s) => ({ filter: toggleInSet(s.filter, "categories", category) })),
   toggleFavoritesOnly: () =>
     set((s) => ({ filter: { ...s.filter, favoritesOnly: !s.filter.favoritesOnly } })),
-  clearFilter: () => set({ filter: emptyFilter() }),
+  clearFilter: () => set((s) => ({ filter: emptyFilter(s.filter.kind) })),
 
   toggleSelected: (id) =>
     set((s) => {

@@ -1,14 +1,16 @@
 /**
- * The browsing toolbar shared by the desktop app and the web demo: search box,
- * visible/total + selection counts, and the action icon strip. Fully
- * controlled — every value and action is a prop, so each surface supplies its
- * own callbacks (the demo omits the library-only ones and points Export at an
- * explainer instead of the OS dialog).
+ * The browsing toolbar shared by the desktop app and the web demo: kind switch
+ * (reads the store itself), search box, visible/total + selection counts, and
+ * the action icon strip. Otherwise controlled — every value and action is a
+ * prop, so each surface supplies its own callbacks (the demo omits the
+ * library-only ones and points Export at an explainer instead of the OS dialog).
  */
 
 import { Download, RefreshCw, ScanLine, Settings, Upload, X } from "lucide-react";
 
 import { Toolbar, TextInput, IconButton, IconStrip } from "@ldlework/toybox-sdk/ui";
+
+import { KindSwitch } from "./KindSwitch";
 
 interface Props {
   searchText: string;
@@ -44,6 +46,7 @@ export function LibraryToolbar({
   const hasSelection = selectedCount > 0;
   return (
     <Toolbar>
+      <KindSwitch />
       <TextInput
         placeholder="Search assets…"
         value={searchText}

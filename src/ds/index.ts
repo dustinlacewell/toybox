@@ -14,6 +14,7 @@
 
 import "./tokens.css";
 import "./ds.css";
+import "./Segmented.css";
 
 export { Button } from "./Button";
 export { Checkbox } from "./Checkbox";
@@ -25,3 +26,4 @@ export { Drawer } from "./Drawer";
 export { IconButton } from "./IconButton";
 export { IconStrip } from "./IconStrip";
 export { Toolbar } from "./Toolbar";
+export { Segmented } from "./Segmented";

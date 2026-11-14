@@ -7,7 +7,7 @@
 import { useEffect, useMemo, useState } from "react";
 
 import type { Catalog, PackMeta } from "../domain/catalog";
-import { applyFilter } from "../domain/facets";
+import { applyFilter, ofKind } from "../domain/facets";
 import {
   getLibraryRoot,
   loadCatalog,
@@ -72,6 +72,10 @@ export function LibraryView() {
 
   const assets = catalog?.assets ?? [];
   const visible = useMemo(() => applyFilter(assets, filter), [assets, filter]);
+  const kindCount = useMemo(
+    () => ofKind(assets, filter.kind).length,
+    [assets, filter.kind],
+  );
   const previewAsset = previewId ? assets.find((a) => a.id === previewId) : undefined;
 
   const {
@@ -138,7 +142,7 @@ export function LibraryView() {
             searchText={filter.text}
             onSearchChange={setText}
             visibleCount={visible.length}
-            totalCount={assets.length}
+            totalCount={kindCount}
             selectedCount={selection.size}
             onClearSelection={clearSelection}
             onExport={() => setExportOpen(true)}

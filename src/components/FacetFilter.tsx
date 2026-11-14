@@ -4,7 +4,7 @@
  */
 
 import type { Asset, Category, Pack, PackMeta } from "../domain/catalog";
-import { categoryCounts, packCounts, type Filter } from "../domain/facets";
+import { categoryCounts, ofKind, packCounts, type Filter } from "../domain/facets";
 import { Checkbox, Button } from "@ldlework/toybox-sdk/ui";
 import "./FacetFilter.css";
 
@@ -28,8 +28,10 @@ export function FacetFilter({
   onToggleFavoritesOnly,
   onClear,
 }: Props) {
-  const packs = packCounts(assets);
-  const categories = categoryCounts(assets);
+  // Facets list only the packs and categories the current kind has.
+  const ofCurrentKind = ofKind(assets, filter.kind);
+  const packs = packCounts(ofCurrentKind);
+  const categories = categoryCounts(ofCurrentKind);
 
   // Display name from pack.json; fall back to a title-cased slug so a pack
   // missing its metadata file never renders blank.

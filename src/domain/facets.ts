@@ -3,9 +3,11 @@
  * text and computing per-facet counts for filter badges. No side effects.
  */
 
-import type { Asset, Category, Pack } from "./catalog";
+import type { Asset, AssetKind, Category, Pack } from "./catalog";
 
 export interface Filter {
+  /** Which kind of asset the library shows. A mode, not a narrowing constraint. */
+  kind: AssetKind;
   packs: Set<Pack>;
   categories: Set<Category>;
   favoritesOnly: boolean;
@@ -13,7 +15,8 @@ export interface Filter {
   text: string;
 }
 
-export const emptyFilter = (): Filter => ({
+export const emptyFilter = (kind: AssetKind = "model"): Filter => ({
+  kind,
   packs: new Set(),
   categories: new Set(),
   favoritesOnly: false,
@@ -26,10 +29,18 @@ export const isFilterActive = (f: Filter): boolean =>
   f.favoritesOnly ||
   f.text.trim().length > 0;
 
-/** Apply a filter to the asset list. An empty facet set means "no constraint". */
+/** The assets of one kind. */
+export const ofKind = (assets: Asset[], kind: AssetKind): Asset[] =>
+  assets.filter((a) => a.kind === kind);
+
+/**
+ * Apply a filter to the asset list: keep only assets of `f.kind`, then apply
+ * the constraints. An empty facet set means "no constraint".
+ */
 export function applyFilter(assets: Asset[], f: Filter): Asset[] {
   const needle = f.text.trim().toLowerCase();
   return assets.filter((a) => {
+    if (a.kind !== f.kind) return false;
     if (f.packs.size > 0 && !f.packs.has(a.pack)) return false;
     if (f.categories.size > 0 && !f.categories.has(a.category)) return false;
     if (f.favoritesOnly && !a.user.favorite) return false;
