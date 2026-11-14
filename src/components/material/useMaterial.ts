@@ -1,15 +1,14 @@
 /**
- * Load a material asset into a three.js material and own its disposal. The
- * material and its textures are disposed once when the asset changes or the
+ * Run a material load and own the result's disposal. The load re-runs when `key`
+ * changes (using the latest `load`), not when `load`'s identity changes. The
+ * material and its textures are disposed once when the key changes or the
  * viewer unmounts; a load that resolves after that is disposed on arrival. The
  * shared studio environment is never touched.
  */
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import type { MeshStandardMaterial } from "three";
 
-import type { MaterialAsset } from "../../domain/catalog";
-import { loadMaterial } from "../../services/materialLoad";
 import { disposeMaterial } from "../../services/materialTextures";
 
 export type MaterialState =
@@ -17,28 +16,30 @@ export type MaterialState =
   | { kind: "ready"; material: MeshStandardMaterial }
   | { kind: "error"; message: string };
 
-type Settled = { forId: string; state: MaterialState };
+type Settled = { forKey: string; state: MaterialState };
 
 const LOADING: MaterialState = { kind: "loading" };
 
-export function useMaterial(asset: MaterialAsset): MaterialState {
+export function useMaterial(key: string, load: () => Promise<MeshStandardMaterial>): MaterialState {
   const [settled, setSettled] = useState<Settled | null>(null);
+  const latestLoad = useRef(load);
+  latestLoad.current = load;
 
   useEffect(() => {
     let alive = true;
     let loaded: MeshStandardMaterial | null = null;
 
-    loadMaterial(asset).then(
+    latestLoad.current().then(
       (material) => {
         if (!alive) {
           disposeMaterial(material);
           return;
         }
         loaded = material;
-        setSettled({ forId: asset.id, state: { kind: "ready", material } });
+        setSettled({ forKey: key, state: { kind: "ready", material } });
       },
       (err) => {
-        if (alive) setSettled({ forId: asset.id, state: { kind: "error", message: String(err) } });
+        if (alive) setSettled({ forKey: key, state: { kind: "error", message: String(err) } });
       },
     );
 
@@ -46,9 +47,8 @@ export function useMaterial(asset: MaterialAsset): MaterialState {
       alive = false;
       if (loaded) disposeMaterial(loaded);
     };
-    // Reload only when a different asset opens, not when its metadata changes.
-  }, [asset.id]);
+  }, [key]);
 
-  // A result for a previous asset (already disposed) is never handed out.
-  return settled && settled.forId === asset.id ? settled.state : LOADING;
+  // A result for a previous key (already disposed) is never handed out.
+  return settled && settled.forKey === key ? settled.state : LOADING;
 }

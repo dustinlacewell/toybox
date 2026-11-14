@@ -236,6 +236,7 @@ export default defineExportPanel(function Panel({ ctx }: { ctx: ExportPanelCtx }
           <h3 class="mt-8 text-lg font-semibold text-slate-100">Import panel — <code class="ds-code">ImportPanelCtx</code></h3>
           <ApiTable rows={[
             { signature: "host: SlotHost", description: "Same render-time read + picker surface as the export panel." },
+            { signature: "widgets: PanelWidgets", description: "Host-built components to mount in your panel. widgets.MaterialPreview is the interactive 3D material preview (sphere / plane / cube, orbit and zoom, tiling). Pass it maps, an optional flipNormalGreen, and a resolveUrl(file) that returns a fetchable URL for each map's file." },
             { signature: "commit(entries): Promise<void>", description: "Hand SeedEntryInput[] to the host. It merges them into the catalog and refreshes the grid. Rejects on failure — handle it." },
             { signature: "close(): void", description: "Close the import drawer (typically after a successful commit)." },
           ]} />

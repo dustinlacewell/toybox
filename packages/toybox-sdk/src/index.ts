@@ -272,13 +272,28 @@ export interface ExportPanelCtx {
   setConfig(values: Record<string, unknown>, ready: boolean): void;
 }
 
+/** Props of the host's interactive 3D material preview (sphere / plane / cube, orbit and zoom, tiling). */
+export interface MaterialPreviewProps {
+  maps: MaterialMapInput[];
+  flipNormalGreen?: boolean;
+  /** The URL to fetch a map's `file` from (e.g. an object URL of a source image). */
+  resolveUrl(file: string): Promise<string>;
+}
+
+/** Host-built components a panel can mount. */
+export interface PanelWidgets {
+  MaterialPreview: ComponentType<MaterialPreviewProps>;
+}
+
 /** Context for an importer's `importPanel`. Unlike an exporter (whose fs fires
  *  at run time), an importer does its file work during the panel session —
  *  walking a picked source and writing into the library before `commit` — so it
- *  carries the jailed `fs` directly. */
+ *  carries the jailed `fs` directly. `widgets` are host-built components the
+ *  panel mounts in its own tree, such as the 3D material preview. */
 export interface ImportPanelCtx {
   host: SlotHost;
   fs: FsApi;
+  widgets: PanelWidgets;
   commit(entries: SeedEntryInput[]): Promise<void>;
   close(): void;
 }

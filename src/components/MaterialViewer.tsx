@@ -9,13 +9,11 @@
 import { useState } from "react";
 
 import type { MaterialAsset } from "../domain/catalog";
-import type { PreviewShape } from "../services/materialPreview";
-import { Spinner } from "@ldlework/toybox-sdk/ui";
+import { loadMaterial } from "../services/materialLoad";
 import { ViewerFrame } from "./ViewerFrame";
 import { MapImage } from "./material/MapImage";
 import { MapList } from "./material/MapList";
-import { MaterialPreview } from "./material/MaterialPreview";
-import { MaterialToolbar, type Tiling } from "./material/MaterialToolbar";
+import { MaterialStudio } from "./material/MaterialStudio";
 import { useMaterial } from "./material/useMaterial";
 import "./MaterialViewer.css";
 
@@ -34,9 +32,7 @@ export function MaterialViewer({ asset, onClose }: Props) {
 }
 
 function MaterialStage({ asset }: { asset: MaterialAsset }) {
-  const state = useMaterial(asset);
-  const [shape, setShape] = useState<PreviewShape>("sphere");
-  const [tiling, setTiling] = useState<Tiling>(1);
+  const state = useMaterial(asset.id, () => loadMaterial(asset));
   const [selected, setSelected] = useState<number | null>(null);
 
   const { maps } = asset.material;
@@ -45,31 +41,7 @@ function MaterialStage({ asset }: { asset: MaterialAsset }) {
   return (
     <div className="matview">
       <div className="matview__main">
-        {map ? (
-          <MapImage file={map.file} />
-        ) : (
-          <>
-            {state.kind === "ready" && (
-              <>
-                <MaterialToolbar
-                  shape={shape}
-                  onShape={setShape}
-                  tiling={tiling}
-                  onTiling={setTiling}
-                />
-                <MaterialPreview material={state.material} shape={shape} tiling={tiling} />
-              </>
-            )}
-            {state.kind === "loading" && (
-              <div className="viewer__loading">
-                <Spinner />
-              </div>
-            )}
-            {state.kind === "error" && (
-              <div className="viewer__error">Failed to load: {state.message}</div>
-            )}
-          </>
-        )}
+        {map ? <MapImage file={map.file} /> : <MaterialStudio state={state} />}
       </div>
       <MapList maps={maps} selected={selected} onSelect={setSelected} />
     </div>

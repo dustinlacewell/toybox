@@ -1,0 +1,35 @@
+/* Fills its parent. Positioned so the loading/error overlays and the toolbar sit
+   over the studio only. */
+.matstudio {
+  position: relative;
+  width: 100%;
+  height: 100%;
+}
+.matstudio canvas {
+  display: block;
+}
+
+/* Floating toolbar, same look as the model viewer's. */
+.mtoolbar {
+  position: absolute;
+  top: var(--space-3);
+  left: var(--space-3);
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  padding: var(--space-1);
+  background: color-mix(in srgb, var(--bg-1) 88%, transparent);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-2);
+  backdrop-filter: blur(6px);
+  z-index: 2;
+}
+.mtoolbar__field {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+}
+.mtoolbar__label {
+  font-size: var(--fs-sm);
+  color: var(--text-2);
+}

@@ -22,6 +22,7 @@ import {
 import { buildFsApi } from "../services/pluginHost";
 import { buildSlotHost } from "../services/slotHost";
 import { mergeSeedEntries } from "../services/tauriApi";
+import { MaterialPreviewWidget } from "./plugin-ui/MaterialPreviewWidget";
 import { PluginSlot } from "./plugin-ui/PluginSlot";
 import "./ExportDrawer.css";
 
@@ -47,6 +48,7 @@ export function ImportDrawer({ open, importers: all, kind, pluginErrors, onClose
   const ctx: ImportPanelCtx = {
     host: buildSlotHost(active?.manifest.id ?? "", active?.manifest.permissions ?? {}),
     fs: buildFsApi(active?.manifest.id ?? "", active?.manifest.permissions ?? {}),
+    widgets: { MaterialPreview: MaterialPreviewWidget },
     commit: async (entries: SeedEntryInput[]) => {
       setError(null);
       try {
