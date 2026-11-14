@@ -17,10 +17,10 @@ import {
   WebGLRenderer,
 } from "three";
 
-import type { ModelAsset } from "../domain/catalog";
-import { loadAssetScene } from "./gltfLoad";
+import type { Asset } from "../domain/catalog";
 import { disposeScene } from "./disposeScene";
 import { fitCameraToObject } from "./fitCamera";
+import { loadThumbSubject } from "./thumbSubject";
 
 const SIZE = 256;
 
@@ -72,18 +72,17 @@ export class ThumbRenderer {
     this.camera = new PerspectiveCamera(45, 1, 0.01, 1000);
   }
 
-  /** Render one asset to PNG bytes. Disposes the loaded model before returning. */
-  async render(asset: ModelAsset): Promise<Uint8Array> {
-    // Thumbnails are bind-pose stills; animation clips are ignored.
-    const { scene: group } = await loadAssetScene(asset);
+  /** Render one asset to PNG bytes. Disposes the loaded subject before returning. */
+  async render(asset: Asset): Promise<Uint8Array> {
+    const subject = await loadThumbSubject(asset, this.renderer);
     try {
-      this.scene.add(group);
-      fitCameraToObject(this.camera, group);
+      this.scene.add(subject);
+      fitCameraToObject(this.camera, subject);
       this.renderer.render(this.scene, this.camera);
       return await capturePng(this.renderer);
     } finally {
-      this.scene.remove(group);
-      disposeScene(group);
+      this.scene.remove(subject);
+      disposeScene(subject);
     }
   }
 

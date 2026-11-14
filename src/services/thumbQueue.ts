@@ -7,7 +7,7 @@
  * via the progress callback.
  */
 
-import { isModel, type Asset } from "../domain/catalog";
+import type { Asset } from "../domain/catalog";
 import { saveThumb, setThumbState } from "./tauriApi";
 import { ThumbRenderer } from "./thumbRenderer";
 
@@ -86,11 +86,6 @@ export class ThumbQueue {
     this.currentName = asset.name;
     this.cb.onAssetState(id, "rendering");
     this.emit();
-
-    if (!isModel(asset)) {
-      await this.fail(id, `no thumbnail renderer for kind "${asset.kind}"`);
-      return;
-    }
 
     try {
       const png = await this.renderer!.render(asset);
