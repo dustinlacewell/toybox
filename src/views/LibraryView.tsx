@@ -6,7 +6,7 @@
 
 import { useEffect, useMemo, useState } from "react";
 
-import type { Catalog, PackMeta } from "../domain/catalog";
+import { isModel, type Catalog, type PackMeta } from "../domain/catalog";
 import { applyFilter } from "../domain/facets";
 import {
   getLibraryRoot,
@@ -177,7 +177,7 @@ export function LibraryView() {
         </Stack>
       </Stack>
 
-      {previewAsset && (
+      {previewAsset && isModel(previewAsset) && (
         <AssetViewer asset={previewAsset} onClose={() => setPreview(null)} />
       )}
 

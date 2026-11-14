@@ -12,7 +12,7 @@ import { Canvas } from "@react-three/fiber";
 import { OrbitControls } from "@react-three/drei";
 import type { AnimationClip, Group } from "three";
 
-import type { Asset } from "../domain/catalog";
+import type { ModelAsset } from "../domain/catalog";
 import { loadAssetScene } from "../services/gltfLoad";
 import { disposeScene } from "../services/disposeScene";
 import { revealAsset } from "../services/reveal";
@@ -37,7 +37,7 @@ import { measureExtent, type ModelExtent } from "./viewer/modelExtent";
 import "./AssetViewer.css";
 
 interface Props {
-  asset: Asset;
+  asset: ModelAsset;
   onClose: () => void;
 }
 
@@ -172,7 +172,7 @@ export function AssetViewer({ asset, onClose }: Props) {
  * is ready, then the old one is disposed. Only an asset change shows the loading
  * state. The displayed group is tracked in a ref so disposal is unambiguous.
  */
-function useAssetScene(asset: Asset, reloadNonce: number): LoadState {
+function useAssetScene(asset: ModelAsset, reloadNonce: number): LoadState {
   const [state, setState] = useState<LoadState>({ kind: "loading" });
   const displayed = useRef<Group | null>(null);
 

@@ -7,7 +7,7 @@
  * via the progress callback.
  */
 
-import type { Asset } from "../domain/catalog";
+import { isModel, type Asset } from "../domain/catalog";
 import { saveThumb, setThumbState } from "./tauriApi";
 import { ThumbRenderer } from "./thumbRenderer";
 
@@ -87,15 +87,23 @@ export class ThumbQueue {
     this.cb.onAssetState(id, "rendering");
     this.emit();
 
+    if (!isModel(asset)) {
+      await this.fail(id, `no thumbnail renderer for kind "${asset.kind}"`);
+      return;
+    }
+
     try {
       const png = await this.renderer!.render(asset);
       await saveThumb(id, png); // also marks `ready` in the catalog (Rust)
       this.cb.onAssetState(id, "ready");
     } catch (e) {
-      const msg = String(e);
-      await setThumbState(id, "error", msg);
-      this.cb.onAssetState(id, "error", msg);
+      await this.fail(id, String(e));
     }
+  }
+
+  private async fail(id: string, msg: string): Promise<void> {
+    await setThumbState(id, "error", msg);
+    this.cb.onAssetState(id, "error", msg);
   }
 
   private emit(): void {

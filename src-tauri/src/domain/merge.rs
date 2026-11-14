@@ -46,10 +46,12 @@ mod tests {
             rel_path: "r".into(),
             pack: "p".into(),
             category: "c".into(),
-            fileset: AssetFileset { gltf: "g".into(), bin: "b".into(), textures: vec![] },
+            content: AssetContent::Model {
+                fileset: AssetFileset { gltf: "g".into(), bin: "b".into(), textures: vec![] },
+                animation: AnimationMeta::default(),
+            },
             thumb: ThumbMeta { state: ThumbState::Ready, error: None },
             user: UserMeta { favorite: fav, tags: vec![] },
-            animation: AnimationMeta::default(),
         }
     }
 

@@ -27,6 +27,7 @@ export const DEMO_PACKS: PackMeta[] = [
 ];
 
 const toAsset = (r: Record): Asset => ({
+  kind: "model",
   id: r.id,
   name: r.name,
   fileName: r.fileName,

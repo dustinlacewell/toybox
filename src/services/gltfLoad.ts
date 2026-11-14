@@ -14,7 +14,7 @@ import { type AnimationClip, Group, LoadingManager } from "three";
 import { GLTFLoader } from "three/examples/jsm/loaders/GLTFLoader.js";
 import { TGALoader } from "three/examples/jsm/loaders/TGALoader.js";
 
-import type { Asset } from "../domain/catalog";
+import type { ModelAsset } from "../domain/catalog";
 import { assetUrl } from "./assetUrl";
 
 export interface LoadedAsset {
@@ -29,7 +29,7 @@ export interface LoadedAsset {
  * the .gltf after it's been edited in place (e.g. origin correction); the
  * .bin/textures are untouched by those edits so they need no busting.
  */
-export async function loadAssetScene(asset: Asset, cacheBust = 0): Promise<LoadedAsset> {
+export async function loadAssetScene(asset: ModelAsset,cacheBust = 0): Promise<LoadedAsset> {
   const urlByBasename = await resolveFileset(asset);
 
   const manager = new LoadingManager();
@@ -55,7 +55,7 @@ function realClips(animations: AnimationClip[] | undefined): AnimationClip[] {
 }
 
 /** Map every fileset file's basename -> its asset:// URL. */
-async function resolveFileset(asset: Asset): Promise<Map<string, string>> {
+async function resolveFileset(asset: ModelAsset): Promise<Map<string, string>> {
   const rels = [asset.fileset.gltf, asset.fileset.bin, ...asset.fileset.textures];
   const entries = await Promise.all(
     rels.map(async (rel) => [basename(rel), await assetUrl(rel)] as const),

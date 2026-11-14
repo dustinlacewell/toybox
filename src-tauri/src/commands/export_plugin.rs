@@ -73,10 +73,11 @@ pub async fn perform_asset_copy(
     let root = root.to_string_lossy();
     let root = root.as_ref();
     let doc = read_gltf(root, &asset)?;
+    let fileset = asset.fileset()?;
     let plan = plan_copy(
         &doc,
-        &asset.fileset.gltf,
-        &asset.fileset.bin,
+        &fileset.gltf,
+        &fileset.bin,
         &asset.pack,
         &asset.category,
         &stem,

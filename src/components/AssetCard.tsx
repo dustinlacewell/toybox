@@ -65,7 +65,7 @@ function AssetCardImpl({
         ) : (
           <ThumbPlaceholder state={asset.thumb.state} />
         )}
-        {asset.animation.clipCount > 0 && (
+        {asset.kind === "model" && asset.animation.clipCount > 0 && (
           <span
             className="card__anim"
             title={`${asset.animation.clipCount} animation clip${asset.animation.clipCount === 1 ? "" : "s"}`}

@@ -4,6 +4,7 @@
 use tauri::AppHandle;
 
 use crate::config;
+use crate::domain::catalog_migrate;
 use crate::domain::catalog_model::{Catalog, ThumbState};
 use crate::domain::paths;
 use crate::error::AppResult;
@@ -59,7 +60,8 @@ pub fn load_catalog_inner(app: &AppHandle) -> AppResult<Option<Catalog>> {
         return Ok(None);
     }
     let text = fsio::read_text(&path)?;
-    let mut catalog: Catalog = serde_json::from_str(&text)?;
+    let doc = catalog_migrate::upgrade(serde_json::from_str(&text)?);
+    let mut catalog: Catalog = serde_json::from_value(doc)?;
     reconcile_thumb_states(app, &mut catalog)?;
     Ok(Some(catalog))
 }

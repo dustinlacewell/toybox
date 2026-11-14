@@ -11,4 +11,4 @@ pub const SEED_REL: &str = "_library_config/catalog.json";
 /// are rejected on load and rescanned. v2 introduced the animation channel filter
 /// (empty FBX "Take 001" no longer counts as a clip); a v1 cache could carry a
 /// stale `clipCount > 0` for assets with no real animation.
-pub const SCHEMA_VERSION: u32 = 2;
+pub const SCHEMA_VERSION: u32 = 3;

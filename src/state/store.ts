@@ -10,6 +10,9 @@ import { create } from "zustand";
 import type { Asset, Catalog, Category, Pack, PackMeta } from "../domain/catalog";
 import { emptyFilter, type Filter } from "../domain/facets";
 
+/** The fields the host updates in place; common to every asset kind. */
+type AssetPatch = Partial<Pick<Asset, "thumb" | "user">>;
+
 interface AppState {
   catalog: Catalog | null;
   /** Pack identity metadata, keyed by slug — loaded from each pack's pack.json. */
@@ -41,7 +44,7 @@ interface AppState {
   setPreview: (id: string | null) => void;
 
   /** Patch a single asset in place (favorite toggles, thumb-state updates). */
-  patchAsset: (id: string, patch: Partial<Asset>) => void;
+  patchAsset: (id: string, patch: AssetPatch) => void;
 }
 
 export const useStore = create<AppState>((set) => ({

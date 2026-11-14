@@ -17,7 +17,7 @@ import {
   WebGLRenderer,
 } from "three";
 
-import type { Asset } from "../domain/catalog";
+import type { ModelAsset } from "../domain/catalog";
 import { loadAssetScene } from "./gltfLoad";
 import { disposeScene } from "./disposeScene";
 import { fitCameraToObject } from "./fitCamera";
@@ -73,7 +73,7 @@ export class ThumbRenderer {
   }
 
   /** Render one asset to PNG bytes. Disposes the loaded model before returning. */
-  async render(asset: Asset): Promise<Uint8Array> {
+  async render(asset: ModelAsset): Promise<Uint8Array> {
     // Thumbnails are bind-pose stills; animation clips are ignored.
     const { scene: group } = await loadAssetScene(asset);
     try {

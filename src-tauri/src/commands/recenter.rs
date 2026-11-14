@@ -31,7 +31,7 @@ pub async fn recenter_asset(
         .ok_or_else(|| AppError::msg(format!("asset not found: {asset_id}")))?;
 
     let root = library::resolve(&app)?;
-    let gltf_abs = paths::abs_under_root(&root.to_string_lossy(), &asset.fileset.gltf);
+    let gltf_abs = paths::abs_under_root(&root.to_string_lossy(), &asset.fileset()?.gltf);
 
     let text = fsio::read_text(&gltf_abs)?;
     let doc = gltf_parse::parse(&text)?;

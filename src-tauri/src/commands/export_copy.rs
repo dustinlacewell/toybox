@@ -33,10 +33,11 @@ pub async fn export_copy(app: AppHandle, req: ExportCopyReq) -> AppResult<Export
         let doc = read_gltf(root, asset)?;
         let stem = resolve_stem(asset, req.preserve_structure, &mut used_stems, &mut report);
 
+        let fileset = asset.fileset()?;
         let plan = plan_copy(
             &doc,
-            &asset.fileset.gltf,
-            &asset.fileset.bin,
+            &fileset.gltf,
+            &fileset.bin,
             &asset.pack,
             &asset.category,
             &stem,

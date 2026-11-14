@@ -4,6 +4,8 @@
  * collide across packs).
  */
 
+import type { MaterialSet } from "./material";
+
 /**
  * A pack is the top-level division of the library (`library/<pack>/...`).
  * Identity is the directory slug; display metadata (name, color) is authored in
@@ -18,7 +20,7 @@ export interface PackMeta {
   color: string;
 }
 
-export type Category =
+export type ModelCategory =
   | "buildings"
   | "characters"
   | "environment"
@@ -30,6 +32,9 @@ export type Category =
   | "primitives"
   | "roads"
   | "signs";
+
+/** Material categories are free strings, so an asset's category is too. */
+export type Category = string;
 
 export type ThumbState = "missing" | "queued" | "rendering" | "ready" | "error";
 
@@ -56,18 +61,34 @@ export interface AnimationMeta {
   clipNames: string[];
 }
 
-export interface Asset {
+interface AssetBase {
   id: string;
   name: string;
   fileName: string;
+  /** The .gltf for a model; the folder for a material. Relative to libraryRoot. */
   relPath: string;
   pack: Pack;
   category: Category;
-  fileset: AssetFileset;
   thumb: ThumbMeta;
   user: UserMeta;
+}
+
+export interface ModelAsset extends AssetBase {
+  kind: "model";
+  fileset: AssetFileset;
   animation: AnimationMeta;
 }
+
+export interface MaterialAsset extends AssetBase {
+  kind: "material";
+  material: MaterialSet;
+}
+
+export type Asset = ModelAsset | MaterialAsset;
+
+export type AssetKind = Asset["kind"];
+
+export const isModel = (a: Asset): a is ModelAsset => a.kind === "model";
 
 export interface Catalog {
   schemaVersion: number;

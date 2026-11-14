@@ -37,14 +37,14 @@ pub fn collect_assets(
 
 /// Read and parse an asset's glTF document.
 pub fn read_gltf(root: &str, asset: &Asset) -> AppResult<Value> {
-    let abs = paths::abs_under_root(root, &asset.fileset.gltf);
+    let abs = paths::abs_under_root(root, &asset.fileset()?.gltf);
     let text = fsio::read_text(&abs)?;
     gltf_parse::parse(&text)
 }
 
 /// Read an asset's single buffer (`.bin`) bytes.
 pub fn read_bin(root: &str, asset: &Asset) -> AppResult<Vec<u8>> {
-    fsio::read_bytes(&paths::abs_under_root(root, &asset.fileset.bin))
+    fsio::read_bytes(&paths::abs_under_root(root, &asset.fileset()?.bin))
 }
 
 /// Write a planned loose-copy fileset (rewritten glTF + bin + textures) under

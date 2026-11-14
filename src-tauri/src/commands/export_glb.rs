@@ -55,7 +55,7 @@ pub(crate) fn gather_images(
     doc: &Value,
     report: &mut ExportReport,
 ) -> AppResult<Vec<EmbedImage>> {
-    let gltf_dir = parent_rel(&asset.fileset.gltf);
+    let gltf_dir = parent_rel(&asset.fileset()?.gltf);
     let mut out = Vec::new();
     for img in gltf_parse::image_uris(doc) {
         let tex_rel = paths::resolve_uri_rel(&gltf_dir, &img.uri);

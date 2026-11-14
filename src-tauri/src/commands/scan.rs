@@ -88,7 +88,7 @@ mod tests {
             .iter()
             .find(|a| a.name == "SK_Chr_Crew_Male_01")
             .expect("crew character present");
-        let crew_gltf = paths::abs_under_root(&catalog.library_root, &crew.fileset.gltf);
+        let crew_gltf = paths::abs_under_root(&catalog.library_root, &crew.fileset().unwrap().gltf);
         assert!(crew_gltf.exists(), "crew gltf resolves");
 
         // Spot-check the verification asset and its two textures resolve.
@@ -97,12 +97,13 @@ mod tests {
             .iter()
             .find(|a| a.name == "SM_Bld_Apartment_01")
             .expect("apartment asset present");
-        assert_eq!(a.fileset.textures.len(), 2, "apartment textures");
-        for tex in &a.fileset.textures {
+        let fileset = a.fileset().unwrap();
+        assert_eq!(fileset.textures.len(), 2, "apartment textures");
+        for tex in &fileset.textures {
             let abs = paths::abs_under_root(&catalog.library_root, tex);
             assert!(abs.exists(), "texture missing: {abs:?}");
         }
-        let gltf_abs = paths::abs_under_root(&catalog.library_root, &a.fileset.gltf);
+        let gltf_abs = paths::abs_under_root(&catalog.library_root, &fileset.gltf);
         assert!(gltf_abs.exists(), "gltf missing");
 
         // The lone TGA asset must resolve too.
@@ -112,7 +113,7 @@ mod tests {
             .find(|a| a.name == "SM_Env_Skyline_01")
             .expect("skyline asset present");
         assert!(
-            tga.fileset.textures.iter().any(|t| t.ends_with(".tga")),
+            tga.fileset().unwrap().textures.iter().any(|t| t.ends_with(".tga")),
             "skyline should reference a .tga"
         );
 
@@ -121,7 +122,7 @@ mod tests {
         let animated = catalog
             .assets
             .iter()
-            .filter(|a| a.animation.clip_count > 0)
+            .filter(|a| a.animation().is_ok_and(|m| m.clip_count > 0))
             .count();
         assert_eq!(animated, 88, "assets with real animation clips");
         // A known animated character carries at least one named clip.
@@ -130,6 +131,6 @@ mod tests {
             .iter()
             .find(|a| a.name == "Character_Alien_Male_01")
             .expect("alien character present");
-        assert!(chr.animation.clip_count >= 1, "alien should be animated");
+        assert!(chr.animation().unwrap().clip_count >= 1, "alien should be animated");
     }
 }

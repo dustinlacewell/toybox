@@ -7,27 +7,51 @@
 use std::path::Path;
 
 use crate::config;
-use crate::domain::catalog_model::{AnimationMeta, Catalog};
-use crate::domain::seed::{self, SeedEntry};
+use crate::domain::catalog_model::{AnimationMeta, Asset, Catalog};
+use crate::domain::material::MaterialSet;
+use crate::domain::seed::{self, SeedContent, SeedEntry};
 use crate::domain::{gltf_parse, paths};
-use crate::error::AppResult;
+use crate::error::{AppError, AppResult};
 use crate::infra::fsio;
 
-/// Assemble a full catalog from already-parsed seed entries, resolving each
-/// asset's textures/animation by reading its glTF. Produces default
-/// `user`/`thumb` metadata; the caller merges to preserve prior user metadata.
+/// Assemble a full catalog from already-parsed seed entries. A model's
+/// textures/animation are resolved by reading its glTF; a material's map files
+/// are only checked for existence. Produces default `user`/`thumb` metadata;
+/// the caller merges to preserve prior user metadata.
 /// `root` is the live library root the assets are read from and stamped with.
 pub fn build_catalog(root: &str, entries: Vec<SeedEntry>) -> AppResult<Catalog> {
     let mut assets = Vec::with_capacity(entries.len());
     for entry in entries {
-        let facets = read_asset_facets(root, &entry.gltf_rel)?;
-        assets.push(seed::build_asset(entry, facets.textures, facets.animation));
+        assets.push(build_one(root, entry)?);
     }
     Ok(Catalog {
         schema_version: config::SCHEMA_VERSION,
         library_root: root.to_string(),
         assets,
     })
+}
+
+fn build_one(root: &str, entry: SeedEntry) -> AppResult<Asset> {
+    match &entry.content {
+        SeedContent::Model { gltf_rel, .. } => {
+            let facets = read_asset_facets(root, gltf_rel)?;
+            seed::build_asset(entry, facets.textures, facets.animation)
+        }
+        SeedContent::Material { material } => {
+            check_textures_exist(root, &entry.id, material)?;
+            seed::build_material_asset(entry)
+        }
+    }
+}
+
+/// Error naming the asset and file for the first map file missing under `root`.
+fn check_textures_exist(root: &str, id: &str, material: &MaterialSet) -> AppResult<()> {
+    for file in material.textures() {
+        if !fsio::exists(&paths::abs_under_root(root, &file)) {
+            return Err(AppError::msg(format!("asset {id}: missing material file {file}")));
+        }
+    }
+    Ok(())
 }
 
 /// Facts read from one glTF: its texture set and animation clips.

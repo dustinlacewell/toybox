@@ -18,6 +18,7 @@ import {
   type PluginConfig,
   type PluginPermissions,
 } from "@ldlework/toybox-sdk";
+import { isModel, type ModelAsset } from "../domain/catalog";
 import type { PluginManifestDto } from "./tauriApi";
 import { useStore } from "../state/store";
 import { assetUrl } from "./assetUrl";
@@ -52,16 +53,26 @@ export function buildExportCtx(
   };
 }
 
-/** Resolve the selected assets from the catalog store (read-only views). */
-export function selectedAssets(selectedIds: string[]) {
+/** Resolve the selected models from the catalog store (read-only views). The
+ *  plugin SDK's `AssetView` is model-shaped, so selected materials are left out. */
+export function selectedAssets(selectedIds: string[]): ModelAsset[] {
   const catalog = useStore.getState().catalog;
   if (!catalog) return [];
   const byId = new Map(catalog.assets.map((a) => [a.id, a]));
-  return selectedIds.map((id) => byId.get(id)).filter((a): a is NonNullable<typeof a> => !!a);
+  return selectedIds.map((id) => byId.get(id)).filter((a): a is ModelAsset => !!a && isModel(a));
+}
+
+/** Look up one model by id for a plugin. Undefined if unknown; throws for a
+ *  material, which the model-shaped SDK cannot represent. */
+export function modelAsset(id: string): ModelAsset | undefined {
+  const asset = useStore.getState().catalog?.assets.find((a) => a.id === id);
+  if (asset && !isModel(asset)) {
+    throw new Error(`asset ${id} is a ${asset.kind}; plugins can only access models`);
+  }
+  return asset;
 }
 
 function buildHostApi(pluginId: string, perms: PluginPermissions): HostApi {
-  const catalogAssets = () => useStore.getState().catalog?.assets ?? [];
   const gatedExport = gate(pluginId, "rustExport", perms.rustExport);
 
   return {
@@ -69,10 +80,10 @@ function buildHostApi(pluginId: string, perms: PluginPermissions): HostApi {
       const ids = [...useStore.getState().selection];
       return selectedAssets(ids);
     },
-    getAsset: (id) => catalogAssets().find((a) => a.id === id),
+    getAsset: (id) => modelAsset(id),
     getParsedGltf: (id) => readAssetGltf(id),
     getAssetUrls: async (id) => {
-      const asset = catalogAssets().find((a) => a.id === id);
+      const asset = modelAsset(id);
       if (!asset) throw new Error(`unknown asset: ${id}`);
       const [gltf, bin, ...textures] = await Promise.all([
         assetUrl(asset.fileset.gltf),
