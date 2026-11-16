@@ -17,6 +17,9 @@
 
   --accent: #4a90e2;
   --accent-soft: #4a90e233;
+  accent-color: var(--accent);
+  --floating-surface: color-mix(in srgb, var(--bg-1) 92%, transparent);
+  --preview-background: radial-gradient(80% 60% at 50% 105%, var(--bg-2), var(--bg-0) 75%);
   --danger: #e94e77;
   --ok: #50e3c2;
   --gold: #f5b942; /* favorited-star fill; reads as gold, not the blue accent */
@@ -27,8 +30,8 @@
   --space-4: 16px;
   --space-5: 24px;
 
-  --radius-1: 4px;
-  --radius-2: 8px;
+  --radius-1: 8px;
+  --radius-2: 12px;
 
   --font: system-ui, -apple-system, "Segoe UI", sans-serif;
   --fs-sm: 12px;
@@ -52,4 +55,10 @@ body {
   color: var(--text-0);
   font-family: var(--font);
   font-size: var(--fs-md);
+  line-height: 1.45;
+  -webkit-font-smoothing: antialiased;
+  font-variant-numeric: tabular-nums;
 }
+
+button, input, select, textarea { font: inherit; }
+button:focus-visible, input:focus-visible, select:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }

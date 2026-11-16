@@ -19,12 +19,12 @@ import { convertFileSrc } from "@tauri-apps/api/core";
 
 import type { ComponentType } from "react";
 
-import type { ExporterPlugin, SlotComponentProps } from "@ldlework/toybox-sdk";
+import type { ExporterPlugin, RigAdapterPlugin, SlotComponentProps } from "@ldlework/toybox-sdk";
 import type { PluginManifestDto } from "./tauriApi";
 
 export interface LoadedPlugin {
   manifest: PluginManifestDto;
-  plugin: ExporterPlugin;
+  plugin: ExporterPlugin | RigAdapterPlugin;
 }
 
 /** The protocol root, e.g. `http://plugin.localhost/` (Windows) or
@@ -50,8 +50,8 @@ export function pluginUrl(id: string, rel: string): string {
 export async function loadPlugin(m: PluginManifestDto): Promise<LoadedPlugin> {
   const mod = await import(/* @vite-ignore */ pluginUrl(m.id, m.entry));
   const plugin = mod.default;
-  if (!plugin || typeof plugin.run !== "function") {
-    throw new Error(`plugin '${m.id}' has no default export with a run() method`);
+  if (!plugin || (m.kind === "rigAdapter" ? !Array.isArray(plugin.profiles) : typeof plugin.run !== "function")) {
+    throw new Error(`plugin '${m.id}' must default-export ${m.kind === "rigAdapter" ? "rig profiles" : "a run() method"}`);
   }
   return { manifest: m, plugin };
 }

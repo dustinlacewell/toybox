@@ -1,6 +1,6 @@
 import type { ButtonHTMLAttributes } from "react";
 
-type Variant = "default" | "primary" | "ghost";
+type Variant = "default" | "primary" | "ghost" | "danger";
 
 interface Props extends ButtonHTMLAttributes<HTMLButtonElement> {
   variant?: Variant;
@@ -8,5 +8,5 @@ interface Props extends ButtonHTMLAttributes<HTMLButtonElement> {
 
 export function Button({ variant = "default", className = "", ...rest }: Props) {
   const variantClass = variant === "default" ? "" : `ds-button--${variant}`;
-  return <button className={`ds-button ${variantClass} ${className}`} {...rest} />;
+  return <button type="button" className={`ds-button ${variantClass} ${className}`} {...rest} />;
 }

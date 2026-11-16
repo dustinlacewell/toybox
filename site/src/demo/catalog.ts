@@ -36,7 +36,7 @@ const toAsset = (r: Record): Asset => ({
   category: r.category as Category,
   fileset: r.fileset,
   thumb: { state: "missing" },
-  user: { favorite: false, tags: [] },
+  user: { favorite: false, tags: ["source: Polygon Prototype","publisher: Synty"], provenance:{source:"Polygon Prototype",publisher:"Synty"} },
   animation: { clipCount: r.clipCount, clipNames: [] },
 });
 

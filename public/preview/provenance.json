@@ -1,0 +1,9 @@
+{
+  "author": "Quaternius",
+  "pack": "Universal Base Characters - Standard",
+  "model": "Universal Base Characters[Standard]/Base Characters/Godot - UE/Superhero_Male_FullBody.gltf",
+  "license": "CC0-1.0",
+  "source": "https://quaternius.itch.io/universal-base-characters",
+  "archiveSha256": "fdbf1804c90dfc1ea03e992bff7da2dfd1a79318e13270a660180f9308455f40",
+  "changes": "Removed textures and embedded animations; neutral preview materials; packed as GLB."
+}

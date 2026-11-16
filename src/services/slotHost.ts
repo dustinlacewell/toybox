@@ -8,7 +8,7 @@
 
 import type { PluginPermissions, SlotHost } from "@ldlework/toybox-sdk";
 import { useStore } from "../state/store";
-import { gate, modelAsset, selectedAssets } from "./pluginHost";
+import { gate, catalogAsset, selectedAssets } from "./pluginHost";
 import { convertToGltf, getLibraryRoot } from "./tauriApi";
 import { pickDirectory } from "./pickDirectory";
 import { pickSaveFile } from "./pickSaveFile";
@@ -22,7 +22,7 @@ export function buildSlotHost(
   const gatedConvert = gate(pluginId, "rustConvert", perms.rustConvert);
   return {
     getSelectedAssets: () => selectedAssets([...useStore.getState().selection]),
-    getAsset: (id) => modelAsset(id),
+    getAsset: (id) => catalogAsset(id),
     getLibraryRoot: () => getLibraryRoot(),
     convertToGltf: gatedConvert(
       (srcPath: string, pack: string, category: string, stem: string) =>

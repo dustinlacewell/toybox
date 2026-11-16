@@ -27,7 +27,7 @@ export const WIDGETS: WidgetMeta[] = [
 
 export const defaultWidgetVisibility = (): WidgetVisibility => ({
   grid: true,
-  axes: true,
-  geometryCenter: true,
-  boundingBox: true,
+  axes: false,
+  geometryCenter: false,
+  boundingBox: false,
 });

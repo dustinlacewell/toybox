@@ -13,6 +13,7 @@ import { useState } from "react";
 import { Stack, Button, TextInput } from "@ldlework/toybox-sdk/ui";
 import {
   defineImportPanel,
+  groupSeedVariants,
   type ImportPanelCtx,
   type SeedEntryInput,
 } from "@ldlework/toybox-sdk";
@@ -29,9 +30,9 @@ import {
 import { toEntry } from "./entry.js";
 import { groupMaterials } from "./group.js";
 import { ReviewDialog } from "./ReviewDialog.js";
-import { ScannedView } from "./ScannedView.js";
 import { useThumbLoader } from "./useThumbLoader.js";
 import { copyMaterial, findImages } from "./walk.js";
+import { materialGroups } from "./variants.js";
 
 type Phase =
   | { step: "idle" }
@@ -44,8 +45,6 @@ export default defineImportPanel(function ImportPanel({ ctx }: { ctx: ImportPane
   const [pack, setPack] = useState("imported");
   const [category, setCategory] = useState("uncategorized");
   const [phase, setPhase] = useState<Phase>({ step: "idle" });
-  // The item the review dialog opens on; undefined while it is closed.
-  const [reviewAt, setReviewAt] = useState<number>();
   const loader = useThumbLoader(ctx.fs, phase.step === "scanned" ? phase.source : undefined);
 
   const scan = async () => {
@@ -55,7 +54,6 @@ export default defineImportPanel(function ImportPanel({ ctx }: { ctx: ImportPane
       const drafts = groupMaterials(await findImages(ctx.fs, source));
       const items = drafts.map((draft) => ({ draft, included: true }));
       setPhase({ step: "scanned", source, items });
-      setReviewAt(0);
     } catch (e) {
       setPhase({ step: "error", message: String(e) });
     }
@@ -65,7 +63,6 @@ export default defineImportPanel(function ImportPanel({ ctx }: { ctx: ImportPane
     setPhase((p) => (p.step === "scanned" ? { ...p, items: change(p.items) } : p));
 
   const runImport = async (source: string, items: ReviewItem[]) => {
-    setReviewAt(undefined);
     setPhase({ step: "importing" });
     try {
       const libraryRoot = await ctx.host.getLibraryRoot();
@@ -86,11 +83,12 @@ export default defineImportPanel(function ImportPanel({ ctx }: { ctx: ImportPane
         }
       }
 
-      if (entries.length) await ctx.commit(entries);
+      const grouped = groupSeedVariants(entries);
+      if (grouped.length) await ctx.commit(grouped);
       setPhase({
         step: "done",
-        imported: entries.length,
-        skipped: items.length - entries.length,
+        imported: grouped.length,
+        skipped: materialGroups(items).length - grouped.length,
         warnings,
       });
     } catch (e) {
@@ -98,68 +96,29 @@ export default defineImportPanel(function ImportPanel({ ctx }: { ctx: ImportPane
     }
   };
 
-  return (
-    <Stack gap={12}>
-      <section className="export__section">
-        <div className="export__label">Destination</div>
-        <Stack dir="row" gap={8}>
-          <TextInput
-            value={pack}
-            onChange={(e) => setPack(e.currentTarget.value)}
-            placeholder="pack"
-            style={{ maxWidth: 180 }}
-          />
-          <TextInput
-            value={category}
-            onChange={(e) => setCategory(e.currentTarget.value)}
-            placeholder="category"
-            style={{ maxWidth: 180 }}
-          />
-        </Stack>
-      </section>
-
-      {phase.step === "scanned" ? (
-        <ScannedView
-          items={phase.items}
-          folder={folderName(phase.source)}
-          pack={pack}
-          category={category}
-          loader={loader}
-          onOpen={setReviewAt}
-          onInclude={(i, included) => edit((items) => setIncluded(items, i, included))}
-          onScan={() => void scan()}
-          onImport={() => void runImport(phase.source, phase.items)}
-        />
-      ) : (
-        <PhaseView phase={phase} onScan={() => void scan()} onClose={ctx.close} />
-      )}
-
-      {phase.step === "scanned" && reviewAt !== undefined && loader && (
-        <ReviewDialog
-          items={phase.items}
-          pack={pack}
-          category={category}
-          loader={loader}
-          Preview={ctx.widgets.MaterialPreview}
-          initialSelected={reviewAt}
-          onClose={() => setReviewAt(undefined)}
-          onImport={() => void runImport(phase.source, phase.items)}
-          onInclude={(i, included) => edit((items) => setIncluded(items, i, included))}
-          onIncludeAll={(indexes, included) =>
-            edit((items) => setAllIncluded(items, indexes, included))
-          }
-          onRename={(i, name) => edit((items) => rename(items, i, name))}
-          onUse={(i, f, use) => edit((items) => setUse(items, i, f, use))}
-          onChannel={(i, f, c, role) => edit((items) => setChannel(items, i, f, c, role))}
-        />
-      )}
-    </Stack>
-  );
+  if (phase.step === "scanned" && loader) return <ReviewDialog
+    key={phase.source} items={phase.items} pack={pack} category={category} source={phase.source}
+    loader={loader} Preview={ctx.widgets.MaterialPreview} initialSelected={0} setActions={ctx.setActions}
+    onClose={ctx.close} onScan={() => void scan()} onImport={() => void runImport(phase.source, phase.items)}
+    onInclude={(i, included) => edit((items) => setIncluded(items, i, included))}
+    onIncludeAll={(indexes, included) => edit((items) => setAllIncluded(items, indexes, included))}
+    onRename={(i, name) => edit((items) => rename(items, i, name))}
+    onUse={(i, f, use) => edit((items) => setUse(items, i, f, use))}
+    onChannel={(i, f, c, role) => edit((items) => setChannel(items, i, f, c, role))}
+  />;
+  return <Stack gap={20}>
+    <h2>Bring a texture folder into your library.</h2>
+    <p className="export__hint">Review the files, their channels and the material they make before adding them.</p>
+    <section className="export__section">
+      <div className="export__label">File under</div>
+      <Stack dir="row" gap={8}>
+        <TextInput aria-label="Pack" value={pack} onChange={(e) => setPack(e.currentTarget.value)} placeholder="Pack" />
+        <TextInput aria-label="Category" value={category} onChange={(e) => setCategory(e.currentTarget.value)} placeholder="Category" />
+      </Stack>
+    </section>
+    {phase.step === "scanned" ? <p>Preparing previews…</p> : <PhaseView phase={phase} onScan={() => void scan()} onClose={ctx.close} />}
+  </Stack>;
 });
-
-function folderName(path: string): string {
-  return path.split(/[\\/]/).filter(Boolean).pop() ?? path;
-}
 
 /** The phases that need no list: idle, importing, done and error. */
 function PhaseView({

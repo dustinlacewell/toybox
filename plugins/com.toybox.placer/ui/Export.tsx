@@ -14,9 +14,9 @@ import { defineExportPanel, type ExportPanelCtx } from "@ldlework/toybox-sdk";
 type Format = "glb" | "copy";
 
 export default defineExportPanel(function ExportPanel({ ctx }: { ctx: ExportPanelCtx }) {
-  const [format, setFormat] = useState<Format>("glb");
-  const [subDir, setSubDir] = useState("assets/exported");
-  const [libraryJson, setLibraryJson] = useState<string | null>(null);
+  const [format, setFormat] = useState<Format>((ctx.initialConfig?.format as Format) ?? "glb");
+  const [subDir, setSubDir] = useState(String(ctx.initialConfig?.subDir ?? "assets/exported"));
+  const [libraryJson, setLibraryJson] = useState<string | null>((ctx.initialConfig?.libraryJson as string) ?? null);
 
   // Push config up whenever it changes; ready once a library file is chosen.
   useEffect(() => {

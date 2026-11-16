@@ -5,6 +5,26 @@
   gap: var(--space-4);
 }
 
+.export-screen { position: fixed; inset: 0; z-index: 50; display: flex; flex-direction: column; background: var(--bg-0); }
+.export-screen__files { flex: 1; min-width: 0; overflow: auto; padding: 0 28px 40px; }
+.export-screen__settings { border: 0; margin: 0; padding: 0 8px 20px; display: flex; flex-direction: column; gap: 12px; min-width: 0; }
+.export-screen__settings h2 { font-size: 15px; font-weight: 600; margin: 8px 0 0; }
+.export-screen__settings h3 { margin: 16px 0 0; font-size: 12px; font-weight: 400; color: var(--text-2); }
+.export-screen__settings p { margin: 0; }
+.export-screen__settings .export__path { white-space: normal; overflow-wrap: anywhere; }
+.export-file-list { list-style: none; padding: 0; font-family: monospace; }
+.export-file-list li { padding: 6px 8px; color: var(--text-1); overflow-wrap: anywhere; font-size: 12px; }
+.export-screen__lead { font-size: 22px; font-weight: 600; letter-spacing: -.02em; max-width: 30ch; margin: 26px 0 6px; line-height: 1.25; }
+.export-screen__section-label { color: var(--text-2); font-size: 12px; margin: 24px 8px 6px; }
+.export-screen .ds-page-header__metadata { max-width: 210px; }
+.export-screen__target { color: var(--text-2); font-size: 12px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; min-width: 0; }
+.export-asset-row { display: flex; align-items: center; gap: 12px; min-height: 52px; padding: 6px 8px; }
+.export-asset-row__image { display: grid; place-items: center; width: 40px; height: 40px; border-radius: 8px; border: 1px solid var(--border); background: var(--bg-1); flex: none; }
+.export-asset-row__image img { width: 100%; height: 100%; object-fit: contain; }
+.export-asset-row > span:nth-child(2) { flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.export-asset-row small { color: var(--text-2); max-width: 30%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.export-asset-row__status { width: 68px; text-align: right; color: var(--text-1); font-size: 12px; }
+
 .export__header {
   display: flex;
   align-items: center;

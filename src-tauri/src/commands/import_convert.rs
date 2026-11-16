@@ -76,8 +76,10 @@ pub fn promote(gltf: &Path, dest_abs: &Path, dest_rel: &str, stem: &str) -> AppR
 
     // The buffer: copy under the canonical <stem>.bin and point the gltf at it.
     let bin_src = produced_dir.join(&src_bin_uri);
+    let bin_bytes = fsio::read_bytes(&bin_src)?;
+    crate::domain::gltf_vertex_colors::repair(&mut doc, std::slice::from_ref(&bin_bytes));
     let bin_name = format!("{stem}.bin");
-    fsio::write_bytes(&dest_abs.join(&bin_name), &fsio::read_bytes(&bin_src)?)?;
+    fsio::write_bytes(&dest_abs.join(&bin_name), &bin_bytes)?;
     doc["buffers"][0]["uri"] = Value::String(bin_name.clone());
     written.push(format!("{dest_rel}/{bin_name}"));
 

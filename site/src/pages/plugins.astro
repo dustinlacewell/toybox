@@ -125,7 +125,7 @@ const toc = [
           <ApiTable rows={[
             { signature: "id: string", description: "Reverse-DNS identifier. MUST equal the folder name, or the plugin is skipped." },
             { signature: 'kind: "exporter" | "importer"', description: "Which contract the plugin fulfils." },
-            { signature: 'assetKinds?: ("model" | "material")[]', description: "The asset kinds the plugin works with; for an importer, what it produces. The import drawer lists only importers for the kind the library is showing. Defaults to [\"model\"]." },
+            { signature: 'assetKinds?: ("model" | "material" | "animation" | "audio")[]', description: "The asset kinds the plugin accepts or produces. Import and export list only plugins for the current type. Defaults to [\"model\"]. Audio assets expose their source file, format, duration, sample rate, channels and waveform peaks." },
             { signature: "entry: string", description: "Path (relative to the plugin folder) of the exporter's entry module. Required for exporters; importers are panel-only and may omit it." },
             { signature: "permissions: {…}", description: "Capability flags gating the host API — see Permissions below." },
             { signature: "fields?: FieldSpec[]", description: "Optional declarative config inputs (the zero-code UI path). Ignored when a UI panel is present." },
@@ -161,7 +161,9 @@ export default defineExporter({
             fail the run; the host surfaces the message. Respect <code class="ds-code">ctx.signal</code> for
             cancellation on long runs.
           </p>
-          <CodeBlock lang="ts">{`run(ctx: ExportCtx, assets: AssetView[]): Promise<ExportReport>`}</CodeBlock>
+          <CodeBlock lang="ts">{`preview(ctx: ExportCtx, assets: AssetView[]): Promise<string[]>
+run(ctx: ExportCtx, assets: AssetView[]): Promise<ExportReport>`}</CodeBlock>
+          <p class="mt-4 leading-relaxed text-slate-300">The preview returns target-relative file paths without writing. Toybox shows these before Send. Exporters without a preview must be updated before sending. Saved exports remember the folder, plugin settings and variant policy. Use <code class="ds-code">exportVariants(assets, ctx.config.variantPolicy)</code> to export all available levels or sizes; the policy <code class="ds-code">"best"</code> keeps each primary only.</p>
         </section>
 
         <!-- IMPORTERS ------------------------------------------------------ -->
@@ -217,6 +219,7 @@ export default defineImportPanel(function ImportPanel({ ctx }: { ctx: ImportPane
           <ApiTable rows={[
             { signature: "host: SlotHost", description: "Render-time reads + OS pickers (see below). The narrow read subset — write primitives fire later, in run." },
             { signature: "shared: { targetDir, preserveStructure }", description: "The host-level export inputs every mode shares." },
+            { signature: "initialConfig?: Record<string, unknown>", description: "Saved plugin settings. Initialize the panel from these values so choosing a saved export restores its configuration." },
             { signature: "setConfig(values, ready): void", description: "Report the panel's collected config and whether it's valid. Call it whenever inputs change; the host's Export button enables on ready." },
           ]} />
           <CodeBlock lang="tsx">{`import { defineExportPanel, type ExportPanelCtx } from "${sdk}";
@@ -334,19 +337,33 @@ export default defineExportPanel(function Panel({ ctx }: { ctx: ExportPanelCtx }
           <p class="mt-4 leading-relaxed text-slate-300">
             The read-only view of an asset a plugin sees:
           </p>
-          <CodeBlock lang="ts">{`interface AssetView {
+          <CodeBlock lang="ts">{`interface AssetViewBase {
   id: string;
   name: string;
   fileName: string;
   relPath: string;
   pack: string;
   category: string;
+  user: { favorite: boolean; tags: string[]; collections?: string[] };
+  variants?: AssetView[]; // Additional file sets, best to lowest.
+}
+interface ModelAssetView extends AssetViewBase {
+  kind: "model";
   fileset: { gltf: string; bin: string; textures: string[] };
-  user: { favorite: boolean; tags: string[] };
   animation: { clipCount: number; clipNames: string[] };
-}`}</CodeBlock>
+}
+interface MaterialAssetView extends AssetViewBase {
+  kind: "material";
+  material: {
+    maps: { role: MapRole; file: string; channel?: "r" | "g" | "b" | "a"; invert?: boolean }[];
+    flipNormalGreen: boolean;
+  };
+}
+type AssetView = ModelAssetView | MaterialAssetView;`}</CodeBlock>
           <p class="leading-relaxed text-slate-300">What an importer produces, and an export run returns:</p>
-          <CodeBlock lang="ts">{`interface SeedEntryInput { id: string; pack: string; category: string; file: string; }
+          <CodeBlock lang="ts">{`interface ModelSeedEntry { kind?: "model"; id: string; pack: string; category: string; file: string; variants?: ModelSeedEntry[]; }
+interface MaterialSeedEntry { kind: "material"; id: string; pack: string; category: string; name: string; maps: MaterialMapInput[]; flipNormalGreen?: boolean; variants?: MaterialSeedEntry[]; }
+type SeedEntryInput = ModelSeedEntry | MaterialSeedEntry;
 
 interface ExportReport { written: string[]; skipped: string[]; warnings: string[]; }`}</CodeBlock>
         </section>

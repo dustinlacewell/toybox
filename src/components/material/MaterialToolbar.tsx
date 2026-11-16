@@ -1,53 +1,22 @@
-/**
- * Floating toolbar for the material preview: a shape switch (sphere / plane /
- * cube) and a tiling picker (texture repeat).
- */
-
-import { Box, Circle, Square, type LucideIcon } from "lucide-react";
-
+import type { ReactNode } from "react";
+import { IconButton, Segmented } from "@ldlework/toybox-sdk/ui";
+import { Box, Globe, Grid3x3, BrickWall, RotateCcw } from "lucide-react";
+import "../viewer/ViewerToolbar.css";
 import type { PreviewShape } from "../../services/materialPreview";
-import { IconButton, IconStrip, Select } from "@ldlework/toybox-sdk/ui";
-
+import type { PreviewBrightness } from "../../domain/previewBrightness";
+import { ViewportBrightnessControl } from "../viewer/ViewportBrightnessControl";
 export const TILING_VALUES = [1, 2, 4, 8] as const;
 export type Tiling = (typeof TILING_VALUES)[number];
-
-const SHAPES: { shape: PreviewShape; label: string; icon: LucideIcon }[] = [
-  { shape: "sphere", label: "Sphere", icon: Circle },
-  { shape: "plane", label: "Plane", icon: Square },
-  { shape: "cube", label: "Cube", icon: Box },
-];
-
-const TILING_OPTIONS = TILING_VALUES.map((n) => ({ value: String(n), label: String(n) }));
-
-interface Props {
-  shape: PreviewShape;
-  onShape: (shape: PreviewShape) => void;
-  tiling: Tiling;
-  onTiling: (tiling: Tiling) => void;
-}
-
-export function MaterialToolbar({ shape, onShape, tiling, onTiling }: Props) {
-  return (
-    <div className="mtoolbar">
-      <IconStrip>
-        {SHAPES.map(({ shape: key, label, icon }) => (
-          <IconButton
-            key={key}
-            icon={icon}
-            label={label}
-            active={shape === key}
-            onClick={() => onShape(key)}
-          />
-        ))}
-      </IconStrip>
-      <label className="mtoolbar__field">
-        <span className="mtoolbar__label">Tiling</span>
-        <Select
-          value={String(tiling)}
-          options={TILING_OPTIONS}
-          onChange={(value) => onTiling(Number(value) as Tiling)}
-        />
-      </label>
-    </div>
-  );
+interface Props { shape: PreviewShape; onShape: (shape: PreviewShape) => void; tiling: Tiling; onTiling: (tiling: Tiling) => void; trailing?: ReactNode; onResetCamera:()=>void; brightness:PreviewBrightness; onBrightness:(value:PreviewBrightness)=>void; }
+export function MaterialToolbar({ shape, onShape, tiling, onTiling, trailing, onResetCamera, brightness, onBrightness }: Props) {
+  return <><div className="viewer-scene-controls"><div className="vtoolbar" role="toolbar" aria-label="Material preview controls">
+    <IconButton icon={Globe} label="Sphere" active={shape==="sphere"} aria-pressed={shape==="sphere"} onClick={()=>onShape("sphere")}/>
+    <IconButton icon={Box} label="Cube" active={shape==="cube"} aria-pressed={shape==="cube"} onClick={()=>onShape("cube")}/>
+    <IconButton icon={Grid3x3} label="Infinite floor" active={shape==="floor"} aria-pressed={shape==="floor"} onClick={()=>onShape("floor")}/>
+    <IconButton icon={BrickWall} label="Infinite wall" active={shape==="wall"} aria-pressed={shape==="wall"} onClick={()=>onShape("wall")}/>
+    <span className="vtoolbar__sep"/>
+    <IconButton icon={RotateCcw} label="Reset camera" onClick={onResetCamera}/>
+  </div><div className="viewer-scene-controls__right"><ViewportBrightnessControl value={brightness} onChange={onBrightness}/></div></div><div className="mtoolbar">
+    <Segmented value={String(tiling)} options={TILING_VALUES.map((n) => ({ value: String(n), label: `${n}×` }))} onChange={(value) => onTiling(Number(value) as Tiling)} />{trailing}
+  </div></>;
 }

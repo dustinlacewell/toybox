@@ -11,6 +11,7 @@ interface Props {
 }
 
 export function AnimationDriver({ tick }: Props) {
-  useFrame((_, delta) => tick(delta));
+  // Advance before orbit controls, camera following, and skeleton overlays.
+  useFrame((_, delta) => tick(delta), -2);
   return null;
 }

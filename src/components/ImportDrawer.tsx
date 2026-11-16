@@ -1,121 +1,79 @@
-/**
- * Import panel. Lists discovered importer plugins; selecting one mounts its
- * `importPanel` slot component, which picks a source, builds seed entries, shows
- * its own preview, and commits. The commit is host-owned: `ctx.commit(entries)`
- * runs `merge_seed_entries` (opening the previously-closed inbound format) and
- * triggers a catalog refresh so the imported assets appear in the grid.
- *
- * Importers are wizard-shaped, so there is no declarative fallback — an importer
- * that ships no `importPanel` shows a note rather than an empty drawer.
- */
-
-import { useState } from "react";
-
-import { Drawer, Select } from "@ldlework/toybox-sdk/ui";
-import type { ImportPanelCtx, SeedEntryInput } from "@ldlework/toybox-sdk";
+import { useEffect, useMemo, useState, useRef, type ReactNode } from "react";
+import { Button, PageHeader, Select, TextInput } from "@ldlework/toybox-sdk/ui";
+import type { ImportPanelCtx, ImportProvenance, SeedEntryInput } from "@ldlework/toybox-sdk";
+import { withImportProvenance } from "../domain/importProvenance";
 import type { AssetKind } from "../domain/catalog";
-import {
-  importersFor,
-  type LoadedImporter,
-  type PluginLoadError,
-} from "../services/pluginRegistry";
+import { ASSET_KIND_LABELS } from "../domain/catalog";
+import { importersFor, type LoadedImporter, type PluginLoadError } from "../services/pluginRegistry";
 import { buildFsApi } from "../services/pluginHost";
 import { buildSlotHost } from "../services/slotHost";
 import { mergeSeedEntries } from "../services/tauriApi";
+import { stopAudioAudition } from "../services/audioAudition";
 import { MaterialPreviewWidget } from "./plugin-ui/MaterialPreviewWidget";
 import { PluginSlot } from "./plugin-ui/PluginSlot";
-import "./ExportDrawer.css";
+import { PluginPicker } from "./PluginPicker";
+import "./ImportScreen.css";
 
-interface Props {
-  open: boolean;
-  importers: LoadedImporter[];
-  /** The asset kind the library is showing; only importers producing it are listed. */
-  kind: AssetKind;
-  pluginErrors: PluginLoadError[];
-  onClose: () => void;
-  /** Called after a successful commit so the view can refresh the catalog. */
-  onCommitted: () => void;
+interface Props { open: boolean; importers: LoadedImporter[]; kind: AssetKind; pluginErrors: PluginLoadError[]; onClose: () => void; onCommitted: () => void; }
+export function ImportDrawer(props: Props) {
+  useEffect(()=>{if(props.open)stopAudioAudition();},[props.open]);
+  return props.open ? <ImportSession key={props.kind} {...props} /> : null;
 }
-
-export function ImportDrawer({ open, importers: all, kind, pluginErrors, onClose, onCommitted }: Props) {
-  const [selectedId, setSelectedId] = useState<string | null>(null);
-  const [error, setError] = useState<string | null>(null);
+function ImportSession({ importers: all, kind, pluginErrors, onClose, onCommitted }: Props) {
+  const [selectedId, setSelectedId] = useState<string>();
+  const [error, setError] = useState<string>();
+  const [actions, setActions] = useState<ReactNode>(null);
+  const [provenance,setProvenance]=useState<ImportProvenance>({});
+  const provenanceRef=useRef(provenance);provenanceRef.current=provenance;
+  const autoPath=useRef<string|undefined>(undefined);
   const importers = importersFor(all, kind);
-
   const active = importers.find((i) => i.manifest.id === selectedId);
   const panel = active?.manifest.ui?.importPanel;
-
-  const ctx: ImportPanelCtx = {
-    host: buildSlotHost(active?.manifest.id ?? "", active?.manifest.permissions ?? {}),
-    fs: buildFsApi(active?.manifest.id ?? "", active?.manifest.permissions ?? {}),
-    widgets: { MaterialPreview: MaterialPreviewWidget },
-    commit: async (entries: SeedEntryInput[]) => {
-      setError(null);
-      try {
-        await mergeSeedEntries(entries);
-        onCommitted();
-      } catch (e) {
-        setError(String(e));
-        throw e;
+  const ctx = useMemo<ImportPanelCtx>(() => {
+    const host=buildSlotHost(active?.manifest.id ?? "", active?.manifest.permissions ?? {});
+    const pickDirectory=host.pickDirectory;
+    host.pickDirectory=async()=>{
+      const path=await pickDirectory();
+      if(path){
+        const previousAuto=autoPath.current;autoPath.current=path;
+        const previous=provenanceRef.current;
+        if(!previous.filesystemPath||previous.filesystemPath===previousAuto){
+          const next={...previous,filesystemPath:path};provenanceRef.current=next;setProvenance(next);
+        }
       }
-    },
-    close: onClose,
-  };
-
-  return (
-    <Drawer open={open} onClose={onClose}>
-      <div className="export">
-        <header className="export__header">
-          <h2>Import assets</h2>
-          <button className="export__close" onClick={onClose}>✕</button>
-        </header>
-
-        <section className="export__section">
-          <div className="export__label">Source</div>
-          {importers.length === 0 ? (
-            <div className="export__hint">
-              No importer plugins installed. Drop one into the plugins folder to add a source.
-            </div>
-          ) : (
-            <>
-              <Select
-                value={selectedId ?? ""}
-                options={[
-                  { value: "", label: "Choose a source…" },
-                  ...importers.map((imp) => ({ value: imp.manifest.id, label: imp.manifest.name })),
-                ]}
-                onChange={(v) => setSelectedId(v || null)}
-              />
-              {active?.manifest.description && (
-                <div className="export__hint">{active.manifest.description}</div>
-              )}
-            </>
-          )}
-          {pluginErrors.map((err) => (
-            <div className="export__error" key={err.manifest.id}>
-              Plugin “{err.manifest.name || err.manifest.id}” failed to load: {err.error}
-            </div>
-          ))}
-        </section>
-
-        {active && !panel && (
-          <section className="export__section">
-            <div className="export__hint">This importer ships no UI.</div>
-          </section>
-        )}
-
-        {active && panel && (
-          <PluginSlot
-            key={active.manifest.id}
-            pluginId={active.manifest.id}
-            moduleRel={panel}
-            ctx={ctx}
-            fallback={null}
-          />
-        )}
-
-        {error && <div className="export__error">{error}</div>}
-      </div>
-    </Drawer>
-  );
+      return path;
+    };
+    const fs=buildFsApi(active?.manifest.id ?? "",active?.manifest.permissions ?? {});
+    fs.pickDirectory=host.pickDirectory;
+    return {
+      kind,
+      host,
+      fs,
+      widgets: { MaterialPreview: MaterialPreviewWidget }, setActions,
+      commit: async (entries: SeedEntryInput[]) => {
+        setError(undefined);
+        try { await mergeSeedEntries(entries.map(entry=>withImportProvenance(entry,provenanceRef.current))); onCommitted(); }
+        catch (e) { setError(String(e)); throw e; }
+      }, close: onClose,
+    };
+  }, [active, onClose, onCommitted, kind]);
+  const content = useMemo(() => active && panel ? <PluginSlot key={active.manifest.id} pluginId={active.manifest.id} moduleRel={panel} ctx={ctx} fallback={null} /> : null, [active, panel, ctx]);
+  return <div className="import-screen" role="dialog" aria-modal="true" aria-label="Import">
+    <PageHeader title={`Import ${ASSET_KIND_LABELS[kind].toLowerCase()}`} leading={<Button variant="ghost" onClick={onClose}>← Back</Button>}
+      metadata={active&&<label>Import plugin <Select value={active.manifest.id} options={importers.map((i) => ({ value: i.manifest.id, label: i.manifest.name }))} onChange={(id) => { setActions(null); setError(undefined); setSelectedId(id); }} /></label>}>
+      {actions}
+    </PageHeader>
+    {active&&<fieldset className="import-provenance">
+      <legend>Source provenance</legend>
+      {([{key:"filesystemPath",label:"Filesystem provenance",placeholder:"Original folder or archive path"},
+        {key:"source",label:"Source / pack title",placeholder:"e.g. Sci-Fi Interiors"},
+        {key:"publisher",label:"Publisher",placeholder:"e.g. Kenney"},
+        {key:"url",label:"Source URL",placeholder:"https://…"},
+        {key:"license",label:"License",placeholder:"e.g. CC0, CC BY 4.0"}] as const).map(field=><label key={field.key}>{field.label}<TextInput value={provenance[field.key]??""} placeholder={field.placeholder} onChange={event=>{const value=event.currentTarget.value;setProvenance(previous=>({...previous,[field.key]:value}));}}/></label>)}
+      <p>Applies to this import. Source / pack, publisher and license become searchable tags.</p>
+    </fieldset>}
+    {error && <p className="import-screen__error" role="alert">{error}</p>}
+    {pluginErrors.filter((e) => e.manifest.kind === "importer").map((e) => <p key={e.manifest.id} className="import-screen__error">{e.manifest.name}: {e.error}</p>)}
+    <div className="import-screen__body">{active?content??<p>This plugin has no import interface.</p>:<PluginPicker purpose="import" plugins={importers.map(i=>({id:i.manifest.id,name:i.manifest.name,description:i.manifest.description}))} onChoose={setSelectedId}/>}</div>
+  </div>;
 }

@@ -80,19 +80,23 @@ pub(crate) fn gather_images(
 }
 
 /// Same collision guard as the copy export (flatten-only namespacing).
-fn resolve_stem(
+pub(super) fn resolve_stem(
     asset: &Asset,
     preserve_structure: bool,
     used: &mut HashSet<String>,
     report: &mut ExportReport,
 ) -> String {
+    let base = crate::domain::animation::export_stem(asset);
     if preserve_structure {
-        return asset.name.clone();
+        return base;
     }
-    if used.insert(asset.name.clone()) {
-        return asset.name.clone();
+    if used.insert(base.clone()) {
+        return base;
     }
-    let namespaced = format!("{}_{}", asset.pack, asset.name);
+    let prefix = format!("{}_{}", asset.pack, base);
+    let mut namespaced = prefix.clone();
+    let mut index = 2;
+    while !used.insert(namespaced.clone()) { namespaced = format!("{prefix}_{index}"); index += 1; }
     report.warn(format!(
         "renamed '{}.glb' -> '{}.glb' to avoid a flattened name collision",
         asset.name, namespaced

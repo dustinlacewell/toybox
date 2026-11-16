@@ -8,22 +8,26 @@
  * Only visible rows mount, keeping 1535 cards responsive.
  */
 
-import { useEffect, useMemo, useRef } from "react";
+import { useEffect, useLayoutEffect, useMemo, useRef } from "react";
 import { useVirtualizer } from "@tanstack/react-virtual";
 
 import type { Asset } from "../domain/catalog";
 import { AssetCard } from "./AssetCard";
 import { useElementWidth } from "./useElementWidth";
+import { selectItems } from "../domain/selection";
+import { getAudioAudition, stopAudioAudition } from "../services/audioAudition";
+import { usePreviewPreferences } from "../state/previewPreferences";
 import "./AssetGrid.css";
 
-const MIN_CARD_PX = 200; // smallest a card may shrink before dropping a column
-const BAR_PX = 37; // .card__bar fixed height — see AssetCard.css
-const GAP_PX = 12;
+const BAR_PX = 46; // Controlled tile caption (38px) plus its 8px gap.
+const GAP_PX = 18;
 
 interface Props {
+  inspectedId?: string;
+  onInspect?: (id: string) => void;
   assets: Asset[];
   selection: Set<string>;
-  onToggleSelect: (id: string) => void;
+  onSelectionChange: (ids: string[]) => void;
   onToggleFavorite: (id: string) => void;
   onOpen: (id: string) => void;
 }
@@ -31,22 +35,37 @@ interface Props {
 export function AssetGrid({
   assets,
   selection,
-  onToggleSelect,
+  onSelectionChange,
   onToggleFavorite,
   onOpen,
+  onInspect,
+  inspectedId,
 }: Props) {
   const scrollRef = useRef<HTMLDivElement>(null);
+  const cardSize=usePreviewPreferences(state=>state.cardSize);
+  const setCardSize=usePreviewPreferences(state=>state.setCardSize);
+  const resizeAnchor=useRef<{index:number;fraction:number}|null>(null);
+  useEffect(()=>()=>stopAudioAudition(),[]);
+  useEffect(()=>{const id=getAudioAudition().assetId;if(id&&!assets.some(asset=>asset.id===id))stopAudioAudition();},[assets]);
+  const anchor = useRef<string | null>(null);
+  useEffect(() => { if (!selection.size) anchor.current = null; }, [selection]);
+  const select = (id: string, mode: "replace" | "toggle" | "range") => {
+    const next = selectItems(assets.map(asset => asset.id), selection, anchor.current, id, mode);
+    anchor.current = next.anchor;
+    onSelectionChange(next.ids);
+  };
   const width = useElementWidth(scrollRef);
 
-  const columns = Math.max(1, Math.floor((width + GAP_PX) / (MIN_CARD_PX + GAP_PX)));
+  const columns = Math.max(1, Math.floor((width + GAP_PX) / (cardSize + GAP_PX)));
   const rowCount = Math.ceil(assets.length / columns);
 
   // Width one `1fr` card actually occupies — container minus the inter-column
   // gaps, split evenly — and thus the square thumbnail's height. The row height
   // is this plus the bar, so the virtualizer's slot matches the rendered card
   // exactly. Before first measure, fall back to the minimum.
-  const colWidth = width > 0 ? (width - GAP_PX * (columns - 1)) / columns : MIN_CARD_PX;
-  const rowHeight = colWidth + BAR_PX;
+  const colWidth = width > 0 ? (width - GAP_PX * (columns - 1)) / columns : cardSize;
+  const previewAspectRatio=assets[0]?.kind==="audio"?2:1;
+  const rowHeight = colWidth/previewAspectRatio + BAR_PX;
 
   const rows = useMemo(() => chunk(assets, columns), [assets, columns]);
 
@@ -62,6 +81,28 @@ export function AssetGrid({
   useEffect(() => {
     virtualizer.measure();
   }, [virtualizer, rowHeight]);
+
+  useEffect(()=>{
+    const element=scrollRef.current;if(!element)return;
+    const wheel=(event:WheelEvent)=>{
+      if(!event.ctrlKey)return;
+      event.preventDefault();
+      const delta=event.deltaY*(event.deltaMode===1?16:event.deltaMode===2?element.clientHeight:1);
+      if(!delta)return;
+      const row=element.scrollTop/(rowHeight+GAP_PX);
+      resizeAnchor.current={index:Math.floor(row)*columns,fraction:row%1};
+      setCardSize(Math.round(cardSize*Math.exp(-Math.max(-200,Math.min(200,delta))*.0015)));
+    };
+    element.addEventListener("wheel",wheel,{passive:false});
+    return()=>element.removeEventListener("wheel",wheel);
+  },[cardSize,columns,rowHeight,setCardSize]);
+
+  useLayoutEffect(()=>{
+    const anchor=resizeAnchor.current;if(!anchor)return;
+    resizeAnchor.current=null;
+    virtualizer.measure();
+    virtualizer.scrollToOffset((Math.floor(anchor.index/columns)+anchor.fraction)*(rowHeight+GAP_PX));
+  },[cardSize,columns,rowHeight,virtualizer]);
 
   return (
     <div ref={scrollRef} className="grid-scroll">
@@ -81,10 +122,14 @@ export function AssetGrid({
                 <AssetCard
                   key={asset.id}
                   asset={asset}
+                  previewAspectRatio={previewAspectRatio}
                   selected={selection.has(asset.id)}
-                  onToggleSelect={onToggleSelect}
+                  active={asset.id === inspectedId}
+                  onToggleSelect={(id, shiftKey) => select(id, shiftKey ? "range" : "toggle")}
                   onToggleFavorite={onToggleFavorite}
-                  onOpen={onOpen}
+                  onOpen={(id)=>{stopAudioAudition();onOpen(id);}}
+                  onAudition={onInspect}
+                  onInspect={(id) => { stopAudioAudition();select(id, "replace"); onInspect?.(id); }}
                 />
               ))}
             </div>

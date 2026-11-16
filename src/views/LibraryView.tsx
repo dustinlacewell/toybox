@@ -6,18 +6,27 @@
 
 import { useEffect, useMemo, useState } from "react";
 
-import type { Catalog, PackMeta } from "../domain/catalog";
+import type { AssetKind, Catalog, PackMeta } from "../domain/catalog";
+import { ASSET_KIND_LABELS } from "../domain/catalog";
 import { applyFilter, ofKind } from "../domain/facets";
 import {
   getLibraryRoot,
   loadCatalog,
   loadPacks,
   scanLibrary,
+  saveCatalog,
+  deleteAssets,
 } from "../services/tauriApi";
 import { useStore } from "../state/store";
+import { useSavedExports } from "../state/savedExports";
 import { AssetGrid } from "../components/AssetGrid";
 import { AssetDetail } from "../components/AssetDetail";
+import { AssetInspector } from "../components/AssetInspector";
+import { LibrarySidebar } from "../components/LibrarySidebar";
+import { CollectionDialog } from "../components/CollectionDialog";
+import { DeleteAssetsDialog } from "../components/DeleteAssetsDialog";
 import { ExportDrawer } from "../components/ExportDrawer";
+import { ExportsModal } from "../components/ExportsModal";
 import { ImportDrawer } from "../components/ImportDrawer";
 import { FacetFilter } from "../components/FacetFilter";
 import { LibraryPicker } from "../components/LibraryPicker";
@@ -27,13 +36,16 @@ import { ThumbStatusBar } from "../components/ThumbStatusBar";
 import { useThumbGeneration } from "../components/useThumbGeneration";
 import { useFavorites } from "../components/useFavorites";
 import { usePluginRegistry } from "../components/usePluginRegistry";
-import { Button, Spinner, Stack } from "@ldlework/toybox-sdk/ui";
+import { Button, Spinner, Stack, Workbench, SelectionBar } from "@ldlework/toybox-sdk/ui";
 import "./LibraryView.css";
+import { useNarrowLibrary } from "../components/useNarrowLibrary";
+import { CompactLibraryNavigation } from "../components/CompactLibraryNavigation";
+import { pluginTypeIcons } from "../services/pluginIcons";
+import { Drawer } from "@ldlework/toybox-sdk/ui";
 
 export function LibraryView() {
   const {
     catalog,
-    packs: packMeta,
     loading,
     error,
     filter,
@@ -44,54 +56,87 @@ export function LibraryView() {
     setLoading,
     setError,
     setText,
-    togglePack,
+    toggleSource,
+    togglePublisher,
+    toggleLicense,
     toggleCategory,
+    toggleTag,
     toggleFavoritesOnly,
     clearFilter,
-    toggleSelected,
+    setSelection,
     clearSelection,
     setPreview,
+    setKind,
   } = useStore();
 
   const [exportOpen, setExportOpen] = useState(false);
+  const [exportsManagerOpen, setExportsManagerOpen] = useState(false);
+  const [exportKind, setExportKind] = useState<AssetKind>("model");
+  const [returnToExports, setReturnToExports] = useState(false);
+  const [inspectedId, setInspectedId] = useState<string>();
+  const [collection, setCollection] = useState<string | null>(null);
+  const [collectIds, setCollectIds] = useState<string[]>();
+  const [deleteIds, setDeleteIds] = useState<string[]>();
+  const [exportIds, setExportIds] = useState<string[]>([]);
+  const [propertiesOpen,setPropertiesOpen]=useState(false);
+  const [exportSetup, setExportSetup] = useState<string>();
   const [importOpen, setImportOpen] = useState(false);
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [libraryRoot, setLibraryRoot] = useState<string | null>(null);
   // null = library configured; "first-run" / "repoint" = show the picker.
   const [pickMode, setPickMode] = useState<"first-run" | "repoint" | null>(null);
   const registry = usePluginRegistry();
+  const narrow=useNarrowLibrary();
+  const [maximized,setMaximized]=useState(false);
+  const [navigationOpen,setNavigationOpen]=useState(false);
+  const compact=narrow||maximized;
+  useEffect(()=>{if(!compact)setNavigationOpen(false);},[compact]);
+  const icons=useMemo(()=>pluginTypeIcons(registry.importers),[registry.importers]);
+  const changeKind=(kind:typeof filter.kind)=>{setKind(kind);clearFilter();setCollection(null);setExportOpen(false);setNavigationOpen(false);};
+  const changeFavorites=()=>{setCollection(null);toggleFavoritesOnly();setExportOpen(false);setNavigationOpen(false);};
 
   const deps = { setCatalog, setPacks, setLoading, setError, setPickMode };
 
   useEffect(() => {
     void initCatalog(deps);
     void getLibraryRoot().then(setLibraryRoot);
+    void useSavedExports.getState().load().catch((e) => setError(String(e)));
     // deps is rebuilt each render but its setters are stable; init once on mount.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   const assets = catalog?.assets ?? [];
-  const visible = useMemo(() => applyFilter(assets, filter), [assets, filter]);
+  const visible = useMemo(() => applyFilter(assets, filter).filter((a) => !collection || a.user.collections?.includes(collection)), [assets, filter, collection]);
+  const collections = useMemo(() => [...new Set(assets.flatMap((a) => a.user.collections ?? []))].sort(), [assets]);
   const kindCount = useMemo(
     () => ofKind(assets, filter.kind).length,
     [assets, filter.kind],
   );
   const previewAsset = previewId ? assets.find((a) => a.id === previewId) : undefined;
+  const inspected = visible.find((a) => a.id === inspectedId) ?? visible[0];
 
   const {
     progress,
+    error: thumbnailError,
     start: startThumbs,
     pause: pauseThumbs,
-    regenerate: regenerateThumbs,
+    stop: stopThumbs,
   } = useThumbGeneration(assets);
-  const pendingCount = useMemo(
-    () => assets.filter((a) => a.thumb.state !== "ready").length,
-    [assets],
-  );
 
   const { toggleFavorite } = useFavorites();
 
   const rescan = () => void initCatalog(deps, true);
+  const openExport = (ids: string[], setupId?: string, kind: AssetKind = filter.kind) => { setExportIds(ids); setExportSetup(setupId); setExportKind(kind); setReturnToExports(false); setExportOpen(true); };
+  const manageExports = () => { setNavigationOpen(false); setExportsManagerOpen(true); };
+
+  const renderSidebar = () => <LibrarySidebar
+        assets={assets} filter={filter} collections={collections} collection={collection} onCollection={(name) => { setCollection(name); setExportOpen(false);setNavigationOpen(false); }}
+        icons={icons} onMaximize={()=>{setMaximized(true);setNavigationOpen(false);}}
+        onKind={changeKind}
+        filters={<FacetFilter assets={assets} filter={filter} onToggleSource={toggleSource} onTogglePublisher={togglePublisher} onToggleLicense={toggleLicense} onToggleCategory={toggleCategory} onToggleTag={toggleTag} onToggleFavoritesOnly={()=>{setCollection(null);toggleFavoritesOnly();}} onClear={()=>{clearFilter();setCollection(null);}}/>}
+        onExports={manageExports}
+        onSettings={() => {setNavigationOpen(false);setSettingsOpen(true);}} onRescan={rescan}
+      />;
 
   if (pickMode) {
     return (
@@ -126,37 +171,28 @@ export function LibraryView() {
 
   return (
     <>
-      <Stack dir="row" grow>
-        <FacetFilter
-          assets={assets}
-          filter={filter}
-          packMeta={packMeta}
-          onTogglePack={togglePack}
-          onToggleCategory={toggleCategory}
-          onToggleFavoritesOnly={toggleFavoritesOnly}
-          onClear={clearFilter}
-        />
-
-        <Stack grow>
-          <LibraryToolbar
+      <Workbench className={`library-workbench${compact?" is-compact":""}`} navigation={!compact&&renderSidebar()} header={<>
+        {compact&&<CompactLibraryNavigation kind={filter.kind} icons={icons} favorites={filter.favoritesOnly} onKind={changeKind} onFavorites={changeFavorites} onExports={manageExports} onSettings={()=>setSettingsOpen(true)} narrow={narrow} onRestore={()=>{if(narrow)setNavigationOpen(true);else setMaximized(false);}}/>}
+        <LibraryToolbar
+            title={ASSET_KIND_LABELS[filter.kind]}
             searchText={filter.text}
             onSearchChange={setText}
             visibleCount={visible.length}
             totalCount={kindCount}
             selectedCount={selection.size}
             onClearSelection={clearSelection}
-            onExport={() => setExportOpen(true)}
+            onExport={() => openExport([...selection])}
             onImport={() => setImportOpen(true)}
-            onRescan={rescan}
-            onOpenSettings={() => setSettingsOpen(true)}
-            onRegenerate={() => void regenerateThumbs()}
-          />
-
-          {assets.length === 0 ? (
+            filtersOpen={navigationOpen} onToggleFilters={compact?()=>setNavigationOpen(open=>!open):undefined}
+            propertiesOpen={propertiesOpen} onToggleProperties={()=>setPropertiesOpen(open=>!open)}
+          /></>} inspector={propertiesOpen&&inspected && <AssetInspector asset={inspected} active={!previewAsset}
+            onOpen={() => setPreview(inspected.id)} onFavorite={() => toggleFavorite(inspected.id)}
+            onExport={() => openExport([inspected.id])} onCollect={() => setCollectIds([inspected.id])} />}>
+          {visible.length === 0 ? (
             <Stack grow align="center" justify="center" gap={12}>
-              <strong>Your library is empty</strong>
+              <strong>{assets.length ? "No matching things" : "Your library is empty"}</strong>
               <span style={{ color: "var(--text-2)" }}>
-                Import .gltf, .glb, or .fbx assets to get started.
+                Import models, material folders, animations or audio to get started.
               </span>
               <Button variant="primary" onClick={() => setImportOpen(true)}>
                 Import assets…
@@ -166,32 +202,51 @@ export function LibraryView() {
             <AssetGrid
               assets={visible}
               selection={selection}
-              onToggleSelect={toggleSelected}
+              onSelectionChange={setSelection}
               onToggleFavorite={toggleFavorite}
               onOpen={setPreview}
+              onInspect={setInspectedId}
+              inspectedId={inspected?.id}
             />
           )}
-
-          <ThumbStatusBar
-            progress={progress}
-            pendingCount={pendingCount}
-            onStart={() => void startThumbs()}
-            onPause={pauseThumbs}
-          />
-        </Stack>
-      </Stack>
+          {selection.size > 0 && <SelectionBar label={`${selection.size} selected`}><Button variant="ghost" onClick={clearSelection}>Clear</Button><Button variant="ghost" onClick={() => setCollectIds([...selection])}>Add to collection</Button><Button variant="ghost" onClick={() => setDeleteIds([...selection])}>Delete</Button><Button variant="primary" onClick={() => openExport([...selection])}>Export</Button></SelectionBar>}
+      </Workbench>
+      <ThumbStatusBar progress={progress} error={thumbnailError} onStart={()=>void startThumbs()} onPause={pauseThumbs}/>
+      <Drawer open={compact&&navigationOpen} side="left" label="Library navigation" onClose={()=>setNavigationOpen(false)}><div className="library-navigation-drawer">{renderSidebar()}</div></Drawer>
+      {deleteIds && <DeleteAssetsDialog assets={assets.filter(asset => deleteIds.includes(asset.id))} onClose={() => setDeleteIds(undefined)} onDelete={async () => {
+        await stopThumbs();
+        const updated = await deleteAssets(deleteIds);
+        const current = new Map(useStore.getState().catalog?.assets.map(asset => [asset.id, asset.thumb]));
+        setCatalog({ ...updated, assets: updated.assets.map(asset => ({ ...asset, thumb: current.get(asset.id) ?? asset.thumb })) });
+        clearSelection();
+        if (previewId && deleteIds.includes(previewId)) setPreview(null);
+        void startThumbs();
+      }} />}
+      {collectIds && <CollectionDialog names={collections} count={collectIds.length} onClose={() => setCollectIds(undefined)} onSave={async (name) => {
+        const current = useStore.getState().catalog;
+        if (!current) return;
+        const updated = { ...current, assets: current.assets.map((a) => collectIds.includes(a.id) && !a.user.collections?.includes(name) ? { ...a, user: { ...a.user, collections: [...(a.user.collections ?? []), name] } } : a) };
+        await saveCatalog(updated); setCatalog(updated);
+      }} />}
 
       {previewAsset && (
-        <AssetDetail asset={previewAsset} onClose={() => setPreview(null)} />
+        <AssetDetail asset={previewAsset} onClose={() => setPreview(null)} onExport={() => { setPreview(null); openExport([previewAsset.id]); }} />
       )}
 
       <ExportDrawer
         open={exportOpen}
-        selectedIds={[...selection]}
+        kind={exportKind}
+        setupId={exportSetup}
+        selectedIds={exportIds}
         exporters={registry.exporters}
         pluginErrors={registry.errors}
-        onClose={() => setExportOpen(false)}
+        onClose={() => { setExportOpen(false); if (returnToExports) setExportsManagerOpen(true); }}
       />
+
+      <ExportsModal open={exportsManagerOpen} kind={filter.kind} selectedCount={selection.size} exporters={registry.exporters} pluginErrors={registry.errors}
+        onClose={()=>setExportsManagerOpen(false)} onExport={setup=>{
+          setExportsManagerOpen(false); openExport([...selection],setup.id,setup.kind); setReturnToExports(true);
+        }}/>
 
       <ImportDrawer
         open={importOpen}

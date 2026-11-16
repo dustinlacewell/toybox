@@ -24,3 +24,6 @@ dist-ssr
 *.sw?
 *.lock
 *.bak
+*.key
+__pycache__/
+*.py[cod]

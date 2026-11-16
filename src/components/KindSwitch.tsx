@@ -11,6 +11,8 @@ import { Segmented } from "@ldlework/toybox-sdk/ui";
 const KIND_LABELS: { [K in AssetKind]: string } = {
   model: "Models",
   material: "Materials",
+  animation: "Animations",
+  audio: "Audio",
 };
 
 const OPTIONS = (Object.keys(KIND_LABELS) as AssetKind[]).map((value) => ({

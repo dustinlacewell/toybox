@@ -1,0 +1,15 @@
+import type { AssetKind } from "./catalog";
+
+export interface SavedExport {
+  id: string;
+  name: string;
+  kind: AssetKind;
+  libraryRoot: string;
+  exporterId: string;
+  targetDir: string;
+  preserveStructure: boolean;
+  config: Record<string, unknown>;
+  variantPolicy: "all" | "best";
+  lastSent?: string;
+  lastAssets?: Record<string, string>;
+}

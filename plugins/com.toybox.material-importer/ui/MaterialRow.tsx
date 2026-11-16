@@ -1,75 +1,14 @@
-/**
- * One material in the review list: an include checkbox, a preview, the name over
- * the roles its files supply, and a "!" when it has problems. Clicking selects it;
- * double-clicking opens it.
- */
-
-import { Checkbox } from "@ldlework/toybox-sdk/ui";
+import { Checkbox, NavigationItem } from "@ldlework/toybox-sdk/ui";
 import type { ReviewItem } from "./edit.js";
 import { previewFile, roleLabels } from "./summary.js";
 import { Thumb } from "./Thumb.js";
 import type { ThumbLoader } from "./thumbs.js";
 
-interface Props {
-  item: ReviewItem;
-  problems: string[];
-  /** Highlight the row; omit where nothing is selected. */
-  selected?: boolean;
-  loader: ThumbLoader;
-  onSelect?: () => void;
-  /** Double-click. */
-  onOpen?: () => void;
-  onInclude: (included: boolean) => void;
-}
-
-const ONE_LINE = { overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" } as const;
-
-export function MaterialRow({
-  item,
-  problems,
-  selected,
-  loader,
-  onSelect,
-  onOpen,
-  onInclude,
-}: Props) {
-  const { draft, included } = item;
-  return (
-    <div
-      onClick={onSelect}
-      onDoubleClick={onOpen}
-      style={{
-        display: "flex",
-        alignItems: "center",
-        gap: 10,
-        padding: "6px 10px",
-        cursor: "pointer",
-        background: selected ? "var(--accent-soft)" : undefined,
-        opacity: included ? 1 : 0.5,
-        contentVisibility: "auto",
-        containIntrinsicSize: "auto 56px",
-      }}
-    >
-      <span onClick={(e) => e.stopPropagation()} style={{ display: "flex" }}>
-        <Checkbox checked={included} onChange={onInclude} label={null} />
-      </span>
-      <Thumb loader={loader} relPath={previewFile(draft)?.relPath} box={44} size={96} />
-      <div style={{ flex: 1, minWidth: 0 }}>
-        <div style={{ ...ONE_LINE, fontSize: "var(--fs-md)", color: "var(--text-0)" }}>
-          {draft.name}
-        </div>
-        <div style={{ ...ONE_LINE, fontSize: "var(--fs-sm)", color: "var(--text-2)" }}>
-          {roleLabels(draft).join(" · ")}
-        </div>
-      </div>
-      {included && problems.length > 0 && (
-        <span
-          title={problems.join("\n")}
-          style={{ flex: "none", fontWeight: 700, color: "var(--danger)" }}
-        >
-          !
-        </span>
-      )}
-    </div>
-  );
+interface Props { item: ReviewItem; problems: string[]; selected?: boolean; loader: ThumbLoader; onSelect?: () => void; onOpen?: () => void; onInclude: (included: boolean) => void; }
+export function MaterialRow({ item, problems, selected, loader, onSelect, onOpen, onInclude }: Props) {
+  return <div onDoubleClick={onOpen} style={{ display: "flex", alignItems: "center", gap: 4, opacity: item.included ? 1 : 0.5 }}>
+    <Checkbox checked={item.included} onChange={onInclude} label={null} />
+    <NavigationItem active={selected} onPress={onSelect ?? onOpen ?? (() => {})} detail={problems.length ? <span title={problems.join("\n")} style={{ color: "#e5a23c" }}>!</span> : undefined}
+      label={<span style={{ display: "flex", alignItems: "center", gap: 10 }}><Thumb loader={loader} relPath={previewFile(item.draft)?.relPath} box={32} size={96} /><span style={{ minWidth: 0 }}><span style={{ display: "block", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{item.draft.name}</span><small style={{ display: "block", color: "var(--text-2)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{roleLabels(item.draft).join(" · ")}</small></span></span>} />
+  </div>;
 }

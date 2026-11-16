@@ -1,0 +1,10 @@
+{
+  "id": "com.toybox.humanoid-rigs",
+  "name": "Humanoid rig adapters",
+  "version": "1.0.0",
+  "kind": "rigAdapter",
+  "icon": "icons/rig.svg",
+  "entry": "dist/index.js",
+  "description": "Named humanoid mappings for Synty Polygon, Sidekick and Quaternius.",
+  "permissions": {}
+}

@@ -1,0 +1,5 @@
+.updates__heading { display: flex; justify-content: space-between; align-items: center; gap: 8px; margin-bottom: 10px; }
+.updates__actions { display: flex; flex-wrap: wrap; gap: 8px; }
+.updates__notes { white-space: pre-wrap; overflow-wrap: anywhere; color: var(--text-1); line-height: 1.5; max-height: 200px; overflow: auto; }
+.updates__progress { display: grid; gap: 8px; margin: 12px 0; }
+.updates__progress progress { width: 100%; accent-color: var(--accent); }

@@ -17,15 +17,16 @@ import {
 } from "../PluginFields";
 
 interface Props {
+  initialConfig?: Record<string, unknown>;
   specs: FieldSpec[];
   onConfig: (values: Record<string, unknown>, ready: boolean) => void;
 }
 
-export function DeclarativeExportFields({ specs, onConfig }: Props) {
-  const [values, setValues] = useState<FieldValues>(() => defaultFieldValues(specs));
+export function DeclarativeExportFields({ specs, onConfig, initialConfig }: Props) {
+  const [values, setValues] = useState<FieldValues>(() => ({ ...defaultFieldValues(specs), ...initialConfig }));
 
   // Re-seed defaults when the field set changes (a different plugin selected).
-  useEffect(() => setValues(defaultFieldValues(specs)), [specs]);
+  useEffect(() => setValues({ ...defaultFieldValues(specs), ...initialConfig }), [specs, initialConfig]);
 
   // Push current values + readiness up whenever they change.
   useEffect(() => onConfig(values, fieldsSatisfied(specs, values)), [onConfig, specs, values]);

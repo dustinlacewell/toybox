@@ -20,14 +20,14 @@ type Settled = { forKey: string; state: MaterialState };
 
 const LOADING: MaterialState = { kind: "loading" };
 
-export function useMaterial(key: string, load: () => Promise<MeshStandardMaterial>): MaterialState {
+export function useMaterial(key: string, load: () => Promise<MeshStandardMaterial>, retainDuringLoad = false): MaterialState {
   const [settled, setSettled] = useState<Settled | null>(null);
+  const displayed = useRef<MeshStandardMaterial | null>(null);
   const latestLoad = useRef(load);
   latestLoad.current = load;
 
   useEffect(() => {
     let alive = true;
-    let loaded: MeshStandardMaterial | null = null;
 
     latestLoad.current().then(
       (material) => {
@@ -35,8 +35,10 @@ export function useMaterial(key: string, load: () => Promise<MeshStandardMateria
           disposeMaterial(material);
           return;
         }
-        loaded = material;
+        const previous = displayed.current;
+        displayed.current = material;
         setSettled({ forKey: key, state: { kind: "ready", material } });
+        if (previous && previous !== material) disposeMaterial(previous);
       },
       (err) => {
         if (alive) setSettled({ forKey: key, state: { kind: "error", message: String(err) } });
@@ -45,10 +47,13 @@ export function useMaterial(key: string, load: () => Promise<MeshStandardMateria
 
     return () => {
       alive = false;
-      if (loaded) disposeMaterial(loaded);
     };
   }, [key]);
 
-  // A result for a previous key (already disposed) is never handed out.
-  return settled && settled.forKey === key ? settled.state : LOADING;
+  useEffect(() => () => {
+    if (displayed.current) disposeMaterial(displayed.current);
+    displayed.current = null;
+  }, []);
+  // Keeping the previous material while a size loads preserves the live camera.
+  return settled && (settled.forKey === key || retainDuringLoad) ? settled.state : LOADING;
 }

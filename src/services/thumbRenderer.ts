@@ -9,9 +9,6 @@
  */
 
 import {
-  Color,
-  DirectionalLight,
-  HemisphereLight,
   PerspectiveCamera,
   Scene,
   WebGLRenderer,
@@ -21,17 +18,21 @@ import type { Asset } from "../domain/catalog";
 import { disposeScene } from "./disposeScene";
 import { fitCameraToObject } from "./fitCamera";
 import { loadThumbSubject } from "./thumbSubject";
+import { audioThumbnail } from "./audioThumbnail";
+import { createScenePreviewStage } from "./scenePreviewStage";
+type PreparedSubject=import("three").Object3D|{png:Uint8Array};
 
 const SIZE = 256;
 
 export class ThumbRenderer {
-  private readonly renderer: WebGLRenderer;
-  private readonly scene: Scene;
-  private readonly camera: PerspectiveCamera;
+  private renderer!: WebGLRenderer;
+  private scene!: Scene;
+  private camera!: PerspectiveCamera;
 
-  private readonly canvas: HTMLCanvasElement;
+  private canvas!: HTMLCanvasElement;
 
-  constructor() {
+  private initialize(): void {
+    if(this.renderer)return;
     this.canvas = document.createElement("canvas");
     this.canvas.width = SIZE;
     this.canvas.height = SIZE;
@@ -52,29 +53,30 @@ export class ThumbRenderer {
       console.warn("ThumbRenderer: WebGL context lost");
     });
 
-    this.renderer = new WebGLRenderer({
-      canvas: this.canvas,
-      antialias: true,
-      alpha: true,
-      preserveDrawingBuffer: true, // required for reliable canvas capture
-    });
+    const stage=createScenePreviewStage(this.canvas,true);
+    this.renderer=stage.renderer;this.scene=stage.scene;this.camera=stage.camera;
     this.renderer.setSize(SIZE, SIZE, false);
-    this.renderer.setClearColor(new Color(0x14161a), 1);
-
-    this.scene = new Scene();
-    this.scene.add(new HemisphereLight(0xcfd8e3, 0x2b2f38, 0.9));
-    const key = new DirectionalLight(0xffffff, 1.2);
-    key.position.set(5, 8, 5);
-    const fill = new DirectionalLight(0xffffff, 0.4);
-    fill.position.set(-4, 2, -3);
-    this.scene.add(key, fill);
-
-    this.camera = new PerspectiveCamera(45, 1, 0.01, 1000);
   }
 
   /** Render one asset to PNG bytes. Disposes the loaded subject before returning. */
   async render(asset: Asset): Promise<Uint8Array> {
-    const subject = await loadThumbSubject(asset, this.renderer);
+    return this.renderPrepared(await this.prepare(asset));
+  }
+
+  /** Scene loading can overlap other thumbnails; GPU capture stays serial. */
+  async prepare(asset: Asset): Promise<PreparedSubject> {
+    if(asset.kind==="audio")return {png:await audioThumbnail(asset)};
+    this.initialize();
+    return loadThumbSubject(asset, this.renderer);
+  }
+
+  discard(subject: PreparedSubject): void {
+    if(!("png" in subject))disposeScene(subject);
+  }
+
+  async renderPrepared(subject: PreparedSubject): Promise<Uint8Array> {
+    if("png" in subject)return subject.png;
+    this.initialize();
     try {
       this.scene.add(subject);
       fitCameraToObject(this.camera, subject);
@@ -87,9 +89,9 @@ export class ThumbRenderer {
   }
 
   dispose(): void {
-    this.renderer.dispose();
-    this.renderer.forceContextLoss();
-    this.canvas.remove();
+    this.renderer?.dispose();
+    this.renderer?.forceContextLoss();
+    this.canvas?.remove();
   }
 }
 

@@ -1,6 +1,6 @@
 /**
  * The embedded Toybox demo. This is the real app's browsing surface — the same
- * FacetFilter, AssetGrid and 3D AssetViewer components, driven by the real
+ * FacetFilter, AssetGrid and 3D ModelViewer components, driven by the real
  * Zustand store and the real glTF loader / thumbnail renderer. Only the Tauri
  * seams are swapped (see src/demo/shims): asset URLs point at bundled files,
  * and the Rust command surface is replaced with browser-native no-ops.
@@ -15,7 +15,7 @@ import { useEffect, useMemo, useState } from "react";
 import { applyFilter } from "@app/domain/facets";
 import { useStore } from "@app/state/store";
 import { AssetGrid } from "@app/components/AssetGrid";
-import { AssetViewer } from "@app/components/AssetViewer";
+import { ModelViewer } from "@app/components/ModelViewer";
 import { FacetFilter } from "@app/components/FacetFilter";
 import { LibraryToolbar } from "@app/components/LibraryToolbar";
 import { useThumbGeneration } from "@app/components/useThumbGeneration";
@@ -29,18 +29,20 @@ import "./demo-app.css";
 export default function ToyboxDemo() {
   const {
     catalog,
-    packs: packMeta,
     filter,
     selection,
     previewId,
     setCatalog,
     setPacks,
     setText,
-    togglePack,
+    toggleSource,
+    togglePublisher,
+    toggleLicense,
+    toggleTag,
     toggleCategory,
     toggleFavoritesOnly,
     clearFilter,
-    toggleSelected,
+    setSelection,
     clearSelection,
     setPreview,
   } = useStore();
@@ -56,10 +58,7 @@ export default function ToyboxDemo() {
   const visible = useMemo(() => applyFilter(assets, filter), [assets, filter]);
   const previewAsset = previewId ? assets.find((a) => a.id === previewId) : undefined;
 
-  const { start: startThumbs } = useThumbGeneration(assets);
-  useEffect(() => {
-    if (assets.length > 0) void startThumbs();
-  }, [assets.length, startThumbs]);
+  useThumbGeneration(assets);
 
   const { toggleFavorite } = useFavorites();
   const [exportNote, setExportNote] = useState(false);
@@ -70,8 +69,10 @@ export default function ToyboxDemo() {
         <FacetFilter
           assets={assets}
           filter={filter}
-          packMeta={packMeta}
-          onTogglePack={togglePack}
+          onToggleSource={toggleSource}
+          onTogglePublisher={togglePublisher}
+          onToggleLicense={toggleLicense}
+          onToggleTag={toggleTag}
           onToggleCategory={toggleCategory}
           onToggleFavoritesOnly={toggleFavoritesOnly}
           onClear={clearFilter}
@@ -91,15 +92,15 @@ export default function ToyboxDemo() {
           <AssetGrid
             assets={visible}
             selection={selection}
-            onToggleSelect={toggleSelected}
+            onSelectionChange={setSelection}
             onToggleFavorite={toggleFavorite}
             onOpen={setPreview}
           />
         </Stack>
       </Stack>
 
-      {previewAsset && (
-        <AssetViewer asset={previewAsset} onClose={() => setPreview(null)} />
+      {previewAsset?.kind === "model" && (
+        <ModelViewer asset={previewAsset} onClose={() => setPreview(null)} />
       )}
 
       {exportNote && <ExportNote onClose={() => setExportNote(false)} />}

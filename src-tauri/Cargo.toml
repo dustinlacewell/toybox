@@ -1,9 +1,10 @@
 [package]
 name = "toybox"
-version = "0.3.0"
-description = "A Tauri App"
-authors = ["you"]
+version = "0.4.0"
+description = "Local asset library for game development"
+authors = ["Dustin Lacewell"]
 edition = "2021"
+default-run = "toybox"
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
@@ -24,5 +25,9 @@ tauri-plugin-dialog = "2"
 serde = { version = "1", features = ["derive"] }
 serde_json = { version = "1", features = ["preserve_order"] }
 thiserror = "2"
+semver = "1"
 image = { version = "0.25", default-features = false, features = ["png", "tga", "jpeg"] }
+symphonia = { version = "0.5.5", default-features = false, features = ["wav", "pcm", "adpcm", "mp3", "ogg", "vorbis", "flac"] }
+tauri-plugin-updater = "2"
+tauri-plugin-process = "2"
 

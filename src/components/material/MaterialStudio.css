@@ -12,23 +12,26 @@
 /* Floating toolbar, same look as the model viewer's. */
 .mtoolbar {
   position: absolute;
-  top: var(--space-3);
-  left: var(--space-3);
+  bottom: 14px;
+  left: 50%;
+  transform: translateX(-50%);
   display: flex;
   align-items: center;
-  gap: var(--space-3);
+  gap: 4px;
   padding: var(--space-1);
   background: color-mix(in srgb, var(--bg-1) 88%, transparent);
   border: 1px solid var(--border);
   border-radius: var(--radius-2);
   backdrop-filter: blur(6px);
-  z-index: 2;
+  z-index: 3;
+  white-space: nowrap;
 }
 .mtoolbar__field {
   display: flex;
   align-items: center;
   gap: var(--space-2);
 }
+.mtoolbar { max-width: calc(100% - 24px); width: max-content; flex-wrap: wrap; justify-content: center; }
 .mtoolbar__label {
   font-size: var(--fs-sm);
   color: var(--text-2);

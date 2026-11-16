@@ -44,9 +44,7 @@ pub async fn recenter_asset(
     // The geometry moved relative to the camera/thumb framing — drop the cached
     // thumbnail so it regenerates on the next pass.
     let thumb = appdata::thumb_path(&app, &asset_id)?;
-    if fsio::exists(&thumb) {
-        std::fs::remove_file(&thumb)?;
-    }
+    fsio::remove_file_if_exists(&thumb)?;
 
     Ok(aabb)
 }

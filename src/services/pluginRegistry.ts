@@ -12,6 +12,8 @@ import { buildExportCtx, selectedAssets } from "./pluginHost";
 import type { AssetKind } from "../domain/catalog";
 import { loadPlugin } from "./pluginLoader";
 import { listPlugins, type PluginManifestDto } from "./tauriApi";
+import { nativeExporters } from "./nativeExporters";
+import { registerRigAdapters } from "./rigAdapters";
 
 export interface LoadedExporter {
   manifest: PluginManifestDto;
@@ -38,7 +40,7 @@ export interface PluginRegistry {
 export async function loadRegistry(): Promise<PluginRegistry> {
   const manifests = await listPlugins();
   console.info(`[plugins] discovered ${manifests.length}:`, manifests.map((m) => m.id));
-  const registry: PluginRegistry = { exporters: [], importers: [], errors: [] };
+  const registry: PluginRegistry = { exporters: [...nativeExporters], importers: [], errors: [] };
 
   await Promise.all(
     manifests.map(async (manifest) => {
@@ -52,6 +54,10 @@ export async function loadRegistry(): Promise<PluginRegistry> {
       // Exporters load their entry module (it default-exports the `run`).
       try {
         const { plugin } = await loadPlugin(manifest);
+        if (manifest.kind === "rigAdapter") {
+          registerRigAdapters(plugin as import("@ldlework/toybox-sdk").RigAdapterPlugin);
+          return;
+        }
         registry.exporters.push({ manifest, plugin: plugin as ExporterPlugin });
         console.info(`[plugins] loaded ${manifest.id} (exporter)`);
       } catch (e) {
@@ -79,5 +85,9 @@ export async function runExporter(
 ): Promise<ExportReport> {
   const ctx = buildExportCtx(loaded.manifest, config, signal);
   const assets = selectedAssets(selectedIds);
+  const kinds = loaded.manifest.assetKinds ?? ["model"];
+  if (assets.length !== selectedIds.length || assets.some((a) => !kinds.includes(a.kind))) {
+    throw new Error("This exporter does not accept the selected asset type.");
+  }
   return loaded.plugin.run(ctx, assets);
 }

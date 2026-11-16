@@ -4,7 +4,7 @@
 //! or thumbnail state. `upsert_assets` is the additive counterpart used by an
 //! import: it adds assets to an existing catalog without dropping any.
 
-use std::collections::HashMap;
+use std::collections::HashSet;
 
 use crate::domain::catalog_model::{Asset, Catalog};
 
@@ -12,22 +12,12 @@ use crate::domain::catalog_model::{Asset, Catalog};
 /// any asset whose `id` survived. New assets keep their (default) metadata;
 /// removed assets simply drop out.
 pub fn merge_preserving_user(prior: &Catalog, fresh: Catalog) -> Catalog {
-    let prior_by_id: HashMap<&str, &Asset> =
-        prior.assets.iter().map(|a| (a.id.as_str(), a)).collect();
-
-    let assets = fresh
-        .assets
-        .into_iter()
-        .map(|mut a| {
-            if let Some(old) = prior_by_id.get(a.id.as_str()) {
-                a.user = old.user.clone();
-                a.thumb = old.thumb.clone();
-            }
-            a
-        })
-        .collect();
-
-    Catalog { assets, ..fresh_meta(fresh.schema_version, fresh.library_root) }
+    let ids: HashSet<_> = fresh.assets.iter().map(|asset| asset.id.clone()).collect();
+    let mut merged = upsert_assets(prior.clone(), fresh.assets);
+    // Full scans prune removed entries and obsolete derived clips, while the
+    // upsert also carries metadata from formerly separate variant tiles.
+    merged.assets.retain(|asset| ids.contains(&asset.id));
+    Catalog { rigs: fresh.rigs, assets: merged.assets, ..fresh_meta(fresh.schema_version, fresh.library_root) }
 }
 
 /// Add `fresh` assets to `prior` without dropping anything. A fresh asset whose
@@ -36,16 +26,33 @@ pub fn merge_preserving_user(prior: &Catalog, fresh: Catalog) -> Catalog {
 pub fn upsert_assets(prior: Catalog, fresh: Vec<Asset>) -> Catalog {
     let mut assets = prior.assets;
     for mut a in fresh {
+        let old_members: Vec<_> = assets.iter().filter(|old| old.id == a.id || (std::mem::discriminant(&old.content) == std::mem::discriminant(&a.content) && ((!a.variants.is_empty() && old.rel_path == a.rel_path)
+            || a.variants.iter().any(|v| v.id == old.id || v.rel_path == old.rel_path)))).cloned().collect();
+        for old in &old_members {
+            if a.user.provenance.is_none(){a.user.provenance=old.user.provenance.clone();}
+            if a.user.preview_asset_id.is_none() { a.user.preview_asset_id = old.user.preview_asset_id.clone(); }
+            a.user.favorite |= old.user.favorite;
+            let superseded_tags=if a.user.provenance!=old.user.provenance {old.user.provenance.as_ref().map(|value|value.tags()).unwrap_or_default()}else{Vec::new()};
+            for tag in &old.user.tags {
+                if superseded_tags.contains(tag){continue;}
+                if !a.user.tags.contains(tag) { a.user.tags.push(tag.clone()); }
+            }
+            for collection in &old.user.collections {
+                if !a.user.collections.contains(collection) { a.user.collections.push(collection.clone()); }
+            }
+            if old.rel_path == a.rel_path { a.thumb = old.thumb.clone(); }
+        }
+        assets.retain(|old| old.id == a.id || !old_members.iter().any(|m| m.id == old.id));
         match assets.iter().position(|old| old.id == a.id) {
             Some(i) => {
-                a.user = assets[i].user.clone();
-                a.thumb = assets[i].thumb.clone();
+                if assets[i].rel_path == a.rel_path { a.thumb = assets[i].thumb.clone(); }
                 assets[i] = a;
             }
             None => assets.push(a),
         }
     }
     Catalog {
+        rigs: prior.rigs,
         schema_version: prior.schema_version,
         library_root: prior.library_root,
         assets,
@@ -53,7 +60,7 @@ pub fn upsert_assets(prior: Catalog, fresh: Vec<Asset>) -> Catalog {
 }
 
 fn fresh_meta(schema_version: u32, library_root: String) -> Catalog {
-    Catalog { schema_version, library_root, assets: Vec::new() }
+    Catalog { rigs: Vec::new(), schema_version, library_root, assets: Vec::new() }
 }
 
 #[cfg(test)]
@@ -63,6 +70,8 @@ mod tests {
 
     fn asset(id: &str, fav: bool) -> Asset {
         Asset {
+            rigs: Vec::new(),
+            variants: Vec::new(),
             id: id.into(),
             name: "n".into(),
             file_name: "n.gltf".into(),
@@ -74,13 +83,36 @@ mod tests {
                 animation: AnimationMeta::default(),
             },
             thumb: ThumbMeta { state: ThumbState::Ready, error: None },
-            user: UserMeta { favorite: fav, tags: vec![] },
+            user: UserMeta { provenance: None, preview_asset_id: None, favorite: fav, tags: vec![], collections: vec![] },
         }
+    }
+
+    #[test]
+    fn grouping_absorbs_old_rows_and_keeps_their_favorites() {
+        let mut full = asset("full", false); full.rel_path = "full.gltf".into();
+        let mut low = asset("low", true); low.rel_path = "low.gltf".into();
+        low.user.tags.push("metal".into());
+        low.user.collections.push("Spygame".into());
+        let mut group = full.clone(); group.id = "group".into(); group.variants.push(low.clone());
+        let prior = Catalog { rigs: Vec::new(), schema_version: 3, library_root: "root".into(), assets: vec![full, low] };
+        let fresh = Catalog { rigs: Vec::new(), schema_version: 4, library_root: "root".into(), assets: vec![group.clone()] };
+        let rescanned = merge_preserving_user(&prior, fresh);
+        assert_eq!(rescanned.assets.len(), 1);
+        assert!(rescanned.assets[0].user.favorite);
+        assert_eq!(rescanned.assets[0].user.collections, vec!["Spygame"]);
+        assert_eq!(rescanned.schema_version, 4);
+        let result = upsert_assets(prior, vec![group]);
+        assert_eq!(result.assets.len(), 1);
+        assert!(result.assets[0].user.favorite);
+        assert_eq!(result.assets[0].user.tags, vec!["metal"]);
+        assert_eq!(result.assets[0].user.collections, vec!["Spygame"]);
+        assert_eq!(result.assets[0].variants.len(), 1);
     }
 
     #[test]
     fn preserves_user_and_thumb_by_id() {
         let prior = Catalog {
+            rigs: Vec::new(),
             schema_version: 1,
             library_root: "root".into(),
             assets: vec![asset("a", true)],
@@ -89,6 +121,7 @@ mod tests {
         let mut fresh_a = asset("a", false);
         fresh_a.thumb = ThumbMeta::default();
         let fresh = Catalog {
+            rigs: Vec::new(),
             schema_version: 1,
             library_root: "root".into(),
             assets: vec![fresh_a, asset("b", false)],
@@ -102,7 +135,7 @@ mod tests {
     }
 
     fn catalog(root: &str, assets: Vec<Asset>) -> Catalog {
-        Catalog { schema_version: 1, library_root: root.into(), assets }
+        Catalog { rigs: Vec::new(), schema_version: 1, library_root: root.into(), assets }
     }
 
     fn ids(c: &Catalog) -> Vec<&str> {
@@ -134,6 +167,7 @@ mod tests {
     #[test]
     fn upsert_takes_schema_version_and_root_from_prior() {
         let prior = Catalog {
+            rigs: Vec::new(),
             schema_version: 7,
             library_root: "prior-root".into(),
             assets: vec![],

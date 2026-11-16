@@ -72,6 +72,14 @@ pub async fn perform_asset_copy(
     let root = library::resolve(&app)?;
     let root = root.to_string_lossy();
     let root = root.as_ref();
+    if matches!(asset.content, crate::domain::catalog_model::AssetContent::Material { .. }) {
+        let mut report = ExportReport::default();
+        super::export_copy::copy_material(root, Path::new(&target_dir), &asset, preserve_structure, &mut report)?;
+        return Ok(report.written);
+    }
+    if matches!(asset.content,crate::domain::catalog_model::AssetContent::Audio {..}) {
+        let mut report=ExportReport::default();super::export_copy::copy_audio(root,Path::new(&target_dir),&asset,&stem,preserve_structure,&mut report)?;return Ok(report.written);
+    }
     let doc = read_gltf(root, &asset)?;
     let fileset = asset.fileset()?;
     let plan = plan_copy(
@@ -160,4 +168,112 @@ fn one_asset(app: &AppHandle, asset_id: &str) -> AppResult<crate::domain::catalo
     assets
         .pop()
         .ok_or_else(|| AppError::msg(format!("asset not found: {asset_id}")))
+}
+
+/// Plan native output using the same layout and collision rules as the writers.
+#[tauri::command]
+pub async fn preview_export(app: AppHandle, asset_ids: Vec<String>, format: String, preserve_structure: bool) -> AppResult<Vec<String>> {
+    let (assets, mut report) = collect_assets(&app, &asset_ids)?;
+    if !report.skipped.is_empty() { return Err(AppError::msg(report.skipped.join("; "))); }
+    let root = library::resolve(&app)?;
+    let mut used = HashSet::new();
+    let mut out = Vec::new();
+    for asset in &assets {
+        if matches!(asset.content, crate::domain::catalog_model::AssetContent::Audio {..}) {
+            if format!="copy" {return Err(AppError::msg("Audio requires a file exporter"));}
+            let stem=super::export_copy::resolve_stem(asset,preserve_structure,&mut used,&mut report);
+            out.push(super::export_copy::audio_path(asset,&stem,preserve_structure)?);continue;
+        }
+        if matches!(asset.content, crate::domain::catalog_model::AssetContent::Material { .. }) {
+            if format != "copy" { return Err(AppError::msg("materials require a material exporter")); }
+            out.extend(super::export_copy::material_paths(asset, preserve_structure).into_iter().map(|(_, dst)| dst));
+        } else if format == "glb" {
+            let stem = super::export_glb::resolve_stem(asset, preserve_structure, &mut used, &mut report);
+            out.push(if preserve_structure { format!("{}/{}/{}.glb", asset.pack, asset.category, stem) } else { format!("{stem}.glb") });
+        } else if format == "copy" {
+            let stem = super::export_copy::resolve_stem(asset, preserve_structure, &mut used, &mut report);
+            let doc = read_gltf(&root.to_string_lossy(), asset)?;
+            let files = asset.fileset()?;
+            let plan = plan_copy(&doc, &files.gltf, &files.bin, &asset.pack, &asset.category, &stem, preserve_structure)?;
+            out.push(plan.gltf_dst);
+            out.push(plan.bin_dst);
+            out.extend(plan.textures.iter().map(|t| format!("{}/{}", plan.textures_dst_dir, t.dst_basename)));
+        } else { return Err(AppError::msg("unknown export format")); }
+    }
+    let mut seen = HashSet::new();
+    out.retain(|p| seen.insert(p.clone()));
+    Ok(out)
+}
+
+/// Hash the selected file sets so saved exports can detect changes in file contents.
+#[tauri::command]
+pub async fn asset_fingerprints(app: AppHandle, asset_ids: Vec<String>, all_variants: bool) -> AppResult<std::collections::BTreeMap<String, String>> {
+    let (assets, report) = collect_assets(&app, &asset_ids)?;
+    if !report.skipped.is_empty() { return Err(AppError::msg(report.skipped.join("; "))); }
+    let root = library::resolve(&app)?;
+    tauri::async_runtime::spawn_blocking(move || fingerprint_assets(&root, &assets, all_variants))
+        .await.map_err(|e| AppError::msg(e.to_string()))?
+}
+
+fn fingerprint_assets(root: &Path, assets: &[crate::domain::catalog_model::Asset], all_variants: bool) -> AppResult<std::collections::BTreeMap<String, String>> {
+    use std::hash::{Hash, Hasher};
+    use std::io::Read;
+    use crate::domain::catalog_model::AssetContent;
+    let mut result = std::collections::BTreeMap::new();
+    for asset in assets {
+        let mut hasher = std::collections::hash_map::DefaultHasher::new();
+        let variants = std::iter::once(asset).chain(asset.variants.iter().filter(|_| all_variants));
+        let mut files = std::collections::BTreeSet::new();
+        for variant in variants {
+            serde_json::to_string(&variant.content)?.hash(&mut hasher);
+            serde_json::to_string(&variant.user)?.hash(&mut hasher);
+            match &variant.content {
+                AssetContent::Model { fileset, .. } | AssetContent::Animation { fileset, .. } => {
+                    files.insert(fileset.gltf.clone()); files.insert(fileset.bin.clone());
+                    files.extend(fileset.textures.iter().cloned());
+                }
+                AssetContent::Material { material } => { files.extend(material.textures()); }
+                AssetContent::Audio {audio} => {files.insert(audio.file.clone());}
+            }
+        }
+        for path in files {
+            path.hash(&mut hasher);
+            let mut file = std::fs::File::open(root.join(&path))?;
+            let mut chunk = [0u8; 65536];
+            loop {
+                let count = file.read(&mut chunk)?;
+                if count == 0 { break; }
+                hasher.write(&chunk[..count]);
+            }
+        }
+        result.insert(asset.id.clone(), format!("{:016x}", hasher.finish()));
+    }
+    Ok(result)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::domain::catalog_model::Asset;
+    use serde_json::json;
+
+    #[test]
+    fn change_tracking_hashes_contents_and_respects_best_only() {
+        let root = std::env::temp_dir().join(format!("toybox-fingerprints-{}", std::process::id()));
+        std::fs::create_dir_all(&root).unwrap();
+        std::fs::write(root.join("full.png"), b"full").unwrap();
+        std::fs::write(root.join("small.png"), b"small").unwrap();
+        let value = |id: &str, file: &str| json!({ "kind":"material", "id":id, "name":id, "fileName":id, "relPath":id, "pack":"p", "category":"wood", "thumb":{"state":"missing"}, "user":{"favorite":false,"tags":[]}, "material":{"maps":[{"role":"albedo","file":file}]} });
+        let mut asset: Asset = serde_json::from_value(value("wood", "full.png")).unwrap();
+        asset.variants.push(serde_json::from_value(value("small", "small.png")).unwrap());
+        let assets = [asset];
+        let best = fingerprint_assets(&root, &assets, false).unwrap();
+        let all = fingerprint_assets(&root, &assets, true).unwrap();
+        std::fs::write(root.join("small.png"), b"changed").unwrap();
+        assert_eq!(best, fingerprint_assets(&root, &assets, false).unwrap());
+        assert_ne!(all, fingerprint_assets(&root, &assets, true).unwrap());
+        std::fs::write(root.join("full.png"), b"new full").unwrap();
+        assert_ne!(best, fingerprint_assets(&root, &assets, false).unwrap());
+        std::fs::remove_dir_all(root).unwrap();
+    }
 }

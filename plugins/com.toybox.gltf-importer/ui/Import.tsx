@@ -10,9 +10,11 @@
 
 import { useState } from "react";
 
-import { Stack, Button, TextInput, Select } from "@ldlework/toybox-sdk/ui";
+import { Stack, Button, TextInput, Select, Checkbox } from "@ldlework/toybox-sdk/ui";
 import {
   defineImportPanel,
+  groupSeedVariants,
+  variantInfo,
   type ImportPanelCtx,
   type SeedEntryInput,
 } from "@ldlework/toybox-sdk";
@@ -21,7 +23,7 @@ import { findModels, materialize, type Found } from "./walk.js";
 
 const CATEGORIES = [
   "props", "buildings", "characters", "environment", "vehicles",
-  "weapons", "fx", "icons", "primitives", "roads", "signs",
+  "weapons", "fx", "icons", "primitives", "roads", "signs", "animations",
 ] as const;
 
 type Phase =
@@ -33,7 +35,7 @@ type Phase =
 
 export default defineImportPanel(function ImportPanel({ ctx }: { ctx: ImportPanelCtx }) {
   const [pack, setPack] = useState("imported");
-  const [category, setCategory] = useState<string>("props");
+  const [category, setCategory] = useState<string>(ctx.kind === "animation" ? "animations" : "props");
   const [phase, setPhase] = useState<Phase>({ step: "idle" });
 
   const scan = async () => {
@@ -82,6 +84,14 @@ export default defineImportPanel(function ImportPanel({ ctx }: { ctx: ImportPane
         }
         seenStems.add(f.stem);
         warnings.push(...result.warnings);
+        if (ctx.kind === "animation") {
+          const json = JSON.parse(new TextDecoder().decode(await ctx.fs.readBytes(libraryRoot, `library/${pack}/${category}/${result.file}`)));
+          if (!Array.isArray(json.animations) || !json.animations.some((clip: { channels?: unknown[] }) => clip.channels?.length)) {
+            skipped += 1; warnings.push(`No animation clips in ${f.relPath}`); continue;
+          }
+          entries.push({ kind: "animation", id: `uid://import_${pack}_${category}_animations_${f.stem}`, pack, category, file: result.file });
+          continue;
+        }
         entries.push({
           id: `uid://import_${pack}_${category}_${f.stem}`,
           pack,
@@ -90,8 +100,9 @@ export default defineImportPanel(function ImportPanel({ ctx }: { ctx: ImportPane
         });
       }
 
-      if (entries.length) await ctx.commit(entries);
-      setPhase({ step: "done", imported: entries.length, skipped, warnings });
+      const grouped = groupSeedVariants(entries);
+      if (grouped.length) await ctx.commit(grouped);
+      setPhase({ step: "done", imported: grouped.length, skipped, warnings });
     } catch (e) {
       setPhase({ step: "error", message: String(e) });
     }
@@ -120,6 +131,7 @@ export default defineImportPanel(function ImportPanel({ ctx }: { ctx: ImportPane
       </section>
 
       <PhaseView
+        kind={ctx.kind === "animation" ? "animation" : "model"}
         phase={phase}
         onScan={() => void scan()}
         onImport={(s, f) => void runImport(s, f)}
@@ -131,18 +143,22 @@ export default defineImportPanel(function ImportPanel({ ctx }: { ctx: ImportPane
 });
 
 function PhaseView({
+  kind,
   phase,
   onScan,
   onImport,
   onClose,
   packReady,
 }: {
+  kind: "model" | "animation";
   phase: Phase;
   onScan: () => void;
   onImport: (source: string, found: Found[]) => void;
   onClose: () => void;
   packReady: boolean;
 }) {
+  const [excluded, setExcluded] = useState<Set<string>>(new Set());
+  const [policy, setPolicy] = useState("all");
   if (phase.step === "importing") {
     return <div className="export__hint">Importing…</div>;
   }
@@ -166,18 +182,36 @@ function PhaseView({
   }
 
   if (phase.step === "scanned") {
-    const count = phase.found.length;
+    const groups = new Map<string, Found[]>();
+    for (const file of phase.found) {
+      const info = variantInfo(file.stem, kind);
+      const group = groups.get(info.base) ?? [];
+      group.push(file); groups.set(info.base, group);
+    }
+    for (const group of groups.values()) group.sort((a, b) => variantInfo(a.stem, kind).rank - variantInfo(b.stem, kind).rank);
+    const chosen = [...groups.values()].flatMap((group) => (policy === "best" ? group.slice(0, 1) : group).filter((f) => !excluded.has(f.relPath)));
+    const count = [...groups.values()].filter((group) => group.some((f) => chosen.includes(f))).length;
     return (
       <section className="export__section">
+        {kind === "model" && <Select value={policy} options={[{ value: "all", label: "All levels" }, { value: "best", label: "Best only" }]} onChange={(v) => { setPolicy(v); setExcluded(new Set()); }} />}
         <div className="export__hint">
-          Found {count} model{count === 1 ? "" : "s"} under the chosen folder.
+          Found {groups.size} {kind === "animation" ? "source files; files without animation clips will be skipped" : `model${groups.size === 1 ? "" : "s"}`} under the chosen folder.
+          {kind === "model" && " Animation clips are extracted into separate library assets."}
         </div>
+        <div style={{ maxHeight: "50vh", overflow: "auto" }}>{[...groups.entries()].map(([name, files]) => <section key={name} style={{ padding: "12px 0", borderBottom: "1px solid var(--border)" }}>
+          <strong>{name}</strong>
+          {kind === "model" && variantInfo(files[0].stem, "model").rank > 0 && <p className="export__warn">Needs a look: full level missing.</p>}
+          {files.map((f) => <Checkbox key={f.relPath} label={kind === "animation" ? f.relPath : `${variantInfo(f.stem, "model").label} · ${f.relPath}`} checked={chosen.includes(f)} onChange={(included) => {
+            setExcluded(() => { const next = new Set(phase.found.filter((file) => !chosen.includes(file)).map((file) => file.relPath)); if (included) next.delete(f.relPath); else next.add(f.relPath); return next; });
+            setPolicy("all");
+          }} />)}
+        </section>)}</div>
         <Stack dir="row" gap={8}>
-          <Button onClick={onScan}>Choose a different folder…</Button>
+          <Button onClick={() => { setExcluded(new Set()); onScan(); }}>Choose a different folder…</Button>
           <Button
             variant="primary"
             disabled={!count || !packReady}
-            onClick={() => onImport(phase.source, phase.found)}
+            onClick={() => onImport(phase.source, chosen)}
           >
             Import {count} into library
           </Button>

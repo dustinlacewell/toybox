@@ -16,18 +16,20 @@ interface Props {
   onChange: (value: string) => void;
   className?: string;
   disabled?: boolean;
+  size?: number;
 }
 
-export function Select({ value, options, onChange, className = "", disabled }: Props) {
+export function Select({ value, options, onChange, className = "", disabled, size }: Props) {
   return (
     <select
       className={`ds-select ${className}`}
       value={value}
       disabled={disabled}
+      size={size}
       onChange={(e) => onChange(e.currentTarget.value)}
     >
       {options.map((opt) => (
-        <option key={opt.value} value={opt.value}>
+        <option key={opt.value} value={opt.value} title={opt.label}>
           {opt.label}
         </option>
       ))}

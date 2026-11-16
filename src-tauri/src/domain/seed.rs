@@ -16,6 +16,7 @@
 //! ```
 
 use serde_json::Value;
+use std::path::Path;
 
 use crate::domain::catalog_model::{
     AnimationMeta, Asset, AssetContent, AssetFileset, ThumbMeta, UserMeta,
@@ -27,6 +28,8 @@ use crate::error::{AppError, AppResult};
 /// file-read-derived texture/animation facts. All paths are library-relative.
 /// `rel_path` is the `.gltf` for a model and the material's folder for a material.
 pub struct SeedEntry {
+    pub provenance: Option<crate::domain::provenance::ImportProvenance>,
+    pub variants: Vec<SeedEntry>,
     pub id: String,
     pub name: String,
     pub file_name: String,
@@ -39,6 +42,8 @@ pub struct SeedEntry {
 /// The kind-specific part of a seed entry. A material's map files are already
 /// library-relative.
 pub enum SeedContent {
+    Audio { file: String },
+    AnimationSource { gltf_rel: String, bin_rel: String },
     Model { gltf_rel: String, bin_rel: String },
     Material { material: MaterialSet },
 }
@@ -62,10 +67,54 @@ const RESERVED_MATERIALS_CATEGORY: &str = "materials";
 /// Parse one manifest entry (a `catalog.json` asset, or an importer's entry —
 /// they share one shape). The single parser both paths go through.
 pub fn parse_entry(a: &Value) -> AppResult<SeedEntry> {
+    let mut entry = parse_single(a)?;
+    if let Some(variants) = a.get("variants") {
+        if matches!(entry.content, SeedContent::AnimationSource { .. }) {
+            return Err(AppError::msg("animation sources contain clips, not level or size variants"));
+        }
+        let variants = variants.as_array().ok_or_else(|| AppError::msg("variants must be an array"))?;
+        for variant in variants {
+            if variant.get("variants").is_some() {
+                return Err(AppError::msg("variants cannot contain nested variants"));
+            }
+            let mut parsed = parse_single(variant)?;
+            if parsed.provenance.is_none(){parsed.provenance=entry.provenance.clone();}
+            if std::mem::discriminant(&parsed.content) != std::mem::discriminant(&entry.content)
+                || parsed.pack != entry.pack || parsed.category != entry.category
+                || parsed.id == entry.id || entry.variants.iter().any(|v| v.id == parsed.id) {
+                return Err(AppError::msg("variants must share the kind, pack and category and have unique ids"));
+            }
+            entry.variants.push(parsed);
+        }
+    }
+    Ok(entry)
+}
+
+fn parse_single(a: &Value) -> AppResult<SeedEntry> {
+    let mut entry=parse_single_content(a)?;
+    entry.provenance=a.get("provenance").filter(|value|!value.is_null()).map(|value|serde_json::from_value::<crate::domain::provenance::ImportProvenance>(value.clone())).transpose()?.and_then(|value|value.normalized());
+    Ok(entry)
+}
+
+fn parse_single_content(a: &Value) -> AppResult<SeedEntry> {
     let id = str_field(a, "id")?;
     let pack = str_field(a, "pack")?;
     let category = str_field(a, "category")?;
     match a.get("kind").map(|k| k.as_str()) {
+        Some(Some("audio")) => {
+            let file=str_field(a,"file")?;
+            let mut entry=entry_from_parts(id,pack,category,file.clone());
+            entry.name=Path::new(&file).file_stem().unwrap_or_default().to_string_lossy().to_string();
+            entry.content=SeedContent::Audio{file:entry.rel_path.clone()};Ok(entry)
+        }
+        Some(Some("animation")) => {
+            let file = str_field(a, "file")?;
+            let mut entry = entry_from_parts(id, pack, category, file);
+            if let SeedContent::Model { gltf_rel, bin_rel } = entry.content {
+                entry.content = SeedContent::AnimationSource { gltf_rel, bin_rel };
+            }
+            Ok(entry)
+        }
         None | Some(Some("model")) => {
             if category == RESERVED_MATERIALS_CATEGORY {
                 return Err(AppError::msg(format!(
@@ -95,6 +144,8 @@ pub fn entry_from_parts(id: String, pack: String, category: String, file: String
     let bin_rel = format!("{rel_dir}/{name}.bin");
 
     SeedEntry {
+        provenance: None,
+        variants: Vec::new(),
         id,
         name,
         file_name: file,
@@ -124,6 +175,8 @@ pub fn material_entry_from_parts(
         .map_err(|e| AppError::msg(format!("asset {id}: {e}")))?;
 
     Ok(SeedEntry {
+        provenance: None,
+        variants: Vec::new(),
         id,
         file_name: name.clone(),
         name,
@@ -142,14 +195,37 @@ pub fn upsert_entries(mut doc: Value, entries: Vec<Value>) -> AppResult<Value> {
         .get_mut("assets")
         .and_then(|v| v.as_array_mut())
         .ok_or_else(|| AppError::msg("catalog.json has no assets[]"))?;
-    for entry in entries {
+    for mut entry in entries {
         let id = str_field(&entry, "id")?;
+        // Reimporting a formerly separate level/size must absorb its old row.
+        let mut files = vec![physical_key(&entry)];
+        if let Some(variants) = entry.get("variants").and_then(Value::as_array) {
+            files.extend(variants.iter().map(physical_key));
+        }
+        files.retain(|key| !key.0.is_empty() && !key.2.is_empty());
+        assets.retain(|old| old.get("id").and_then(Value::as_str) == Some(&id)
+            || !files.contains(&physical_key(old)));
         match assets.iter().position(|a| a.get("id").and_then(|v| v.as_str()) == Some(&id)) {
-            Some(i) => assets[i] = entry,
+            Some(i) => {
+                if entry.get("provenance").is_none_or(Value::is_null) {
+                    if let Some(provenance)=assets[i].get("provenance"){entry["provenance"]=provenance.clone();}
+                }
+                assets[i] = entry;
+            },
             None => assets.push(entry),
         }
     }
     Ok(doc)
+}
+
+fn physical_key(entry: &Value) -> (String, String, String) {
+    let string = |key: &str| entry.get(key).and_then(Value::as_str).unwrap_or("").to_string();
+    if entry.get("kind").and_then(Value::as_str) == Some("material") {
+        (string("pack"), "material".into(), string("name"))
+    } else {
+        let category = if entry.get("kind").and_then(Value::as_str) == Some("animation") { format!("animation:{}", string("category")) } else { string("category") };
+        (string("pack"), category, string("file"))
+    }
 }
 
 /// Assemble a model `Asset` from a seed entry plus its resolved texture list and
@@ -165,7 +241,7 @@ pub fn build_asset(
             fileset: AssetFileset { gltf: gltf_rel, bin: bin_rel, textures: texture_rels },
             animation,
         })),
-        SeedContent::Material { .. } => {
+        SeedContent::Material { .. } | SeedContent::AnimationSource { .. } | SeedContent::Audio { .. } => {
             Err(AppError::msg(format!("seed entry {} is not a model", head.id)))
         }
     }
@@ -178,14 +254,19 @@ pub fn build_material_asset(entry: SeedEntry) -> AppResult<Asset> {
         SeedContent::Material { material } => {
             Ok(head.into_asset(AssetContent::Material { material }))
         }
-        SeedContent::Model { .. } => {
+        SeedContent::Model { .. } | SeedContent::AnimationSource { .. } | SeedContent::Audio { .. } => {
             Err(AppError::msg(format!("seed entry {} is not a material", head.id)))
         }
     }
 }
 
 /// The fields every seed entry shares, separated from its kind-specific content.
+pub fn build_audio_asset(entry:SeedEntry,audio:crate::domain::audio::AudioMeta)->Asset {
+    let (head,_)=split(entry);head.into_asset(AssetContent::Audio{audio})
+}
+
 struct Head {
+    provenance: Option<crate::domain::provenance::ImportProvenance>,
     id: String,
     name: String,
     file_name: String,
@@ -196,7 +277,10 @@ struct Head {
 
 impl Head {
     fn into_asset(self, content: AssetContent) -> Asset {
+        let tags=self.provenance.as_ref().map(|value|value.tags()).unwrap_or_default();
         Asset {
+            rigs: Vec::new(),
+            variants: Vec::new(),
             id: self.id,
             name: self.name,
             file_name: self.file_name,
@@ -205,13 +289,14 @@ impl Head {
             category: self.category,
             content,
             thumb: ThumbMeta::default(),
-            user: UserMeta::default(),
+            user: UserMeta {provenance:self.provenance,tags,..UserMeta::default()},
         }
     }
 }
 
 fn split(entry: SeedEntry) -> (Head, SeedContent) {
     let head = Head {
+        provenance: entry.provenance,
         id: entry.id,
         name: entry.name,
         file_name: entry.file_name,
@@ -234,6 +319,36 @@ mod tests {
     use super::*;
     use crate::domain::material::MapChannel;
     use serde_json::json;
+
+    #[test]
+    fn parses_variant_filesets_and_rejects_mixed_kinds() {
+        let mut doc = json!({ "id": "tree", "pack": "p", "category": "props", "file": "Tree_LOD0.gltf",
+            "variants": [{ "id": "tree-low", "pack": "p", "category": "props", "file": "Tree_LOD2.gltf" }] });
+        let parsed = parse_entry(&doc).unwrap();
+        assert_eq!(parsed.variants.len(), 1);
+        assert_eq!(parsed.variants[0].file_name, "Tree_LOD2.gltf");
+        doc["variants"][0]["id"] = json!("tree");
+        assert!(parse_entry(&doc).is_err(), "duplicate id is rejected");
+        doc["variants"][0] = json!({ "id": "mat", "kind": "material", "pack": "p", "category": "props", "name": "Red", "maps": [{ "role": "albedo", "file": "red.png" }] });
+        assert!(parse_entry(&doc).is_err(), "a material cannot be a model variant");
+    }
+
+    #[test]
+    fn grouped_reimport_absorbs_previously_separate_variant_rows() {
+        let original = json!({ "assets": [
+            {"id":"old-full","pack":"p","category":"props","file":"Tree_LOD0.gltf"},
+            {"id":"old-low","pack":"p","category":"props","file":"Tree_LOD2.gltf"},
+            {"id":"other","pack":"p","category":"props","file":"Rock.gltf"}
+        ] });
+        let grouped = json!({ "id":"tree","pack":"p","category":"props","file":"Tree_LOD0.gltf", "variants":[
+            {"id":"old-low","pack":"p","category":"props","file":"Tree_LOD2.gltf"}
+        ] });
+        let updated = upsert_entries(original, vec![grouped]).unwrap();
+        let entries = updated["assets"].as_array().unwrap();
+        assert_eq!(entries.len(), 2);
+        assert!(entries.iter().any(|entry| entry["id"] == "other"));
+        assert!(entries.iter().any(|entry| entry["id"] == "tree"));
+    }
 
     fn sample_doc() -> Value {
         json!({

@@ -23,10 +23,14 @@ import type { MapRole, MaterialMap } from "../domain/material";
 import { isScalarRole, needsRepack } from "../domain/materialSlots";
 import { assetUrl } from "./assetUrl";
 import { repackChannel } from "./channelRepack";
+import { disposeMaterial } from "./materialTextures";
 
 export interface MaterialLoadOptions {
   /** Longest side of repacked textures. Default 2048. Directly used files keep their size. */
   maxSize?: number;
+  /** Optional cap for direct textures in small live previews. */
+  maxTextureSize?: number;
+  signal?: AbortSignal;
 }
 
 const DEFAULT_MAX_SIZE = 2048;
@@ -82,29 +86,53 @@ export async function buildMaterial(
   const { maps, flipNormalGreen, resolveUrl } = source;
   const used = maps.filter((m) => m.role !== "height");
 
-  const files = await loadFiles(used, resolveUrl);
+  opts.signal?.throwIfAborted();
+  const files = await loadFiles(used, resolveUrl,opts);
   const direct = directTextures(files);
 
   const material = new MeshStandardMaterial({ metalness: 0 });
-  for (const map of used) {
-    const texture = textureFor(map, files, direct, maxSize);
-    SLOT[map.role](material, texture);
+  try {
+    opts.signal?.throwIfAborted();
+    for (const map of used) {
+      const texture = textureFor(map, files, direct, maxSize);
+      SLOT[map.role](material, texture);
+    }
+    if (flipNormalGreen) material.normalScale.y = -1;
+    return material;
+  } catch (error) {
+    disposeMaterial(material);
+    throw error;
+  } finally {
+    files.forEach(texture=>texture.dispose());
   }
-  if (flipNormalGreen) material.normalScale.y = -1;
-  return material;
 }
 
 /** Fetch each unique file once. */
 async function loadFiles(
   maps: MaterialMap[],
   resolveUrl: MaterialSource["resolveUrl"],
+  opts:MaterialLoadOptions,
 ): Promise<Map<string, Texture>> {
   const loader = new TextureLoader();
   const unique = [...new Set(maps.map((m) => m.file))];
-  const entries = await Promise.all(
-    unique.map(async (file) => [file, await loader.loadAsync(await resolveUrl(file))] as const),
-  );
-  return new Map(entries);
+  const entries = await Promise.allSettled(unique.map(async file=>{
+    let texture:Texture|undefined;
+    try {
+      const url=await resolveUrl(file);opts.signal?.throwIfAborted();texture=await loader.loadAsync(url);opts.signal?.throwIfAborted();
+      const image=texture.image as HTMLImageElement,max=opts.maxTextureSize;
+      if(max&&Math.max(image.width,image.height)>max) {
+        const scale=max/Math.max(image.width,image.height),canvas=document.createElement("canvas");
+        canvas.width=Math.max(1,Math.round(image.width*scale));canvas.height=Math.max(1,Math.round(image.height*scale));
+        const context=canvas.getContext("2d");if(!context)throw Error("Cannot resize preview texture");
+        context.drawImage(image,0,0,canvas.width,canvas.height);texture.image=canvas;texture.needsUpdate=true;
+      }
+      return [file,texture] as const;
+    }catch(error){texture?.dispose();throw error;}
+  }));
+  const files=new Map(entries.flatMap(entry=>entry.status==="fulfilled"?[entry.value]:[]));
+  const failure=entries.find((entry):entry is PromiseRejectedResult=>entry.status==="rejected");
+  if(failure||opts.signal?.aborted) {files.forEach(texture=>texture.dispose());opts.signal?.throwIfAborted();throw failure!.reason;}
+  return files;
 }
 
 type DirectCache = (file: string, space: ColorSpace) => Texture;

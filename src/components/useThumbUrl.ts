@@ -1,32 +1,33 @@
-/**
- * Resolve an asset's thumbnail asset:// URL when (and only when) its thumb is
- * ready. Returns null while missing/queued/rendering so the card shows a
- * placeholder. The URL carries a cache-busting suffix keyed on thumb state so a
- * freshly-rendered thumbnail replaces a stale one.
- */
-
 import { useEffect, useState } from "react";
-
 import type { Asset } from "../domain/catalog";
 import { thumbUrl } from "../services/assetUrl";
 
-export function useThumbUrl(asset: Asset): string | null {
-  const [url, setUrl] = useState<string | null>(null);
-  const ready = asset.thumb.state === "ready";
+// Virtualized cards can remount while a replacement is being generated.
+const displayed = new Map<string, { url: string; revision: number }>();
 
+/** Keep the previous picture until its replacement has finished loading. */
+export function useThumbUrl(asset: Asset): string | null {
+  const [picture, setPicture] = useState<{ id: string; url: string } | null>(null);
+  const available = asset.thumb.state === "ready" || !!asset.thumb.available;
+  const revision = asset.thumb.revision ?? 0;
   useEffect(() => {
+    if (!available) return;
     let alive = true;
-    if (!ready) {
-      setUrl(null);
+    const cached = displayed.get(asset.id);
+    if (cached?.revision === revision) {
+      setPicture({ id: asset.id, url: cached.url });
       return;
     }
-    thumbUrl(asset.id).then((u) => {
-      if (alive) setUrl(`${u}?v=${asset.thumb.state}`);
-    });
-    return () => {
-      alive = false;
-    };
-  }, [asset.id, ready, asset.thumb.state]);
-
-  return url;
+    void thumbUrl(asset.id).then(async url => {
+      const next = `${url}?v=${revision}-${Date.now()}`;
+      const image = new Image(); image.src = next;
+      await image.decode();
+      if (alive) {
+        displayed.set(asset.id, { url: next, revision });
+        setPicture({ id: asset.id, url: next });
+      }
+    }).catch(() => { /* A failed replacement leaves the current picture visible. */ });
+    return () => { alive = false; };
+  }, [asset.id, available, revision]);
+  return picture?.id === asset.id ? picture.url : displayed.get(asset.id)?.url ?? null;
 }

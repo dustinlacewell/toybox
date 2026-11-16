@@ -1,0 +1,7 @@
+.plugin-picker { width: 100%; max-width: 760px; margin: 0 auto; padding: 32px; overflow: auto; }
+.plugin-picker h2 { margin: 0 0 8px; font-size: 20px; }
+.plugin-picker > p { color: var(--text-2); margin-bottom: 24px; }
+.plugin-picker h3 { margin: 24px 0 12px; font-size: 14px; }
+.plugin-picker__choices { display: grid; gap: 12px; }
+.plugin-picker .plugin-picker__choice { display: flex; flex-direction: column; align-items: flex-start; gap: 6px; height: auto; padding: 18px; text-align: left; white-space: normal; }
+.plugin-picker__choice small { color: var(--text-2); font-weight: normal; line-height: 1.5; }

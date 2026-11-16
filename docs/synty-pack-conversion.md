@@ -116,6 +116,17 @@ bun run src/pack/register-pack.ts \
 
 ## Gotchas (all hit during the SciFi Space conversion)
 
+- **Space Soldier source/prefab names also reorder suffixes.** For example,
+  `SK_Chr_SpaceSoldier_Male_Helmet` corresponds to the prefab
+  `SM_Chr_SpaceSoldier_Helmet_Male_01`. Prefix swapping alone misses it.
+  Its actual glTF mesh names still match MaterialList mesh names after `SK_`
+  becomes `SM_`. `scripts/repair-synty-bindings.mjs` restores missing bindings
+  using those explicit, unambiguous mesh entries. Run with library root and
+  source pack root to inspect matches; add `--apply` for backed-up corrections.
+  It preserves glass, painted heads, existing textures and all geometry. A
+  texture-existence check alone cannot find this omission: untextured files
+  have no image references to check. Audit used material slots too.
+
 - **`SK_Chr_*` FBX vs `SM_Chr_*` MaterialList names.** Character files are named
   `SK_Chr_Alien_01.fbx` (skeletal) but the MaterialList lists them as
   `SM_Chr_Alien_01` (static-mesh naming). Lookup falls back by swapping the

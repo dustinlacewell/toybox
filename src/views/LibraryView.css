@@ -1,6 +1,25 @@
-.lib__count {
-  font-size: var(--fs-sm);
-  color: var(--text-2);
-  font-variant-numeric: tabular-nums;
-  white-space: nowrap;
+.library-brand { height: 34px; display: flex; align-items: center; justify-content: space-between; padding: 0 10px; font-weight: 600; font-size: 14px; margin-bottom: 6px; flex-shrink: 0; }
+.library-type-label { display: flex; align-items: center; gap: 10px; }
+.asset-kind-icon { width: 18px; height: 18px; object-fit: contain; }
+.library-compact-navigation { min-height: 44px; display: flex; align-items: center; gap: 6px; padding: 6px 16px; border-bottom: 1px solid var(--border); flex-shrink: 0; }
+.library-compact-navigation__separator { height: 20px; width: 1px; background: var(--border); margin: 0 4px; }
+.library-compact-navigation__spacer { flex: 1; }
+.library-navigation-drawer { min-height: 100%; display: flex; flex-direction: column; padding: 10px 8px; }
+@media(max-width:600px) {
+  .library-workbench > .ds-workbench__main > .ds-page-header { padding: 8px 12px; gap: 6px; flex-wrap: wrap; height: auto; min-height: 52px; }
+  .library-workbench > .ds-workbench__main > .ds-page-header input { max-width: none !important; width: 100% !important; flex: 1; min-width: 100px; }
+  .library-workbench > .ds-workbench__inspector { position: absolute; right: 0; top: 100px; bottom: 0; z-index: 15; width: min(360px,90vw); background: var(--bg-1); }
 }
+.library-sidebar__header { position: sticky; top: -10px; z-index: 3; background: var(--bg-1); padding: 0 0 10px; flex-shrink: 0; }
+.library-sidebar__utilities { display: flex; gap: 4px; padding: 0 10px; }
+.asset-inspector__preview { width: 100%; aspect-ratio: 4 / 3; position: relative; display: grid; place-items: center; border-radius: 12px; background: var(--preview-background); color: var(--text-2); border: 1px solid var(--border); overflow: hidden; cursor: pointer; }
+.asset-inspector__preview img { width: 100%; height: 100%; object-fit: contain; }
+.asset-inspector__preview img { position: absolute; inset: 0; }
+.asset-inspector__expand { position: absolute; top: 8px; left: 8px; z-index: 1; width: 28px; height: 28px; border: 1px solid var(--border); border-radius: 6px; background: var(--bg-1); color: var(--text-1); cursor: pointer; }
+.asset-inspector__lighting { position: absolute; top: 8px; right: 8px; z-index: 2; }
+.asset-inspector__title { display: flex; align-items: start; gap: 8px; padding: 16px 8px 10px; }
+.asset-inspector__title > div { flex: 1; min-width: 0; }
+.asset-inspector__title h2 { margin: 0; font-size: 15px; font-weight: 600; overflow-wrap: anywhere; }
+.asset-inspector__title p { margin: 2px 0 0; color: var(--text-1); }
+.library-workbench > .ds-workbench__navigation .facets, .library-navigation-drawer .facets, .export-screen .ds-workbench__navigation .facets { width: auto; border: 0; background: transparent; overflow: visible; flex-shrink: 0; padding: 0; }
+.collection-dialog { padding: 20px; width: 100%; display: flex; flex-direction: column; gap: 8px; }

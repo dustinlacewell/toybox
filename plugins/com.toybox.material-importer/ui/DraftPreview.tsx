@@ -4,7 +4,7 @@
  * `position: relative` with a real size. Shows a hint while no file is assigned.
  */
 
-import { useMemo } from "react";
+import { useMemo, type ReactNode } from "react";
 import type { PanelWidgets } from "@ldlework/toybox-sdk";
 import type { MaterialDraft } from "./draft.js";
 import { draftMaps } from "./entry.js";
@@ -14,12 +14,13 @@ import type { ThumbLoader } from "./thumbs.js";
 const PREVIEW_SIZE = 1024;
 
 interface Props {
+  controls?: ReactNode;
   draft: MaterialDraft;
   loader: ThumbLoader;
   Preview: PanelWidgets["MaterialPreview"];
 }
 
-export function DraftPreview({ draft, loader, Preview }: Props) {
+export function DraftPreview({ draft, loader, Preview, controls }: Props) {
   // A rename keeps `files`, so it does not reload the preview.
   const { maps, flipNormalGreen } = useMemo(() => draftMaps(draft), [draft.files]);
   const resolveUrl = useMemo(
@@ -52,6 +53,7 @@ export function DraftPreview({ draft, loader, Preview }: Props) {
       flipNormalGreen={flipNormalGreen}
       resolveUrl={resolveUrl}
       sourceKey={sourceKey}
+      controls={controls}
     />
   );
 }

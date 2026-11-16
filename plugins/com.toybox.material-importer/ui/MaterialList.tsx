@@ -7,6 +7,8 @@
 import type { ReviewItem } from "./edit.js";
 import { MaterialRow } from "./MaterialRow.js";
 import type { ThumbLoader } from "./thumbs.js";
+import { materialGroups } from "./variants.js";
+import { variantInfo } from "@ldlework/toybox-sdk";
 
 interface Props {
   items: ReviewItem[];
@@ -36,21 +38,24 @@ export function MaterialList({
   onOpen,
   onInclude,
 }: Props) {
+  const groups = materialGroups(items).filter((g) => g.some((i) => indexes.includes(i)));
   return (
     <div style={{ flex: 1, minHeight: 0, maxHeight, overflowY: "auto" }}>
-      {indexes.map((i) => (
+      {groups.map((group) => {
+        const i = group[0];
+        return (
         <MaterialRow
           // Order is fixed while reviewing, so the index is a stable key.
           key={i}
-          item={items[i]}
-          problems={problems[i]}
-          selected={i === selected}
+          item={{ ...items[i], included: group.some((j) => items[j].included), draft: { ...items[i].draft, name: variantInfo(items[i].draft.name, "material").base } }}
+          problems={group.flatMap((j) => problems[j])}
+          selected={selected !== undefined && group.includes(selected)}
           loader={loader}
           onSelect={onSelect && (() => onSelect(i))}
           onOpen={onOpen && (() => onOpen(i))}
-          onInclude={(included) => onInclude(i, included)}
+          onInclude={(included) => group.forEach((j) => onInclude(j, included))}
         />
-      ))}
+      ); })}
     </div>
   );
 }

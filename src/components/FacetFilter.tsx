@@ -1,20 +1,21 @@
 /**
- * Left-rail facet filter: pack and category checkboxes with live counts, plus a
- * favorites-only toggle. Counts come from the pure selectors in domain/facets.
+ * Metadata filters with live counts, supplied to controlled design-system inputs.
  */
 
-import type { Asset, Category, Pack, PackMeta } from "../domain/catalog";
-import { categoryCounts, ofKind, packCounts, type Filter } from "../domain/facets";
-import { Checkbox, Button } from "@ldlework/toybox-sdk/ui";
+import type { Asset, Category } from "../domain/catalog";
+import { categoryCounts, ofKind, provenanceCounts, isProvenanceTag, tagCounts, type Filter } from "../domain/facets";
+import { Button, IconButton } from "@ldlework/toybox-sdk/ui";
+import { Star, FilterX } from "lucide-react";
 import "./FacetFilter.css";
 
 interface Props {
   assets: Asset[];
   filter: Filter;
-  /** Pack identity metadata by slug (from each pack's pack.json). */
-  packMeta: Map<string, PackMeta>;
-  onTogglePack: (pack: Pack) => void;
-  onToggleCategory: (category: Category) => void;
+  onToggleSource: (source: string, additive: boolean) => void;
+  onTogglePublisher: (publisher: string, additive: boolean) => void;
+  onToggleLicense: (license: string, additive: boolean) => void;
+  onToggleCategory: (category: Category, additive: boolean) => void;
+  onToggleTag?: (tag:string, additive: boolean) => void;
   onToggleFavoritesOnly: () => void;
   onClear: () => void;
 }
@@ -22,42 +23,32 @@ interface Props {
 export function FacetFilter({
   assets,
   filter,
-  packMeta,
-  onTogglePack,
+  onToggleSource,
+  onTogglePublisher,
+  onToggleLicense,
   onToggleCategory,
+  onToggleTag,
   onToggleFavoritesOnly,
   onClear,
 }: Props) {
-  // Facets list only the packs and categories the current kind has.
+  // Counts cover only the current type.
   const ofCurrentKind = ofKind(assets, filter.kind);
-  const packs = packCounts(ofCurrentKind);
   const categories = categoryCounts(ofCurrentKind);
-
-  // Display name from pack.json; fall back to a title-cased slug so a pack
-  // missing its metadata file never renders blank.
-  const packLabel = (slug: string) => packMeta.get(slug)?.name ?? titleCaseSlug(slug);
+  const tags=tagCounts(ofCurrentKind).filter(({value})=>!isProvenanceTag(value));
 
   return (
     <aside className="facets">
-      <div className="facets__section">
-        <Checkbox
-          checked={filter.favoritesOnly}
-          onChange={onToggleFavoritesOnly}
-          label={<strong>Favorites only</strong>}
-        />
+      <div className="facets__toolbar">
+        <Button variant="ghost" className="facets__row facets__favorites" aria-pressed={filter.favoritesOnly} onClick={onToggleFavoritesOnly}><Star size={16} aria-hidden="true"/>Favorites</Button>
+        <IconButton icon={FilterX} label="Clear filters" onClick={onClear}/>
       </div>
 
-      <FacetGroup title="Pack">
-        {packs.map(({ value, count }) => (
-          <FacetRow
-            key={value}
-            label={packLabel(value)}
-            count={count}
-            checked={filter.packs.has(value)}
-            onToggle={() => onTogglePack(value)}
-          />
-        ))}
-      </FacetGroup>
+      {([{field:"source",title:"Sources",selected:filter.sources,onToggle:onToggleSource},
+        {field:"publisher",title:"Publishers",selected:filter.publishers,onToggle:onTogglePublisher},
+        {field:"license",title:"Licenses",selected:filter.licenses,onToggle:onToggleLicense}] as const).map(group=><FacetGroup key={group.field} title={group.title}>
+          {provenanceCounts(ofCurrentKind,group.field).map(({value,count})=><FacetRow key={value} label={value||"Unknown"} count={count} checked={group.selected.has(value)} onToggle={additive=>group.onToggle(value,additive)}/>)}
+      </FacetGroup>)}
+      {onToggleTag&&!!tags.length&&<FacetGroup title="Tags">{tags.map(({value,count})=><FacetRow key={value} label={value} count={count} checked={filter.tags.has(value)} onToggle={additive=>onToggleTag(value,additive)}/>)}</FacetGroup>}
 
       <FacetGroup title="Category">
         {categories.map(({ value, count }) => (
@@ -66,24 +57,19 @@ export function FacetFilter({
             label={titleCase(value)}
             count={count}
             checked={filter.categories.has(value)}
-            onToggle={() => onToggleCategory(value)}
+            onToggle={additive => onToggleCategory(value,additive)}
           />
         ))}
       </FacetGroup>
 
-      <div className="facets__section">
-        <Button variant="ghost" onClick={onClear}>
-          Clear filters
-        </Button>
-      </div>
     </aside>
   );
 }
 
 function FacetGroup({ title, children }: { title: string; children: React.ReactNode }) {
   return (
-    <div className="facets__section">
-      <div className="facets__title">{title}</div>
+    <div className="facets__section" role="group" aria-label={title}>
+      <div className="facets__title" title="Click to select; Shift-click to add or remove">{title}</div>
       {children}
     </div>
   );
@@ -98,18 +84,14 @@ function FacetRow({
   label: string;
   count: number;
   checked: boolean;
-  onToggle: () => void;
+  onToggle: (additive: boolean) => void;
 }) {
   return (
-    <div className="facets__row">
-      <Checkbox checked={checked} onChange={onToggle} label={label} />
+    <Button variant="ghost" className="facets__row" aria-pressed={checked} onClick={event=>onToggle(event.shiftKey)} onMouseDown={event=>{if(event.shiftKey)event.preventDefault();}}>
+      <span className="facets__label" title={label}>{label}</span>
       <span className="facets__count">{count}</span>
-    </div>
+    </Button>
   );
 }
 
 const titleCase = (s: string) => s.charAt(0).toUpperCase() + s.slice(1);
-
-/** Fallback pack label when no pack.json: `polygon_scifi_space` → `Polygon Scifi Space`. */
-const titleCaseSlug = (slug: string) =>
-  slug.split(/[_-]+/).map(titleCase).join(" ");

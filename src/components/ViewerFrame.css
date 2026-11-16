@@ -1,78 +1,32 @@
-.viewer {
-  position: fixed;
-  inset: 0;
-  background: #000a;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  z-index: 40;
-  padding: var(--space-5);
-}
-
-/* Sized against the scrim (%, not vw/vh) so it fits whether the scrim fills the
-   window (app) or is confined to the embedded demo box. The scrim's padding
-   keeps the panel inset on both axes. */
-.viewer__panel {
-  width: min(960px, 100%);
-  height: min(720px, 100%);
-  background: var(--bg-1);
-  border: 1px solid var(--border);
-  border-radius: var(--radius-2);
-  display: flex;
-  flex-direction: column;
-  overflow: hidden;
-}
-
-.viewer__header {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  padding: var(--space-3) var(--space-4);
-  border-bottom: 1px solid var(--border);
-}
-.viewer__name {
-  font-size: var(--fs-lg);
-  font-weight: 600;
-}
-.viewer__meta {
-  font-size: var(--fs-sm);
-  color: var(--text-2);
-}
-.viewer__actions {
-  display: flex;
-  align-items: center;
-  gap: var(--space-2);
-}
-.viewer__close {
-  all: unset;
-  cursor: pointer;
-  color: var(--text-1);
-  font-size: var(--fs-lg);
-  padding: var(--space-1) var(--space-2);
-}
-.viewer__close:hover {
-  color: var(--text-0);
-}
-
-.viewer__stage {
-  position: relative;
-  flex: 1;
-  min-height: 0;
-  background: var(--bg-0);
-}
-
-.viewer__loading,
-.viewer__error {
-  position: absolute;
-  inset: 0;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  pointer-events: none;
-}
-.viewer__error {
-  color: var(--danger);
-  font-size: var(--fs-sm);
-  padding: var(--space-4);
-  text-align: center;
-}
+.viewer { position: fixed; inset: 0; z-index: 40; background: var(--bg-0); }
+.viewer__stage { position: relative; flex: 1; min-height: 0; margin: 0 20px; border-radius: 12px; border: 1px solid var(--border); overflow: hidden; background: var(--preview-background); }
+.viewer__loading, .viewer__error { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; pointer-events: none; color: var(--text-2); }
+.viewer__error { color: var(--danger); padding: 24px; }
+.viewer__footer { min-height: 64px; }
+.viewer__footer .animbar { position: static; height: 64px; margin: 0; padding: 0 20px; border: 0; border-radius: 0; background: transparent; }
+.viewer__variants { position: absolute; bottom: 14px; left: 50%; transform: translateX(-50%); z-index: 5; display: flex; align-items: center; gap: 8px; padding: 3px 8px 3px 3px; border-radius: 10px; border: 1px solid var(--border-strong); background: var(--floating-surface); backdrop-filter: blur(16px); white-space: nowrap; }
+.variant-switch { display: flex; gap: 2px; }
+.viewer__variants { max-width: calc(100% - 24px); width: max-content; flex-wrap: wrap; justify-content: center; }
+.variant-switch button { cursor: pointer; padding: 5px 9px; border: 0; border-radius: 6px; background: transparent; color: var(--text-1); white-space: nowrap; }
+.variant-switch button[aria-pressed="true"] { background: var(--bg-3); color: var(--text-0); }
+.viewer-panel-title { font-size: 15px; margin: 8px 8px 2px; font-weight: 600; }
+.viewer-panel-subtitle { color: var(--text-1); margin: 0 8px 18px; }
+.viewer-panel-tabs { margin-bottom: 16px; }
+.viewer-panel-tabs .ds-segmented { display: flex; flex-wrap: wrap; }
+.viewer-panel-section { color: var(--text-2); margin: 22px 8px 6px; font-size: 12px; }
+.viewer .ds-workbench__main { padding-bottom: 0; }
+.viewer-preview-picker { padding-bottom: 14px; border-bottom: 1px solid var(--border); margin-bottom: 14px; }
+.viewer-preview-picker label { display: block; }
+.viewer-preview-picker .ds-select { display: block; width: 100%; margin-top: 8px; }
+.viewer-preview-picker .viewer-preview-picker__list { height: clamp(160px, 28vh, 320px); }
+.viewer__preview-status { position: absolute; left: 12px; bottom: 64px; z-index: 5; max-width: calc(100% - 24px); padding: 8px 12px; border-radius: var(--radius-1); background: var(--floating-surface); color: var(--text-1); overflow-wrap: anywhere; }
+.viewer-preview-picker .viewer-panel-subtitle { margin: 8px 0 0; }
+.viewer-rig { margin: 12px 8px; color: var(--text-1); font-size: 12px; }
+.viewer-rig summary { cursor: pointer; padding: 6px 0; }
+.viewer-rig ul { list-style: none; margin: 6px 0; padding: 0; max-height: 220px; overflow: auto; }
+.viewer-rig li { padding-top: 3px; padding-bottom: 3px; white-space: nowrap; }
+.viewer-scene-controls { position: absolute; top: 12px; left: 12px; right: 12px; display: grid; grid-template-columns: minmax(0,1fr) auto; align-items: start; gap: 12px; z-index: 5; pointer-events: none; max-height: calc(100% - 72px); overflow: auto; }
+.viewer-scene-controls > .vtoolbar, .viewer-scene-controls > .align { position: static; pointer-events: auto; flex-shrink: 0; }
+.viewer-scene-controls > .vtoolbar { width: max-content; max-width: 100%; flex-wrap: wrap; }
+.viewer-scene-controls__right { display: flex; flex-direction: column; align-items: flex-end; gap: 8px; min-width: 0; }
+.viewer-scene-controls__right > .align { position: static; pointer-events: auto; max-width: 100%; }

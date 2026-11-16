@@ -1,0 +1,31 @@
+.import-screen { position: fixed; inset: 0; z-index: 50; display: flex; flex-direction: column; background: var(--bg-0); }
+.import-screen .ds-page-header__metadata { max-width: 420px; }
+.import-screen .ds-page-header__metadata label { display: flex; align-items: center; gap: 8px; }
+.import-screen .ds-page-header__metadata .ds-select { width: auto; min-width: 0; max-width: 260px; }
+.import-screen__body { display: flex; flex: 1; min-height: 0; overflow: auto; }
+.import-screen__body > .ds-stack { width: 100%; padding: 40px; max-width: 900px; margin: 0 auto; }
+.import-screen__body > .ds-workbench { flex: 1; }
+.import-screen__body .ds-workbench__navigation { width: 320px; background: transparent; padding: 4px 10px 20px; }
+.import-screen__body .ds-workbench__main { padding-top: 4px; }
+.import-screen__body .ds-workbench__inspector { width: 360px; }
+.import-screen__error { color: var(--danger); padding: 0 20px; }
+.import-review__stage { flex: 1; min-height: 0; margin: 0 20px; position: relative; border: 1px solid var(--border); border-radius: 12px; overflow: hidden; background: var(--preview-background); }
+.import-review__controls { position: absolute; bottom: 14px; left: 50%; transform: translateX(-50%); display: flex; align-items: center; gap: 5px; z-index: 3; padding: 3px; border-radius: 10px; border: 1px solid var(--border-strong); background: var(--floating-surface); white-space: nowrap; }
+.import-review__title { font-size: 15px; margin: 6px 8px; }
+.import-review__summary { color: var(--text-1); margin: 4px 8px 16px; }
+.import-review__section { color: var(--text-2); font-size: 12px; margin: 20px 8px 6px; }
+.import-review__problem { color: #e5a23c; margin: 4px 8px; }
+.import-review__checks { display: grid; gap: 12px; padding: 8px; }
+.import-review__channel { display: flex; align-items: center; gap: 10px; padding: 8px; }
+.import-review__channel > span { color: var(--text-1); min-width: 45px; }
+.import-review__channel .ds-select { flex: 1; width: auto; }
+.import-screen .ds-thumbnail-strip > button, .import-screen .ds-thumbnail-strip__preview { width: 108px; }
+.import-screen .ds-thumbnail-strip__preview { height: 108px; }
+.import-review__controls { max-width: calc(100% - 24px); width: max-content; flex-wrap: wrap; justify-content: center; }
+@media (max-width: 1100px) { .import-screen__body .ds-workbench__navigation { width: 250px; } .import-screen__body .ds-workbench__inspector { width: 300px; } }
+.import-provenance { flex: none; display: grid; grid-template-columns: 2fr 1fr 1fr; gap: 12px 16px; margin: 12px 20px; padding: 12px 16px; border: 1px solid var(--border); border-radius: 8px; max-height: 32vh; overflow: auto; }
+.import-provenance legend { padding: 0 6px; color: var(--text-1); }
+.import-provenance label { display: flex; flex-direction: column; gap: 6px; color: var(--text-1); font-size: var(--fs-sm); min-width: 0; }
+.import-provenance input { width: 100%; min-width: 0; }
+.import-provenance p { grid-column: 1 / -1; margin: 0; font-size: var(--fs-sm); color: var(--text-2); }
+@media(max-width:800px) { .import-provenance { grid-template-columns: 1fr 1fr; } }

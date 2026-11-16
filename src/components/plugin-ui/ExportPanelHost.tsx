@@ -6,6 +6,7 @@
  * their config up through the same `onConfig(values, ready)` contract.
  */
 
+import { useEffect, useMemo } from "react";
 import type { FieldSpec, ExportPanelCtx } from "@ldlework/toybox-sdk";
 import type { LoadedExporter } from "../../services/pluginRegistry";
 import { buildSlotHost } from "../../services/slotHost";
@@ -13,21 +14,28 @@ import { PluginSlot } from "./PluginSlot";
 import { DeclarativeExportFields } from "./DeclarativeExportFields";
 
 interface Props {
+  initialConfig?: Record<string, unknown>;
   plugin: LoadedExporter;
   shared: { targetDir: string | null; preserveStructure: boolean };
   onConfig: (values: Record<string, unknown>, ready: boolean) => void;
 }
 
-export function ExportPanelHost({ plugin, shared, onConfig }: Props) {
+const EMPTY_FIELDS: FieldSpec[] = [];
+
+export function ExportPanelHost({ plugin, shared, onConfig, initialConfig }: Props) {
   const slot = plugin.manifest.ui?.exportPanel;
-  const fields = (plugin.manifest.fields as FieldSpec[]) ?? [];
+  const fields = (plugin.manifest.fields as FieldSpec[]) ?? EMPTY_FIELDS;
+  useEffect(() => {
+    if (!slot && !fields.length) onConfig(initialConfig ?? {}, true);
+  }, [slot, fields, initialConfig, onConfig]);
+  const ctx: ExportPanelCtx = useMemo(() => ({ host: buildSlotHost(), shared, initialConfig, setConfig: onConfig }),
+    [shared.targetDir, shared.preserveStructure, initialConfig, onConfig]);
   const fallback = fields.length ? (
-    <DeclarativeExportFields specs={fields} onConfig={onConfig} />
+    <DeclarativeExportFields specs={fields} initialConfig={initialConfig} onConfig={onConfig} />
   ) : null;
 
   if (!slot) return fallback;
 
-  const ctx: ExportPanelCtx = { host: buildSlotHost(), shared, setConfig: onConfig };
   return (
     <PluginSlot
       pluginId={plugin.manifest.id}

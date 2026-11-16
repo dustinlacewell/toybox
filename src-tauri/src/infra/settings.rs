@@ -11,6 +11,10 @@ use crate::infra::{appdata, fsio};
 #[derive(Debug, Default, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct AppSettings {
+    #[serde(default)]
+    pub animation_preview_version: u32,
+    #[serde(default)]
+    pub saved_exports: Vec<serde_json::Value>,
     /// Absolute path to the asset library the user picked, if any.
     pub library_root: Option<String>,
     /// Absolute path to the user's FBX2glTF executable, if configured. Used by
@@ -34,5 +38,22 @@ pub fn load(app: &AppHandle) -> AppResult<AppSettings> {
 pub fn save(app: &AppHandle, settings: &AppSettings) -> AppResult<()> {
     let path = appdata::settings_path(app)?;
     let text = serde_json::to_string_pretty(settings)?;
-    fsio::write_text(&path, &text)
+    fsio::write_bytes_atomic(&path, text.as_bytes())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use serde_json::json;
+
+    #[test]
+    fn saved_exports_round_trip_and_old_settings_still_load() {
+        let mut settings: AppSettings = serde_json::from_value(json!({ "libraryRoot": "D:/assets", "fbx2gltfPath": "D:/convert.exe" })).unwrap();
+        assert!(settings.saved_exports.is_empty());
+        settings.saved_exports.push(json!({ "id":"spy", "name":"Spygame", "kind":"model", "exporterId":"com.toybox.placer", "targetDir":"D:/game", "variantPolicy":"all", "config":{"format":"glb","subDir":"assets"} }));
+        let restored: AppSettings = serde_json::from_str(&serde_json::to_string(&settings).unwrap()).unwrap();
+        assert_eq!(restored.saved_exports, settings.saved_exports);
+        assert_eq!(restored.library_root.as_deref(), Some("D:/assets"));
+        assert_eq!(restored.fbx2gltf_path.as_deref(), Some("D:/convert.exe"));
+    }
 }

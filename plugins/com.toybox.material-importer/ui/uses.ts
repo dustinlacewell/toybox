@@ -7,13 +7,18 @@ import type { SelectOption } from "@ldlework/toybox-sdk/ui";
 import type { ChannelRole, FileUse } from "./draft.js";
 
 export const USE_OPTIONS: SelectOption[] = [
-  { value: "unassigned", label: "Unassigned" },
-  { value: "albedo", label: "Albedo" },
+  { value: "unassigned", label: "Not used" },
+  { value: "albedo", label: "Colour" },
   { value: "normal", label: "Normal" },
   { value: "normalDx", label: "Normal (DirectX)" },
   { value: "emissive", label: "Emissive" },
   { value: "height", label: "Height" },
-  { value: "channels", label: "Channels" },
+  { value: "roughness", label: "Roughness" },
+  { value: "metallic", label: "Metal" },
+  { value: "ao", label: "Shadowing" },
+  { value: "opacity", label: "Opacity" },
+  { value: "smoothness", label: "Smoothness" },
+  { value: "channels", label: "One job per channel" },
 ];
 
 export const ROLE_OPTIONS: SelectOption[] = [
@@ -28,12 +33,19 @@ export const ROLE_OPTIONS: SelectOption[] = [
 /** The Select value for a use. */
 export function useKey(use: FileUse): string {
   if (use.use === "normal") return use.directX ? "normalDx" : "normal";
+  if (use.use === "channels" && use.channels.r && Object.values(use.channels).filter(Boolean).length === 1) return use.channels.r;
   return use.use;
 }
 
 /** The use a Select value names. Choosing `channels` starts with all four empty. */
 export function useFromKey(key: string): FileUse {
   switch (key) {
+    case "roughness":
+    case "metallic":
+    case "ao":
+    case "opacity":
+    case "smoothness":
+      return { use: "channels", channels: { r: key } };
     case "albedo":
     case "emissive":
     case "height":

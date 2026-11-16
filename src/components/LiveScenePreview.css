@@ -1,0 +1,4 @@
+.live-scene-preview { display: grid; place-items: center; position: relative; width: 100%; height: 100%; overflow: hidden; border-radius: inherit; }
+.live-scene-preview__canvas { position: absolute; inset: 0; pointer-events: none; opacity: 0; }
+.live-scene-preview__canvas.is-ready { opacity: 1; }
+.live-scene-preview__status { position: absolute; bottom: 8px; left: 8px; padding: 4px 7px; color: var(--text-1); background: var(--floating-surface); border-radius: 6px; font-size: var(--fs-sm); pointer-events: none; }

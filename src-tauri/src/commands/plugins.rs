@@ -24,6 +24,9 @@ use crate::infra::{appdata, fsio};
 #[derive(Debug, Clone, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct PluginManifestDto {
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub icon: Option<String>,
+    pub asset_icons: serde_json::Value,
     pub id: String,
     pub name: String,
     pub version: String,
@@ -86,7 +89,7 @@ fn read_manifest(plugin_dir: &Path) -> Option<PluginManifestDto> {
     let name = doc.get("name")?.as_str()?.to_string();
     let version = doc.get("version")?.as_str()?.to_string();
     let kind = doc.get("kind")?.as_str()?.to_string();
-    if kind != "exporter" && kind != "importer" {
+    if kind != "exporter" && kind != "importer" && kind != "rigAdapter" {
         return None;
     }
     // Exporters load their entry module (it carries `run`); importers are
@@ -94,11 +97,13 @@ fn read_manifest(plugin_dir: &Path) -> Option<PluginManifestDto> {
     // and may be absent on disk.
     let entry = doc.get("entry").and_then(|v| v.as_str()).unwrap_or("").to_string();
     let entry_abs = plugin_dir.join(&entry);
-    if kind == "exporter" && (entry.is_empty() || !entry_abs.exists()) {
+    if (kind == "exporter" || kind == "rigAdapter") && (entry.is_empty() || !entry_abs.exists()) {
         return None;
     }
 
     Some(PluginManifestDto {
+        icon: doc.get("icon").and_then(|v|v.as_str()).map(String::from),
+        asset_icons: doc.get("assetIcons").cloned().unwrap_or_else(||serde_json::json!({})),
         id,
         name,
         version,
@@ -266,6 +271,16 @@ fn normalize(p: &Path) -> PathBuf {
 #[cfg(test)]
 mod tests {
     use super::*;
+    #[test]
+    fn discovers_rig_adapters_and_requires_their_entry_module() {
+        let dir=std::env::temp_dir().join(format!("toybox-rig-plugin-test-{}",std::process::id())).join("example.rigs");
+        std::fs::create_dir_all(&dir).unwrap();
+        std::fs::write(dir.join("manifest.json"),r#"{"id":"example.rigs","name":"Rigs","version":"1.0.0","kind":"rigAdapter","entry":"index.js"}"#).unwrap();
+        assert!(read_manifest(&dir).is_none());
+        std::fs::write(dir.join("index.js"),"export default {profiles:[]}").unwrap();
+        assert_eq!(read_manifest(&dir).unwrap().kind,"rigAdapter");
+        std::fs::remove_dir_all(dir.parent().unwrap()).unwrap();
+    }
 
     #[test]
     fn jail_allows_paths_under_root() {

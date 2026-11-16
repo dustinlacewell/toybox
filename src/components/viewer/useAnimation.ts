@@ -10,6 +10,7 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { AnimationMixer, type AnimationClip, type Group, LoopRepeat } from "three";
+import { rootMotion } from "../../domain/animationMotion";
 
 export interface AnimationControls {
   clips: AnimationClip[];
@@ -29,7 +30,7 @@ export interface AnimationControls {
   tick: (delta: number) => void;
 }
 
-export function useAnimation(scene: Group | null, clips: AnimationClip[]): AnimationControls {
+export function useAnimation(scene: Group | null, clips: AnimationClip[], { inPlace = false, speed = 1 }: { inPlace?: boolean; speed?: number } = {}): AnimationControls {
   const mixerRef = useRef<AnimationMixer | null>(null);
   const [currentIndex, setCurrentIndex] = useState(0);
   const [playing, setPlaying] = useState(true);
@@ -40,6 +41,13 @@ export function useAnimation(scene: Group | null, clips: AnimationClip[]): Anima
   const rawDuration = hasClips ? clips[clampedIndex]?.duration : 0;
   const duration =
     rawDuration != null && Number.isFinite(rawDuration) && rawDuration > 0 ? rawDuration : 0;
+  const motionRef=useRef<ReturnType<typeof rootMotion>>(null);
+  const applyRoot = useCallback(() => {
+    const motion=motionRef.current;
+    if (!motion) return;
+    const action = mixerRef.current?.existingAction(clips[clampedIndex]);
+    if (action) motion.apply(action.time,inPlace);
+  }, [inPlace, clips, clampedIndex]);
 
   // Reset selection + play head when the clip set changes (different asset).
   useEffect(() => {
@@ -64,11 +72,14 @@ export function useAnimation(scene: Group | null, clips: AnimationClip[]): Anima
     };
   }, [scene, clips, hasClips]);
 
-  // Drive the active clip whenever the selection or play state changes.
+  // Recreate an action only when the clip changes; pausing preserves its time.
   useEffect(() => {
     const mixer = mixerRef.current;
     if (!mixer || !hasClips) return;
     const clip = clips[clampedIndex];
+    // The prior mixer has restored the reused model's rest pose by this point.
+    // Measuring during render would instead capture the previous clip's pose.
+    motionRef.current=scene?rootMotion(scene,clip):null;
     const action = mixer.clipAction(clip);
     action.reset();
     action.setLoop(LoopRepeat, Infinity);
@@ -76,8 +87,15 @@ export function useAnimation(scene: Group | null, clips: AnimationClip[]): Anima
     action.play();
     return () => {
       action.stop();
+      motionRef.current=null;
     };
-  }, [clips, clampedIndex, playing, hasClips]);
+  }, [scene, clips, clampedIndex, hasClips]);
+
+  useEffect(() => {
+    const mixer = mixerRef.current;
+    if (mixer && hasClips) mixer.clipAction(clips[clampedIndex]).paused = !playing;
+  }, [playing, clips, clampedIndex, hasClips]);
+  useEffect(() => { mixerRef.current?.update(0); applyRoot(); }, [applyRoot]);
 
   // Throttle scrubber state updates: the mixer advances every frame, but we only
   // push `time` to React ~10×/sec so playback doesn't re-render the viewer at
@@ -87,14 +105,15 @@ export function useAnimation(scene: Group | null, clips: AnimationClip[]): Anima
     (delta: number) => {
       const mixer = mixerRef.current;
       if (!mixer || !playing) return;
-      mixer.update(delta);
+      mixer.update(delta * speed);
+      applyRoot();
       sinceUiUpdate.current += delta;
       if (sinceUiUpdate.current >= 0.1) {
         sinceUiUpdate.current = 0;
         setTime(mixer.existingAction(clips[clampedIndex])?.time ?? 0);
       }
     },
-    [playing, clips, clampedIndex],
+    [playing, clips, clampedIndex, speed, applyRoot],
   );
 
   const seek = useCallback(
@@ -104,9 +123,10 @@ export function useAnimation(scene: Group | null, clips: AnimationClip[]): Anima
       const action = mixer.clipAction(clips[clampedIndex]);
       action.time = Math.max(0, Math.min(seconds, duration));
       mixer.update(0); // apply the pose at the new time without advancing
+      applyRoot();
       setTime(action.time);
     },
-    [clips, clampedIndex, duration, hasClips],
+    [clips, clampedIndex, duration, hasClips, applyRoot],
   );
 
   const selectClip = useCallback((index: number) => {

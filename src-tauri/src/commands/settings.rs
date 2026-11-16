@@ -6,6 +6,18 @@ use tauri::AppHandle;
 use crate::error::AppResult;
 use crate::infra::settings;
 
+#[tauri::command]
+pub fn get_saved_exports(app: AppHandle) -> AppResult<Vec<serde_json::Value>> {
+    Ok(settings::load(&app)?.saved_exports)
+}
+
+#[tauri::command]
+pub fn set_saved_exports(app: AppHandle, exports: Vec<serde_json::Value>) -> AppResult<()> {
+    let mut s = settings::load(&app)?;
+    s.saved_exports = exports;
+    settings::save(&app, &s)
+}
+
 /// The configured FBX2glTF executable path, or `null` if unset.
 #[tauri::command]
 pub fn get_fbx2gltf_path(app: AppHandle) -> AppResult<Option<String>> {

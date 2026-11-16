@@ -3,6 +3,8 @@
   inset: 0;
   display: flex;
 }
+.material-file-label { display: block; color: var(--text-2); font-size: 12px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.material-result-glyph { font-size: 36px; color: var(--text-1); }
 
 /* Positioned so the studio fills this area only, not the map column. */
 .matview__main {

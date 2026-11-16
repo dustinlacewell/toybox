@@ -3,34 +3,44 @@
  * an asset. One loader per `AssetKind`; the compiler rejects a missing kind.
  */
 
-import type { Object3D, WebGLRenderer } from "three";
+import { AnimationMixer, Group, type Object3D, type WebGLRenderer } from "three";
+import { createRigGuide, hasVisibleGeometry } from "./rigGuide";
 
 import type { Asset, AssetKind } from "../domain/catalog";
 import { loadAssetScene } from "./gltfLoad";
 import { loadMaterial } from "./materialLoad";
 import { buildPreviewMesh } from "./materialPreview";
 import { studioEnvironment } from "./studioEnvironment";
+import { usePreviewPreferences } from "../state/previewPreferences";
 
 type KindOf<K extends AssetKind> = Extract<Asset, { kind: K }>;
 
 type SubjectLoaders = {
-  [K in AssetKind]: (asset: KindOf<K>, renderer: WebGLRenderer) => Promise<Object3D>;
+  [K in Exclude<AssetKind,"audio">]: (asset: KindOf<K>, renderer: WebGLRenderer) => Promise<Object3D>;
 };
 
 const MATERIAL_THUMB_TEXTURE_SIZE = 512;
 
 const LOADERS: SubjectLoaders = {
+  animation: async (asset) => {
+    const { scene, clips } = await loadAssetScene(asset,{sampleTime:asset.clip.duration*0.25});
+    if (clips[0]) { const mixer = new AnimationMixer(scene); mixer.clipAction(clips[0]).play(); mixer.setTime(clips[0].duration * 0.25); }
+    scene.updateWorldMatrix(true, true);
+    if (hasVisibleGeometry(scene)) return scene;
+    const result = new Group(); result.add(scene, createRigGuide(scene).object); return result;
+  },
   // Thumbnails are bind-pose stills; animation clips are ignored.
   model: async (asset) => (await loadAssetScene(asset)).scene,
   material: async (asset, renderer) => {
+    const shape=usePreviewPreferences.getState().materialStyle;
     const material = await loadMaterial(asset, { maxSize: MATERIAL_THUMB_TEXTURE_SIZE });
     material.envMap = studioEnvironment(renderer);
-    return buildPreviewMesh(material, "sphere");
+    return buildPreviewMesh(material, shape);
   },
 };
 
 /** Build the object a thumbnail shows for an asset. Caller owns disposal. */
-export function loadThumbSubject(asset: Asset, renderer: WebGLRenderer): Promise<Object3D> {
+export function loadThumbSubject(asset: Exclude<Asset,{kind:"audio"}>, renderer: WebGLRenderer): Promise<Object3D> {
   const load = LOADERS[asset.kind] as (a: Asset, r: WebGLRenderer) => Promise<Object3D>;
   return load(asset, renderer);
 }

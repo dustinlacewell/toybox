@@ -8,7 +8,7 @@ use std::path::Path;
 
 use tauri::AppHandle;
 
-use crate::domain::catalog_model::Asset;
+use crate::domain::catalog_model::{Asset, AssetContent};
 use crate::domain::export_copy_plan::plan_copy;
 use crate::domain::export_model::{ExportCopyReq, ExportReport};
 use crate::error::AppResult;
@@ -30,6 +30,14 @@ pub async fn export_copy(app: AppHandle, req: ExportCopyReq) -> AppResult<Export
     let mut copied_textures: HashSet<String> = HashSet::new();
 
     for asset in &assets {
+        if matches!(asset.content, AssetContent::Audio {..}) {
+            let stem=resolve_stem(asset,req.preserve_structure,&mut used_stems,&mut report);
+            copy_audio(root,target,asset,&stem,req.preserve_structure,&mut report)?;continue;
+        }
+        if matches!(asset.content, AssetContent::Material { .. }) {
+            copy_material(root, target, asset, req.preserve_structure, &mut report)?;
+            continue;
+        }
         let doc = read_gltf(root, asset)?;
         let stem = resolve_stem(asset, req.preserve_structure, &mut used_stems, &mut report);
 
@@ -51,7 +59,7 @@ pub async fn export_copy(app: AppHandle, req: ExportCopyReq) -> AppResult<Export
 }
 
 /// Choose the output stem, namespacing with the pack on a flatten collision.
-fn resolve_stem(
+pub(super) fn resolve_stem(
     asset: &Asset,
     preserve_structure: bool,
     used: &mut HashSet<String>,
@@ -59,18 +67,89 @@ fn resolve_stem(
 ) -> String {
     // In preserve mode the pack/category dirs disambiguate, so collisions can't
     // happen; only flatten needs the guard.
-    let base = asset.name.clone();
+    let base = crate::domain::animation::export_stem(asset);
     if preserve_structure {
         return base;
     }
     if used.insert(base.clone()) {
         return base;
     }
-    let namespaced = format!("{}_{}", asset.pack, asset.name);
+    let prefix = format!("{}_{}", asset.pack, base);
+    let mut namespaced = prefix.clone();
+    let mut index = 2;
+    while !used.insert(namespaced.clone()) { namespaced = format!("{prefix}_{index}"); index += 1; }
     report.warn(format!(
         "renamed '{}' -> '{}' to avoid a flattened name collision",
         asset.file_name, namespaced
     ));
     used.insert(namespaced.clone());
     namespaced
+}
+
+pub(super) fn material_paths(asset: &Asset, preserve: bool) -> Vec<(String, String)> {
+    let AssetContent::Material { material } = &asset.content else { return Vec::new() };
+    let folder = if preserve { format!("{}/materials/{}", asset.pack, asset.name) }
+        else { format!("{}_{}", asset.pack, asset.name) };
+    material.textures().into_iter().map(|src| {
+        let name = Path::new(&src).file_name().unwrap_or_default().to_string_lossy();
+        let dst = format!("{folder}/{name}");
+        (src, dst)
+    }).collect()
+}
+
+pub(super) fn audio_path(asset:&Asset,stem:&str,preserve:bool)->AppResult<String> {
+    let AssetContent::Audio {audio}=&asset.content else {return Err(crate::error::AppError::msg("Expected audio"));};
+    if preserve {Ok(audio.file.strip_prefix("library/").ok_or_else(||crate::error::AppError::msg("Audio path must be inside library"))?.to_string())}
+    else {Ok(format!("{stem}.{}",Path::new(&audio.file).extension().unwrap_or_default().to_string_lossy()))}
+}
+pub(crate) fn copy_audio(root:&str,target:&Path,asset:&Asset,stem:&str,preserve:bool,report:&mut ExportReport)->AppResult<()> {
+    let AssetContent::Audio {audio}=&asset.content else {return Err(crate::error::AppError::msg("Expected audio"));};
+    let dst=audio_path(asset,stem,preserve)?;
+    let source=Path::new(root).join(&audio.file).canonicalize()?;
+    let library=Path::new(root).join("library").canonicalize()?;
+    if !source.starts_with(library)||Path::new(&dst).components().any(|c|!matches!(c,std::path::Component::Normal(_))) {return Err(crate::error::AppError::msg("Audio file path escapes its library"));}
+    crate::infra::fsio::write_bytes(&target.join(&dst),&crate::infra::fsio::read_bytes(&source)?)?;report.write(dst);Ok(())
+}
+
+pub(super) fn copy_material(root: &str, target: &Path, asset: &Asset, preserve: bool, report: &mut ExportReport) -> AppResult<()> {
+    for (src, dst) in material_paths(asset, preserve) {
+        let bytes = crate::infra::fsio::read_bytes(&crate::domain::paths::abs_under_root(root, &src))?;
+        crate::infra::fsio::write_bytes(&target.join(&dst), &bytes)?;
+        report.write(dst);
+    }
+    Ok(())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use serde_json::json;
+
+    #[test]
+    fn material_copy_deduplicates_packed_maps_and_matches_planned_paths() {
+        let root = std::env::temp_dir().join(format!("toybox-material-export-{}", std::process::id()));
+        let source = root.join("library/p/materials/Steel_2K");
+        std::fs::create_dir_all(&source).unwrap();
+        std::fs::write(source.join("base.png"), b"base").unwrap();
+        std::fs::write(source.join("orm.png"), b"packed").unwrap();
+        let asset: Asset = serde_json::from_value(json!({
+            "id":"steel", "kind":"material", "name":"Steel_2K", "fileName":"Steel_2K", "relPath":"library/p/materials/Steel_2K", "pack":"p", "category":"metal",
+            "thumb":{"state":"missing"}, "user":{"favorite":false,"tags":[]},
+            "material":{"maps":[
+                {"role":"albedo","file":"library/p/materials/Steel_2K/base.png"},
+                {"role":"roughness","file":"library/p/materials/Steel_2K/orm.png","channel":"g"},
+                {"role":"metallic","file":"library/p/materials/Steel_2K/orm.png","channel":"b"}
+            ]}
+        })).unwrap();
+        for preserve in [true, false] {
+            let target = root.join(if preserve { "structured" } else { "flat" });
+            let planned: Vec<_> = material_paths(&asset, preserve).into_iter().map(|(_, dst)| dst).collect();
+            assert_eq!(planned.len(), 2);
+            let mut report = ExportReport::default();
+            copy_material(&root.to_string_lossy(), &target, &asset, preserve, &mut report).unwrap();
+            assert_eq!(report.written, planned);
+            assert_eq!(std::fs::read(target.join(&planned[1])).unwrap(), b"packed");
+        }
+        std::fs::remove_dir_all(root).unwrap();
+    }
 }

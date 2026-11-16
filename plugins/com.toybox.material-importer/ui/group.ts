@@ -6,6 +6,7 @@
 
 import type { DraftFile, MaterialDraft } from "./draft.js";
 import { detectUse } from "./detect.js";
+import { variantInfo } from "@ldlework/toybox-sdk";
 
 const IMAGE_EXT = /\.(png|jpe?g)$/i;
 
@@ -48,7 +49,11 @@ function toItem(relPath: string): Item {
   const dir = i < 0 ? "" : relPath.slice(0, i);
   const fileName = i < 0 ? relPath : relPath.slice(i + 1);
   const { base, use } = detectUse(fileName);
-  return { file: { relPath, fileName, use }, dir, base, matched: use.use !== "unassigned" };
+  const size = variantInfo(fileName.replace(/\.[^.]+$/, ""), "material");
+  const folderSize = variantInfo(dir.split("/").pop() ?? "", "material");
+  const resolution = size.explicit ? size : folderSize;
+  const materialBase = variantInfo(base, "material").base || dir.split("/").filter((part) => !variantInfo(part, "material").explicit).pop() || "material";
+  return { file: { relPath, fileName, use }, dir, base: resolution.explicit ? `${materialBase || "material"}_${resolution.label}` : base, matched: use.use !== "unassigned" };
 }
 
 /** The material name an item belongs under: its base, or the folder's name. */

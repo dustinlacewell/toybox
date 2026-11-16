@@ -18,7 +18,7 @@ import {
   type PluginConfig,
   type PluginPermissions,
 } from "@ldlework/toybox-sdk";
-import { isModel, type ModelAsset } from "../domain/catalog";
+import { isSceneAsset, type Asset, type SceneAsset } from "../domain/catalog";
 import type { PluginManifestDto } from "./tauriApi";
 import { useStore } from "../state/store";
 import { assetUrl } from "./assetUrl";
@@ -27,6 +27,7 @@ import { pickSaveFile } from "./pickSaveFile";
 import {
   assembleGlbForAsset,
   performAssetCopy,
+  previewExport,
   placerMergeFile,
   pluginImageThumb,
   pluginReadBytes,
@@ -54,21 +55,23 @@ export function buildExportCtx(
   };
 }
 
-/** Resolve the selected models from the catalog store (read-only views). The
- *  plugin SDK's `AssetView` is model-shaped, so selected materials are left out. */
-export function selectedAssets(selectedIds: string[]): ModelAsset[] {
+/** Resolve this run's selection without dropping material records. */
+export function selectedAssets(selectedIds: string[]): Asset[] {
   const catalog = useStore.getState().catalog;
   if (!catalog) return [];
   const byId = new Map(catalog.assets.map((a) => [a.id, a]));
-  return selectedIds.map((id) => byId.get(id)).filter((a): a is ModelAsset => !!a && isModel(a));
+  return selectedIds.map((id) => byId.get(id)).filter((a): a is Asset => !!a);
 }
 
-/** Look up one model by id for a plugin. Undefined if unknown; throws for a
- *  material, which the model-shaped SDK cannot represent. */
-export function modelAsset(id: string): ModelAsset | undefined {
-  const asset = useStore.getState().catalog?.assets.find((a) => a.id === id);
-  if (asset && !isModel(asset)) {
-    throw new Error(`asset ${id} is a ${asset.kind}; plugins can only access models`);
+export function catalogAsset(id: string): Asset | undefined {
+  return useStore.getState().catalog?.assets.flatMap((a) => [a, ...(a.variants ?? [])]).find((a) => a.id === id);
+}
+
+/** Model-only helper for glTF-specific host calls. */
+export function modelAsset(id: string): SceneAsset | undefined {
+  const asset = catalogAsset(id);
+  if (asset && !isSceneAsset(asset)) {
+    throw new Error(`asset ${id} is a ${asset.kind}; this operation requires a model`);
   }
   return asset;
 }
@@ -77,11 +80,12 @@ function buildHostApi(pluginId: string, perms: PluginPermissions): HostApi {
   const gatedExport = gate(pluginId, "rustExport", perms.rustExport);
 
   return {
+    previewExport,
     getSelectedAssets: () => {
       const ids = [...useStore.getState().selection];
       return selectedAssets(ids);
     },
-    getAsset: (id) => modelAsset(id),
+    getAsset: (id) => catalogAsset(id),
     getParsedGltf: (id) => readAssetGltf(id),
     getAssetUrls: async (id) => {
       const asset = modelAsset(id);

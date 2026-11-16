@@ -3,7 +3,9 @@
   "name": "glTF / glb folder importer",
   "version": "1.0.0",
   "kind": "importer",
-  "assetKinds": ["model"],
+  "assetKinds": ["model", "animation"],
+  "icon": "icons/model.svg",
+  "assetIcons": {"model":"icons/model.svg","animation":"icons/animation.svg"},
   "description": "Import a folder of .gltf (+.bin), .glb, or .fbx (via FBX2glTF) assets into your library.",
   "permissions": {
     "fsRead": true,

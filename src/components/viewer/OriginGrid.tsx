@@ -20,11 +20,11 @@ export function OriginGrid({ modelSize }: Props) {
       infiniteGrid
       cellSize={cell}
       sectionSize={cell * 10}
-      cellThickness={0.6}
-      sectionThickness={1}
-      cellColor="#3a4150"
-      sectionColor="#5b6577"
-      fadeDistance={modelSize * 30}
+      cellThickness={0.45}
+      sectionThickness={0.7}
+      cellColor="#202020"
+      sectionColor="#303030"
+      fadeDistance={modelSize * 12}
       fadeStrength={1.5}
       followCamera={false}
       // Grid is a horizontal plane at the origin; render both sides so it's

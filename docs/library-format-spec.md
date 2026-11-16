@@ -39,7 +39,32 @@ Toybox **derives** almost everything by reading the files. You author only:
 3. One `catalog.json` listing every model by four fields.
 
 Material sets use a different entry and folder. They are described in
-`material-set-format.md`. The rest of this document covers models.
+`material-set-format.md`. Independent animation extraction, rig matching and
+animation-only source entries are described in `animations.md`. The rest of
+this document covers models.
+
+An entry may include a `variants` array of complete entries for additional file
+sets. The primary entry is the best available detail level or largest material
+size. Variants must have unique IDs and share the primary's kind, pack and
+category. They cannot contain nested variants. They appear under one library
+tile, and exporters receive the primary plus its variant list. Different colour
+materials remain separate assets; material assignments belong to the game.
+
+```json
+{
+  "id": "uid://tree",
+  "pack": "forest",
+  "category": "props",
+  "file": "Tree_LOD0.gltf",
+  "variants": [
+    { "id": "uid://tree_low", "pack": "forest", "category": "props", "file": "Tree_LOD2.gltf" }
+  ]
+}
+```
+
+Importer commits upsert this same manifest format. When an import groups former
+standalone entries into variants, those former top-level rows are absorbed.
+Unrelated entries remain in the manifest.
 
 Everything else — each asset's texture set, its `.bin`, its animation clips, thumbnails,
 user tags — Toybox computes or owns. **Do not try to author those.** Your job ends at the
@@ -366,3 +391,49 @@ that neither is animated, and presents them under the **Medieval Village** pack 
    output are deterministic.
 
 The output is a self-contained library directory; point Toybox at its root to ingest.
+
+## Deleting library items
+
+Select tiles and use **Delete** in the selection bar. After confirmation, Toybox
+removes their registrations (including variants) from the source manifest and
+cached catalog, and deletes their glTF, binary and texture files. Files referenced
+by surviving items or their variants are kept. Rescanning does not restore deleted
+items. Other items keep their metadata; preview-model
+preferences pointing at removed items are cleared.
+
+The operation stops and drains thumbnail generation first. Native persistence
+backs up both catalogs as `catalog-before-delete-<timestamp>.json`, checks for
+concurrent changes, and replaces each catalog through a temporary sibling file.
+Exclusive asset files are validated against the canonical library data directory,
+deduplicated and staged by renaming before the catalogs commit. A failed prepare
+or catalog write restores those files. On success the exact staged files are
+erased; no folder is recursively deleted. Catalog backups contain metadata only,
+and cannot recover erased asset data.
+## Import provenance and tags
+
+Every manifest entry can carry optional `provenance` metadata, independent of
+its physical pack/category path:
+
+```json
+"provenance": {
+  "filesystemPath": "D:/downloads/Space Pack.zip",
+  "source": "Space Pack",
+  "publisher": "Example Studio",
+  "url": "https://example.test/space-pack",
+  "license": "CC0"
+}
+```
+
+The host import screen applies these fields to the batch, including variants.
+Both directory-picker APIs fill the filesystem origin unless the user has
+entered a different value. Plugins can also supply per-entry provenance.
+Whitespace-only fields are omitted; omitted provenance on reimport retains the
+prior manifest value. Extracted animation entries inherit source provenance.
+
+Catalog records expose it as `user.provenance`, alongside generated tags
+`source: Space Pack`, `publisher: Example Studio`, and `license: CC0`. These
+tags support text search and exact tag filters. Changing declared provenance
+replaces its previous generated tags while retaining unrelated user tags,
+favorites, and collections. Original paths and URLs remain metadata, not tags
+or instructions to relocate files. The metadata is recorded as supplied; no
+license is inferred when the field is blank.

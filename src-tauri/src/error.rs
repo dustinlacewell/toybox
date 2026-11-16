@@ -4,6 +4,8 @@ use serde::Serialize;
 
 #[derive(Debug, thiserror::Error)]
 pub enum AppError {
+    #[error("{operation} '{}': {source}", path.display())]
+    FileIo { operation: &'static str, path: std::path::PathBuf, #[source] source: std::io::Error },
     #[error("io error: {0}")]
     Io(#[from] std::io::Error),
     #[error("json error: {0}")]
@@ -17,6 +19,9 @@ pub enum AppError {
 }
 
 impl AppError {
+    pub fn file(operation:&'static str,path:&std::path::Path,source:std::io::Error)->Self {
+        Self::FileIo {operation,path:path.to_path_buf(),source}
+    }
     pub fn msg(s: impl Into<String>) -> Self {
         AppError::Other(s.into())
     }

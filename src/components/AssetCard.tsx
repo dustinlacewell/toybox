@@ -1,107 +1,38 @@
-/**
- * One asset in the grid: cached thumbnail (or a state-aware placeholder), name,
- * selection checkbox, and favorite toggle. Image-only — no per-card 3D canvas.
- * Clicking the thumbnail opens the asset in the viewer.
- */
-
-import { memo, type MouseEvent } from "react";
+import { memo, useState } from "react";
 import { Film } from "lucide-react";
-
-import type { Asset } from "../domain/catalog";
+import { CueButton, PreviewTile, Waveform, formatTime } from "@ldlework/toybox-sdk/ui";
+import { variantInfo } from "@ldlework/toybox-sdk";
+import type { Asset, AudioAsset } from "../domain/catalog";
+import { useAudioPreview } from "./useAudioPreview";
 import { FavoriteStar } from "./FavoriteStar";
 import { useThumbUrl } from "./useThumbUrl";
-import "./AssetCard.css";
+import { AnimationTilePreview } from "./AnimationTilePreview";
+import { StaticTilePreview } from "./StaticTilePreview";
+import { sourceLabel } from "../domain/facets";
 
 interface Props {
-  asset: Asset;
-  selected: boolean;
-  onToggleSelect: (id: string) => void;
-  onToggleFavorite: (id: string) => void;
-  onOpen: (id: string) => void;
+  asset: Asset; selected: boolean; active?: boolean;
+  previewAspectRatio?: number;
+  onInspect?: (id: string) => void; onToggleSelect: (id: string, shiftKey?: boolean) => void;
+  onAudition?: (id: string) => void;
+  onToggleFavorite: (id: string) => void; onOpen: (id: string) => void;
 }
-
-function AssetCardImpl({
-  asset,
-  selected,
-  onToggleSelect,
-  onToggleFavorite,
-  onOpen,
-}: Props) {
+export const AssetCard = memo(function AssetCard({ asset, selected, active = false, onInspect, onToggleSelect, onToggleFavorite, onOpen, onAudition, previewAspectRatio }: Props) {
   const thumb = useThumbUrl(asset);
+  const [hovered,setHovered]=useState(false);
+  const fallback=thumb?<img src={thumb} alt="" loading="lazy"/>:<span>{asset.thumb.state==="rendering"?"Making preview…":asset.thumb.state==="error"?"Preview unavailable":"No preview"}</span>;
+  return <PreviewTile title={variantInfo(asset.name, asset.kind).base} subtitle={asset.kind === "audio" ? `${formatTime(asset.audio.duration)} · ${asset.audio.format}` : asset.kind === "animation" ? `${asset.clip.sourceName} · ${asset.clip.duration.toFixed(1)} s` : sourceLabel(asset)}
+    active={active} selected={selected} onPress={() => onInspect ? onInspect(asset.id) : onOpen(asset.id)} onOpen={() => {setHovered(false);onOpen(asset.id);}}
+    onPreviewHoverChange={asset.kind!=="audio"?setHovered:undefined}
+    onSelectedChange={(_selected, shiftKey) => onToggleSelect(asset.id, shiftKey)}
+    previewAspectRatio={previewAspectRatio}
+    preview={asset.kind === "audio" ? <div className="asset-card__audio-waveform"><Waveform peaks={asset.audio.peaks}/></div> : asset.kind==="animation"?<AnimationTilePreview asset={asset} active={hovered} fallback={fallback}/>:<StaticTilePreview asset={asset} active={hovered} fallback={fallback}/>}
+    badge={asset.kind === "animation" || (asset.kind === "model" && asset.animation.clipCount > 0) ? <Film size={13} /> : undefined}
+    previewAction={asset.kind==="audio"&&<TileCue asset={asset} onInspect={onAudition}/>}
+    actions={<FavoriteStar favorited={asset.user.favorite} onToggle={() => onToggleFavorite(asset.id)} />} />;
+});
 
-  // Shift-click anywhere on the card toggles selection, pre-empting the
-  // thumbnail/favorite buttons via capture phase.
-  const handleShiftToggle = (e: MouseEvent) => {
-    if (!e.shiftKey) return;
-    e.preventDefault();
-    e.stopPropagation();
-    onToggleSelect(asset.id);
-  };
-
-  // Plain click on the card body selects. Shift is already handled in the
-  // capture phase above, so skip it here to avoid a double toggle. Children
-  // that own a click (thumbnail, favorite, checkbox) stopPropagation to opt out.
-  const handlePlainSelect = (e: MouseEvent) => {
-    if (e.shiftKey) return;
-    onToggleSelect(asset.id);
-  };
-
-  return (
-    <div
-      className={`card ${selected ? "card--selected" : ""}`}
-      onClickCapture={handleShiftToggle}
-      onClick={handlePlainSelect}
-    >
-      <button
-        className="card__thumb"
-        onClick={(e) => {
-          e.stopPropagation();
-          onOpen(asset.id);
-        }}
-        title={asset.name}
-      >
-        {thumb ? (
-          <img src={thumb} alt={asset.name} loading="lazy" />
-        ) : (
-          <ThumbPlaceholder state={asset.thumb.state} />
-        )}
-        {asset.kind === "model" && asset.animation.clipCount > 0 && (
-          <span
-            className="card__anim"
-            title={`${asset.animation.clipCount} animation clip${asset.animation.clipCount === 1 ? "" : "s"}`}
-          >
-            <Film size={13} strokeWidth={2.5} />
-          </span>
-        )}
-      </button>
-
-      <div className="card__bar">
-        <input
-          type="checkbox"
-          checked={selected}
-          onChange={() => onToggleSelect(asset.id)}
-          onClick={(e) => e.stopPropagation()}
-          title="Select for export"
-        />
-        <span className="card__name" title={asset.name}>
-          {asset.name}
-        </span>
-        <FavoriteStar
-          favorited={asset.user.favorite}
-          onToggle={() => onToggleFavorite(asset.id)}
-          // stopPropagation: the card body is click-to-select; the favorite
-          // toggle must not bubble into selection.
-          onClick={(e) => e.stopPropagation()}
-        />
-      </div>
-    </div>
-  );
+function TileCue({asset,onInspect}:{asset:AudioAsset;onInspect?:(id:string)=>void}) {
+  const cue=useAudioPreview(asset);
+  return <span title={cue.error}><CueButton active={cue.active} onCue={()=>{onInspect?.(asset.id);cue.toggle();}}/></span>;
 }
-
-function ThumbPlaceholder({ state }: { state: Asset["thumb"]["state"] }) {
-  const label =
-    state === "rendering" ? "rendering…" : state === "error" ? "render failed" : "no preview";
-  return <div className={`card__placeholder card__placeholder--${state}`}>{label}</div>;
-}
-
-export const AssetCard = memo(AssetCardImpl);

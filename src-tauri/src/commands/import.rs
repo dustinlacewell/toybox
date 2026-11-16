@@ -22,16 +22,23 @@ use super::scan::build_catalog_from_seed;
 
 #[tauri::command]
 pub async fn merge_seed_entries(app: AppHandle, entries: Vec<Value>) -> AppResult<Catalog> {
+    tauri::async_runtime::spawn_blocking(move||merge_entries(&app,entries)).await.map_err(|error|crate::error::AppError::msg(format!("Import worker failed: {error}")))?
+}
+
+fn merge_entries(app:&AppHandle,entries:Vec<Value>)->AppResult<Catalog> {
     let root = library::resolve(&app)?.to_string_lossy().to_string();
 
     let parsed = entries.iter().map(seed::parse_entry).collect::<AppResult<Vec<_>>>()?;
-    let fresh = build_catalog(&root, parsed)?;
+    // Validate the incoming files before updating the source manifest.
+    build_catalog(&root, parsed)?;
 
     upsert_into_manifest(&root, entries)?;
+    // Rebuild derived animation rows too, including removals/renames of clips.
+    let fresh = build_catalog_from_seed(&root)?;
 
-    let result = match load_catalog_inner(&app)? {
-        Some(prior) => merge::upsert_assets(prior, fresh.assets),
-        None => build_catalog_from_seed(&root)?,
+    let result = match load_catalog_inner(&app)?.filter(|c| std::path::Path::new(&c.library_root) == std::path::Path::new(&root)) {
+        Some(prior) => merge::merge_preserving_user(&prior, fresh),
+        None => fresh,
     };
 
     save_catalog_inner(&app, &result)?;
@@ -41,7 +48,11 @@ pub async fn merge_seed_entries(app: AppHandle, entries: Vec<Value>) -> AppResul
 /// Read the manifest, upsert `entries` into it, and write it back pretty-printed.
 fn upsert_into_manifest(root: &str, entries: Vec<Value>) -> AppResult<()> {
     let path = paths::abs_under_root(root, config::SEED_REL);
-    let doc = serde_json::from_str(&fsio::read_text(&path)?)?;
+    let previous = fsio::read_bytes(&path)?;
+    let doc = serde_json::from_slice(&previous)?;
     let updated = seed::upsert_entries(doc, entries)?;
-    fsio::write_text(&path, &serde_json::to_string_pretty(&updated)?)
+    let updated = crate::infra::animation_import::prepare(root,updated)?;
+    // Validate every independent fileset before registering the new manifest.
+    build_catalog(root,seed::parse_seed_entries(&updated)?)?;
+    crate::infra::animation_import::commit(root,&previous,&updated)
 }

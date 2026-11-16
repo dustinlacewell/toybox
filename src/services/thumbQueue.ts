@@ -1,15 +1,16 @@
 /**
- * Sequential, resumable thumbnail generation. The work list comes from
+ * Bounded, resumable thumbnail generation. The work list comes from
  * `listPendingThumbs` (disk is the source of truth, so a crash/restart simply
- * resumes). One asset is rendered at a time — responsiveness beats throughput
- * for this one-time job — yielding to the event loop between items so the UI
- * stays interactive. Per-asset state is pushed to Rust (catalog) and surfaced
- * via the progress callback.
+ * resumes). Prepare up to three assets concurrently while a single renderer
+ * captures and saves in order. Pause/teardown drain and release unused scenes.
  */
 
 import type { Asset } from "../domain/catalog";
 import { saveThumb, setThumbState } from "./tauriApi";
 import { ThumbRenderer } from "./thumbRenderer";
+
+type Prepared = { subject: Awaited<ReturnType<ThumbRenderer["prepare"]>> } | { error: unknown };
+const PREPARE_LIMIT = 3;
 
 export interface ThumbProgress {
   done: number;
@@ -31,6 +32,8 @@ export class ThumbQueue {
   private done = 0;
   private total = 0;
   private currentName: string | null = null;
+  private activeRun: Promise<void> | null = null;
+  private disposeRequested = false;
 
   constructor(
     private readonly assetsById: Map<string, Asset>,
@@ -44,27 +47,54 @@ export class ThumbQueue {
     return this.running;
   }
 
+  remainingIds(): string[] { return this.pendingIds.slice(this.done); }
+
   /** Begin (or resume) processing. Safe to call again after pause. */
-  async start(): Promise<void> {
-    if (this.running) return;
+  start(): Promise<void> {
+    if (this.activeRun) return this.activeRun;
+    this.activeRun = this.run().finally(() => { this.activeRun = null; });
+    return this.activeRun;
+  }
+
+  private async run(): Promise<void> {
     this.running = true;
     this.cancelled = false;
+    this.disposeRequested = false;
     this.renderer ??= new ThumbRenderer();
+    const renderer = this.renderer;
+    const prepared = new Map<number, Promise<Prepared>>();
+    const fill = () => {
+      for (let i = this.done; i < Math.min(this.done + PREPARE_LIMIT, this.total); i++) {
+        if (prepared.has(i)) continue;
+        const asset = this.assetsById.get(this.pendingIds[i]);
+        if (asset) prepared.set(i, Promise.resolve().then(() => renderer.prepare(asset))
+          .then(subject => ({ subject }), error => ({ error })));
+      }
+    };
     this.emit();
 
     try {
-      for (const id of this.pendingIds.slice(this.done)) {
+      while (this.done < this.total) {
         if (this.cancelled) break;
-        await this.renderOne(id);
+        fill();
+        const item = prepared.get(this.done);
+        prepared.delete(this.done);
+        if (item && !await this.renderOne(this.pendingIds[this.done], item, renderer)) break;
         this.done++;
         this.emit();
         await yieldToEventLoop();
       }
     } finally {
+      // In-flight reads cannot be cancelled, but their scenes must not leak or
+      // outlive the renderer used by material preparation.
+      await Promise.all([...prepared.values()].map(async item => {
+        const result = await item;
+        if ("subject" in result) renderer.discard(result.subject);
+      }));
       this.running = false;
       this.currentName = null;
       this.emit();
-      if (this.done >= this.total) this.teardown();
+      if (this.disposeRequested || this.done >= this.total) this.releaseRenderer();
     }
   }
 
@@ -74,26 +104,40 @@ export class ThumbQueue {
   }
 
   /** Stop and release the GL context. */
-  teardown(): void {
+  async teardown(): Promise<void> {
     this.cancelled = true;
+    this.disposeRequested = true;
+    await this.activeRun;
+    this.releaseRenderer();
+  }
+
+  private releaseRenderer(): void {
     this.renderer?.dispose();
     this.renderer = null;
   }
 
-  private async renderOne(id: string): Promise<void> {
+  private async renderOne(id: string, prepared: Promise<Prepared>, renderer: ThumbRenderer): Promise<boolean> {
     const asset = this.assetsById.get(id);
-    if (!asset) return;
+    if (!asset) return true;
     this.currentName = asset.name;
+    this.emit();
+    const result = await prepared;
+    if (this.cancelled) {
+      if ("subject" in result) renderer.discard(result.subject);
+      return false;
+    }
     this.cb.onAssetState(id, "rendering");
     this.emit();
 
     try {
-      const png = await this.renderer!.render(asset);
-      await saveThumb(id, png); // also marks `ready` in the catalog (Rust)
+      if ("error" in result) throw result.error;
+      const png = await renderer.renderPrepared(result.subject);
+      await saveThumb(id, png); // Publishes the complete PNG before notifying cards.
       this.cb.onAssetState(id, "ready");
     } catch (e) {
       await this.fail(id, String(e));
     }
+    return true;
   }
 
   private async fail(id: string, msg: string): Promise<void> {
@@ -113,9 +157,9 @@ export class ThumbQueue {
 
 function yieldToEventLoop(): Promise<void> {
   return new Promise((resolve) => {
-    const ric = (window as unknown as { requestIdleCallback?: (cb: () => void) => void })
+    const ric = (window as unknown as { requestIdleCallback?: (cb: () => void, options: { timeout: number }) => void })
       .requestIdleCallback;
-    if (ric) ric(() => resolve());
+    if (ric) ric(() => resolve(), { timeout: 50 });
     else setTimeout(resolve, 0);
   });
 }

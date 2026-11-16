@@ -12,7 +12,7 @@
  * shared import map.
  */
 
-import { defineExporter, type AssetView, type PlacerAssetInput } from "@ldlework/toybox-sdk";
+import { defineExporter, exportVariants, type AssetView, type PlacerAssetInput } from "@ldlework/toybox-sdk";
 
 interface Written {
   resPath: string;
@@ -20,6 +20,12 @@ interface Written {
 }
 
 export default defineExporter({
+  async preview(ctx, assets) {
+    const files = await ctx.host.previewExport(exportVariants(assets, ctx.config.variantPolicy).map((a) => a.id),
+      ctx.config.format === "copy" ? "copy" : "glb", ctx.config.preserveStructure);
+    const sub = trimSlashes(String(ctx.config.subDir ?? ""));
+    return [...files.map((p) => joinRel(sub, p)), String(ctx.config.libraryJson ?? "asset_library.json")];
+  },
   async run(ctx, assets) {
     const { host, fs, config, report } = ctx;
     const format = (config.format as "glb" | "copy") ?? "glb";
@@ -31,7 +37,7 @@ export default defineExporter({
     const usedStems = new Set<string>();
     const placerAssets: PlacerAssetInput[] = [];
 
-    for (const asset of assets) {
+    for (const asset of exportVariants(assets, config.variantPolicy)) {
       const stem = resolveStem(asset, preserve, usedStems, report);
       const written =
         format === "glb"

@@ -1,40 +1,34 @@
-/**
- * Bottom status strip for the background thumbnail-generation job. This is
- * transient job status, not toolbar chrome — so it lives in its own fixed-height
- * bar at the foot of the library, out of the persistent control strip. The strip
- * is present only while work is pending or running; nothing here changes width as
- * the job ticks, so the surrounding layout never reflows.
- *
- *   [ control ] [ ===== progress ===== ]            done/total · current-asset
- *
- * The bar flexes to fill; the count is width-reserved (tabular numerals); the
- * current-asset name truncates inside its own region and can't push siblings.
- */
+/** Floating status for a running or paused thumbnail job. */
 
-import { Button } from "@ldlework/toybox-sdk/ui";
+import { Button, Toast } from "@ldlework/toybox-sdk/ui";
+import { useEffect, useState } from "react";
 import type { ThumbProgress as Progress } from "../services/thumbQueue";
 import "./ThumbStatusBar.css";
 
 interface Props {
   progress: Progress | null;
-  pendingCount: number;
+  error?: string;
   onStart: () => void;
   onPause: () => void;
 }
 
-export function ThumbStatusBar({ progress, pendingCount, onStart, onPause }: Props) {
-  const active = !!progress && (progress.running || progress.done < progress.total);
-  // Idle with nothing pending: no job to report, so the strip is absent.
-  if (!active && pendingCount === 0) return null;
+export function ThumbStatusBar({ progress, error, onStart, onPause }: Props) {
+  const [dismissed, setDismissed] = useState<Progress | null>(null);
+  const complete = !!progress && !progress.running && progress.total > 0 && progress.done >= progress.total;
+  useEffect(() => {
+    if (!complete || !progress) return;
+    const timer = window.setTimeout(() => setDismissed(progress), 3000);
+    return () => window.clearTimeout(timer);
+  }, [complete, progress]);
+  const active = !!progress && (progress.running || progress.done < progress.total || (complete && dismissed !== progress));
+  if (error) return <Toast label="Thumbnail error"><p role="alert">{error}</p><Button onClick={onStart}>Retry thumbnails</Button></Toast>;
+  if (!active) return null;
 
   return (
-    <div className="thumbbar">
-      {active ? (
-        <RunningStatus progress={progress!} onStart={onStart} onPause={onPause} />
-      ) : (
-        <Button onClick={onStart}>Generate thumbnails ({pendingCount})</Button>
-      )}
-    </div>
+    <Toast label="Thumbnail progress"><div className="thumbbar">
+      <strong>{complete?"Thumbnail update finished":progress!.running?"Updating thumbnails":"Thumbnails paused"}</strong>
+      {complete?<span className="thumbbar__count">{progress!.done.toLocaleString()} processed</span>:<RunningStatus progress={progress!} onStart={onStart} onPause={onPause} />}
+    </div></Toast>
   );
 }
 
@@ -59,7 +53,7 @@ function RunningStatus({
           Resume
         </Button>
       )}
-      <div className="thumbbar__bar">
+      <div className="thumbbar__bar" role="progressbar" aria-label="Thumbnails generated" aria-valuemin={0} aria-valuemax={100} aria-valuenow={pct}>
         <div className="thumbbar__fill" style={{ width: `${pct}%` }} />
       </div>
       <span className="thumbbar__count">

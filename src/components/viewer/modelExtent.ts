@@ -25,6 +25,13 @@ export interface ModelExtent {
 
 export function measureExtent(object: Object3D): ModelExtent {
   const box = new Box3().setFromObject(object);
+  if (box.isEmpty()) {
+    // Animation-only rigs have joints but no mesh bounding boxes.
+    object.updateWorldMatrix(true, true);
+    object.traverse((node) => box.expandByPoint(node.getWorldPosition(new Vector3())));
+    if (box.isEmpty()) box.expandByPoint(new Vector3());
+    if (box.getSize(new Vector3()).lengthSq() < 1e-12) box.expandByScalar(0.5);
+  }
   const size = box.getSize(new Vector3());
   const center = box.getCenter(new Vector3());
   const radius = box.getBoundingSphere(new Sphere()).radius;

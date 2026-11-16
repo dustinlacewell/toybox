@@ -12,7 +12,6 @@ import type {
   AssetKind,
   Catalog,
   Category,
-  Pack,
   PackMeta,
 } from "../domain/catalog";
 import { emptyFilter, type Filter } from "../domain/facets";
@@ -41,13 +40,18 @@ interface AppState {
   /** Switch the library to another asset kind. Categories differ per kind, so they reset. */
   setKind: (kind: AssetKind) => void;
   setText: (text: string) => void;
-  togglePack: (pack: Pack) => void;
-  toggleCategory: (category: Category) => void;
+  /** Deselect active entries; otherwise select one, or add with additive selection. */
+  toggleSource: (source: string, additive?: boolean) => void;
+  togglePublisher: (publisher: string, additive?: boolean) => void;
+  toggleLicense: (license: string, additive?: boolean) => void;
+  toggleCategory: (category: Category, additive?: boolean) => void;
+  toggleTag: (tag:string, additive?: boolean) => void;
   toggleFavoritesOnly: () => void;
   clearFilter: () => void;
 
   toggleSelected: (id: string) => void;
   selectMany: (ids: string[]) => void;
+  setSelection: (ids: string[]) => void;
   clearSelection: () => void;
 
   setPreview: (id: string | null) => void;
@@ -71,11 +75,14 @@ export const useStore = create<AppState>((set) => ({
   setError: (error) => set({ error }),
 
   setKind: (kind) =>
-    set((s) => ({ filter: { ...s.filter, kind, categories: new Set() } })),
+    set((s) => ({ filter: { ...s.filter, kind, categories: new Set() }, selection: new Set(), previewId: null })),
   setText: (text) => set((s) => ({ filter: { ...s.filter, text } })),
-  togglePack: (pack) => set((s) => ({ filter: toggleInSet(s.filter, "packs", pack) })),
-  toggleCategory: (category) =>
-    set((s) => ({ filter: toggleInSet(s.filter, "categories", category) })),
+  toggleSource: (source, additive) => set((s) => ({ filter: selectInSet(s.filter, "sources", source, additive) })),
+  togglePublisher: (publisher, additive) => set((s) => ({ filter: selectInSet(s.filter, "publishers", publisher, additive) })),
+  toggleLicense: (license, additive) => set((s) => ({ filter: selectInSet(s.filter, "licenses", license, additive) })),
+  toggleTag: (tag, additive) => set((s) => ({ filter: selectInSet(s.filter, "tags", tag, additive) })),
+  toggleCategory: (category, additive) =>
+    set((s) => ({ filter: selectInSet(s.filter, "categories", category, additive) })),
   toggleFavoritesOnly: () =>
     set((s) => ({ filter: { ...s.filter, favoritesOnly: !s.filter.favoritesOnly } })),
   clearFilter: () => set((s) => ({ filter: emptyFilter(s.filter.kind) })),
@@ -93,6 +100,7 @@ export const useStore = create<AppState>((set) => ({
       return { selection: next };
     }),
   clearSelection: () => set({ selection: new Set() }),
+  setSelection: (ids) => set({ selection: new Set(ids) }),
 
   setPreview: (previewId) => set({ previewId }),
 
@@ -106,12 +114,14 @@ export const useStore = create<AppState>((set) => ({
     }),
 }));
 
-function toggleInSet<K extends "packs" | "categories">(
+function selectInSet<K extends "sources" | "publishers" | "licenses" | "categories" | "tags">(
   filter: Filter,
   key: K,
   value: Filter[K] extends Set<infer V> ? V : never,
+  additive = false,
 ): Filter {
   const next = new Set(filter[key] as Set<typeof value>);
+  if (!additive && !next.has(value)) return { ...filter, [key]: new Set([value]) };
   next.has(value) ? next.delete(value) : next.add(value);
   return { ...filter, [key]: next };
 }

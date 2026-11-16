@@ -56,14 +56,33 @@ pub fn thumb_path(app: AppHandle, asset_id: String) -> AppResult<String> {
 
 pub fn load_catalog_inner(app: &AppHandle) -> AppResult<Option<Catalog>> {
     let path = appdata::catalog_path(app)?;
+    if let Some(root)=library::current(app) { crate::infra::migrations::run(&root,&path)?; }
     if !fsio::exists(&path) {
         return Ok(None);
     }
     let text = fsio::read_text(&path)?;
     let doc = catalog_migrate::upgrade(serde_json::from_str(&text)?);
     let mut catalog: Catalog = serde_json::from_value(doc)?;
+    crate::infra::audio::remember(std::path::Path::new(&catalog.library_root),&catalog.assets);
+    refresh_animation_preview_thumbs(app,&mut catalog)?;
     reconcile_thumb_states(app, &mut catalog)?;
     Ok(Some(catalog))
+}
+
+fn refresh_animation_preview_thumbs(app:&AppHandle,catalog:&mut Catalog)->AppResult<()> {
+    static MIGRATION:std::sync::Mutex<()>=std::sync::Mutex::new(());
+    let _guard=MIGRATION.lock().map_err(|_|crate::error::AppError::msg("Preview migration lock was poisoned"))?;
+    const VERSION:u32=1;
+    let mut settings=crate::infra::settings::load(app)?;
+    if settings.animation_preview_version==VERSION{return Ok(());}
+    for asset in &mut catalog.assets {
+        if !matches!(asset.content,crate::domain::catalog_model::AssetContent::Animation{..}){continue;}
+        let path=appdata::thumb_path(app,&asset.id)?;
+        // Refresh the old animation picture without discarding it first.
+        fsio::write_bytes(&path.with_extension("stale"),&[])?;
+    }
+    settings.animation_preview_version=VERSION;
+    crate::infra::settings::save(app,&settings)
 }
 
 /// The thumbnail PNG on disk is the source of truth for "is this thumb ready".
@@ -85,5 +104,5 @@ fn reconcile_thumb_states(app: &AppHandle, catalog: &mut Catalog) -> AppResult<(
 pub fn save_catalog_inner(app: &AppHandle, catalog: &Catalog) -> AppResult<()> {
     let path = appdata::catalog_path(app)?;
     let text = serde_json::to_string_pretty(catalog)?;
-    fsio::write_text(&path, &text)
+    fsio::write_bytes_atomic(&path, text.as_bytes())
 }

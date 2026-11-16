@@ -9,6 +9,7 @@
  */
 
 import { useState } from "react";
+import { Button } from "@ldlework/toybox-sdk/ui";
 
 import type { Align, Axis } from "../../services/tauriApi";
 import "./AlignTools.css";
@@ -16,6 +17,7 @@ import "./AlignTools.css";
 interface Props {
   onAlign: (axis: Axis, align: Align) => Promise<void>;
   busy: boolean;
+  error?: string;
 }
 
 const AXES: { axis: Axis; label: string }[] = [
@@ -30,34 +32,36 @@ const ALIGNS: { align: Align; label: string }[] = [
   { align: "max", label: "Max" },
 ];
 
-export function AlignTools({ onAlign, busy }: Props) {
-  const [collapsed, setCollapsed] = useState(false);
+export function AlignTools({ onAlign, busy, error }: Props) {
+  const [collapsed, setCollapsed] = useState(true);
 
   return (
     <div className="align">
-      <button className="align__title" onClick={() => setCollapsed((c) => !c)}>
+      <Button variant="ghost" className="align__title" aria-expanded={!collapsed} onClick={() => setCollapsed((c) => !c)}>
         Origin alignment {collapsed ? "▸" : "▾"}
-      </button>
+      </Button>
       {!collapsed && (
         <div className="align__grid">
           {AXES.map(({ axis, label }) => (
             <div className="align__row" key={axis}>
               <span className={`align__axis align__axis--${axis}`}>{label}</span>
               {ALIGNS.map(({ align, label }) => (
-                <button
+                <Button
                   key={align}
                   className="align__btn"
                   disabled={busy}
+                  aria-label={`Align ${axis.toUpperCase()} ${align} to origin`}
                   onClick={() => void onAlign(axis, align)}
                   title={`Snap ${label.toLowerCase()} of ${label === "Center" ? "" : "the "}${axis.toUpperCase()} bounds to the origin`}
                 >
                   {label}
-                </button>
+                </Button>
               ))}
             </div>
           ))}
         </div>
       )}
+      {error&&<p className="align__error" role="alert">{error}</p>}
     </div>
   );
 }

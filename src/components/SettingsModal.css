@@ -1,0 +1,7 @@
+.settings__panel h2 { margin: 0 0 8px; font-size: 18px; font-weight: 600; }
+.settings__panel h3 { margin: 0 0 10px; font-size: 14px; font-weight: 600; }
+.settings__description { color: var(--text-2); line-height: 1.6; margin: 0 0 16px; }
+.settings__section { padding-top: 20px; margin-top: 20px; border-top: 1px solid var(--border); }
+.settings__section .ds-segmented { margin-bottom: 12px; }
+.settings__path { overflow-wrap: anywhere; padding: 10px 12px; background: var(--bg-0); border: 1px solid var(--border); border-radius: var(--radius-1); color: var(--text-1); line-height: 1.5; }
+.settings__error { color: var(--danger); overflow-wrap: anywhere; }

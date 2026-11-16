@@ -27,7 +27,7 @@ pub fn collect_assets(
     let mut report = ExportReport::default();
     let mut assets = Vec::new();
     for id in asset_ids {
-        match catalog.assets.iter().find(|a| &a.id == id) {
+        match catalog.assets.iter().flat_map(|a| std::iter::once(a).chain(a.variants.iter())).find(|a| &a.id == id) {
             Some(a) => assets.push(a.clone()),
             None => report.skip(format!("asset not found: {id}")),
         }
@@ -39,7 +39,14 @@ pub fn collect_assets(
 pub fn read_gltf(root: &str, asset: &Asset) -> AppResult<Value> {
     let abs = paths::abs_under_root(root, &asset.fileset()?.gltf);
     let text = fsio::read_text(&abs)?;
-    gltf_parse::parse(&text)
+    let mut doc = gltf_parse::parse(&text)?;
+    if crate::domain::gltf_vertex_colors::may_need_repair(&doc) {
+        crate::domain::gltf_vertex_colors::repair(&mut doc, &[read_bin(root, asset)?]);
+    }
+    match &asset.content {
+        crate::domain::catalog_model::AssetContent::Animation { clip, .. } => crate::domain::animation::select_clip(doc, clip.index),
+        _ => { doc.as_object_mut().unwrap().remove("animations"); Ok(doc) },
+    }
 }
 
 /// Read an asset's single buffer (`.bin`) bytes.

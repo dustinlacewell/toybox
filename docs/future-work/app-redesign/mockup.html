@@ -1,0 +1,303 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Toybox redesign mock-up</title>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400..600&display=swap">
+<style>
+/* Layout concept: quiet chrome, one loud thing per screen. Black canvas, hairlines,
+   neutral greys, one blue. A control exists only where the next step needs it. */
+:root {
+  color-scheme: dark;
+  --bg: #000;
+  --surface: #0b0b0b;
+  --raise: rgb(255 255 255 / 4%);
+  --hover: rgb(255 255 255 / 7%);
+  --border: rgb(255 255 255 / 8%);
+  --input: rgb(255 255 255 / 12%);
+  --fg: #f3f4f6;
+  --muted: #a3a3a3;
+  --faint: #6f6f6f;
+  --primary: oklch(0.571 0.21 264);
+  --warn: #e5a23c;
+  --sans: -apple-system, BlinkMacSystemFont, "Inter", "Segoe UI", system-ui, sans-serif;
+  --r: 8px;
+}
+* { box-sizing: border-box; }
+html, body { height: 100%; margin: 0; }
+body { background: var(--bg); color: var(--fg); font: 13px/1.45 var(--sans); overflow: hidden; -webkit-font-smoothing: antialiased; font-variant-numeric: tabular-nums; }
+button { font: inherit; color: inherit; background: none; border: 0; padding: 0; cursor: pointer; text-align: left; }
+button:focus-visible { outline: 2px solid var(--primary); outline-offset: 2px; }
+svg { display: block; }
+.muted { color: var(--muted); } .faint { color: var(--faint); } .warn { color: var(--warn); }
+.one { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; min-width: 0; }
+.grow { flex: 1; min-width: 0; }
+.row { display: flex; align-items: center; gap: 10px; min-width: 0; }
+h1 { margin: 0; font-size: 15px; font-weight: 600; letter-spacing: -.01em; }
+
+/* controls: three kinds only */
+.btn { height: 30px; display: inline-flex; align-items: center; gap: 6px; padding: 0 11px; border-radius: var(--r); white-space: nowrap; font-weight: 500; color: var(--muted); }
+.btn:hover { background: var(--hover); color: var(--fg); }
+.btn.pri { background: var(--primary); color: #fff; box-shadow: inset 0 1px rgb(255 255 255 / 16%); } .btn.pri:hover { filter: brightness(1.1); }
+.btn.line { border: 1px solid var(--input); color: var(--fg); }
+.field { height: 30px; display: flex; align-items: center; gap: 8px; padding: 0 10px; border: 1px solid var(--border); border-radius: var(--r); color: var(--faint); }
+
+/* shell */
+.app { height: 100%; display: grid; grid-template-columns: 248px minmax(0, 1fr) auto; }
+.app[hidden] { display: none; }
+.side { background: var(--surface); border-right: 1px solid var(--border); display: flex; flex-direction: column; min-height: 0; padding: 10px 8px; gap: 2px; }
+.brand { height: 34px; display: flex; align-items: center; padding: 0 10px; font-weight: 600; font-size: 14px; margin-bottom: 6px; }
+.side .lbl { padding: 16px 10px 4px; font-size: 12px; color: var(--faint); }
+.nav { height: 30px; display: flex; align-items: center; gap: 8px; width: 100%; padding: 0 10px; border-radius: var(--r); color: var(--muted); }
+.nav:hover { background: var(--raise); } .nav[aria-current="true"] { background: var(--hover); color: var(--fg); }
+.nav span:last-child:not(:first-child) { margin-left: auto; color: var(--faint); font-size: 12px; }
+.side .status { margin-top: auto; padding: 10px; font-size: 12px; color: var(--faint); display: grid; gap: 7px; }
+.bar { height: 2px; border-radius: 2px; background: var(--border); } .bar i { display: block; height: 100%; width: 62%; background: var(--muted); border-radius: 2px; }
+.main { min-width: 0; min-height: 0; display: flex; flex-direction: column; position: relative; }
+.top { height: 52px; display: flex; align-items: center; gap: 8px; padding: 0 20px; flex: none; }
+.panel { width: 360px; border-left: 1px solid var(--border); display: flex; flex-direction: column; min-height: 0; }
+.panel .scroll { flex: 1; overflow-y: auto; padding: 12px 12px 0; }
+.panel .foot { padding: 12px; display: flex; gap: 8px; } .panel .foot .btn { flex: 1; justify-content: center; }
+
+/* library grid */
+.grid { flex: 1; overflow-y: auto; padding: 4px 20px 90px; display: grid; gap: 18px 14px; grid-template-columns: repeat(auto-fill, minmax(168px, 1fr)); align-content: start; }
+.tile { display: grid; gap: 8px; border-radius: 12px; }
+.th { aspect-ratio: 1; border-radius: 12px; background: var(--surface); border: 1px solid var(--border); display: grid; place-items: center; overflow: hidden; }
+.tile:hover .th { border-color: var(--input); } .tile.picked .th { outline: 2px solid var(--primary); outline-offset: 2px; }
+.th svg { width: 56%; height: 56%; } .sph { width: 58%; aspect-ratio: 1; border-radius: 50%; background: radial-gradient(circle at 34% 28%, hsl(var(--h) 30% 74%), hsl(var(--h) 28% 40%) 44%, hsl(var(--h) 30% 10%) 84%); }
+.tile b { font-weight: 500; display: block; } .tile small { font-size: 12px; color: var(--faint); display: block; }
+.tray { position: absolute; left: 50%; bottom: 22px; transform: translateX(-50%); display: flex; align-items: center; gap: 4px; padding: 5px 5px 5px 14px; background: rgb(22 22 22 / 86%); backdrop-filter: blur(16px); border: 1px solid var(--input); border-radius: 12px; box-shadow: 0 16px 40px -12px #000; white-space: nowrap; }
+.tray > span { margin-right: 8px; }
+
+/* the picked thing */
+.stage { aspect-ratio: 4 / 3; border-radius: 12px; background: radial-gradient(80% 60% at 50% 105%, #1c1c1c, var(--surface) 75%); border: 1px solid var(--border); position: relative; display: grid; place-items: center; overflow: hidden; }
+.stage > svg { width: 40%; height: 68%; } .stage .sph { width: 46%; }
+.stage .x { position: absolute; right: 8px; top: 8px; }
+.title { padding: 16px 8px 10px; display: grid; gap: 2px; }
+.kv { display: flex; align-items: center; justify-content: space-between; gap: 12px; height: 36px; padding: 0 8px; border-top: 1px solid var(--border); color: var(--muted); width: 100%; border-radius: 0; }
+.kv > :last-child { color: var(--fg); } button.kv:hover { background: var(--raise); } button.kv > :last-child::after { content: " ›"; color: var(--faint); }
+
+/* detail */
+.detail { grid-template-columns: minmax(0, 1fr) auto; }
+.detail .stage { flex: 1; aspect-ratio: auto; margin: 0 20px; } .detail .stage > svg { width: 20%; height: 58%; }
+.floor { position: absolute; inset: 62% -30% -50% -30%; background: repeating-linear-gradient(90deg, rgb(255 255 255 / 5%) 0 1px, transparent 1px 40px), repeating-linear-gradient(0deg, rgb(255 255 255 / 5%) 0 1px, transparent 1px 40px); transform: perspective(320px) rotateX(64deg); }
+.path { position: absolute; left: 50%; top: 80%; width: 26%; border-top: 1px dashed var(--muted); } .path::after { content: ""; position: absolute; right: -3px; top: -4px; width: 7px; height: 7px; border-radius: 50%; background: var(--fg); }
+.path span { position: absolute; left: 50%; top: 8px; transform: translateX(-50%); font-size: 12px; color: var(--muted); white-space: nowrap; }
+.time { height: 64px; display: flex; align-items: center; gap: 14px; padding: 0 20px; flex: none; }
+.play { width: 30px; height: 30px; border-radius: 50%; background: var(--fg); color: #000; display: grid; place-items: center; font-size: 11px; flex: none; }
+.track { flex: 1; height: 4px; border-radius: 2px; background: var(--input); position: relative; } .track i { position: absolute; inset: 0 65% 0 0; background: var(--fg); border-radius: 2px; } .track i::after { content: ""; position: absolute; right: -6px; top: -4px; width: 12px; height: 12px; border-radius: 50%; background: var(--fg); }
+.tabs { display: flex; gap: 2px; padding: 11px 12px 0; } .tabs .btn[aria-current="true"] { background: var(--hover); color: var(--fg); }
+.li { display: flex; align-items: center; gap: 12px; width: 100%; min-height: 36px; padding: 6px 8px; border-radius: var(--r); } .li:hover { background: var(--raise); } .li.picked { background: var(--hover); }
+.li > :last-child:not(:first-child) { color: var(--muted); font-size: 12px; white-space: nowrap; }
+
+/* import + send lists */
+.page { flex: 1; overflow-y: auto; padding: 0 20px 40px; }
+.lead { font-size: 22px; font-weight: 600; letter-spacing: -.02em; line-height: 1.25; margin: 26px 8px 6px; max-width: 30ch; text-wrap: balance; }
+.sub { margin: 0 8px 22px; color: var(--muted); }
+.group { margin: 18px 8px 6px; font-size: 12px; color: var(--faint); }
+.mini { width: 40px; height: 40px; border-radius: 8px; background: var(--surface); border: 1px solid var(--border); flex: none; display: grid; place-items: center; overflow: hidden; } .mini svg { width: 62%; height: 62%; } .mini .sph { width: 66%; }
+.tx { background: repeating-linear-gradient(90deg, rgb(0 0 0 / 22%) 0 2px, transparent 2px 25%), repeating-linear-gradient(0deg, rgb(0 0 0 / 22%) 0 2px, transparent 2px 50%), linear-gradient(135deg, hsl(var(--h) 16% 36%), hsl(var(--h) 16% 15%)); }
+
+/* checking a material: big stage, a strip to pick what the stage shows */
+.work { flex: 1; min-width: 0; min-height: 0; display: flex; flex-direction: column; }
+.work .stage { flex: 1; aspect-ratio: auto; margin: 0 20px; min-height: 0; } .work .stage .sph { width: auto; height: 62%; }
+.flat { height: 78%; aspect-ratio: 1; border-radius: 3px; }
+.ctl { position: absolute; left: 50%; bottom: 14px; transform: translateX(-50%); display: flex; align-items: center; gap: 2px; padding: 3px; background: rgb(22 22 22 / 86%); backdrop-filter: blur(16px); border: 1px solid var(--input); border-radius: 10px; }
+.ctl .btn { height: 26px; padding: 0 9px; } .ctl .btn[aria-current="true"] { background: var(--hover); color: var(--fg); } .ctl i { width: 1px; height: 14px; background: var(--input); margin: 0 5px; }
+.strip { display: flex; gap: 12px; padding: 14px 20px 18px; overflow-x: auto; flex: none; }
+.strip button { width: 84px; display: grid; gap: 6px; font-size: 12px; color: var(--muted); text-align: center; flex: none; }
+.strip small { color: var(--faint); margin-top: -5px; } #s-import .strip button, #s-import .strip .mini { width: 108px; } #s-import .strip .mini { height: 108px; }
+.strip .mini { width: 84px; height: 84px; border-radius: 10px; } .strip .picked { color: var(--fg); } .strip .picked .mini { outline: 2px solid var(--primary); outline-offset: 2px; }
+.split { flex: 1; min-height: 0; display: flex; }
+.listcol { width: 320px; flex: none; border-right: 1px solid var(--border); overflow-y: auto; padding: 0 10px 20px; }
+.listcol .lead { font-size: 15px; margin: 6px 8px 2px; } .listcol .mini { width: 32px; height: 32px; }
+.li small { display: block; font-size: 12px; color: var(--muted); }
+
+/* not part of the app */
+.mock { position: fixed; left: 50%; top: 12px; transform: translateX(-50%); z-index: 9; display: flex; gap: 2px; padding: 3px; font-size: 11px; background: #161616; border: 1px dashed var(--input); border-radius: 8px; }
+.mock span, .mock button { padding: 2px 7px; border-radius: 5px; color: var(--faint); } .mock button[aria-current="true"] { background: var(--hover); color: var(--fg); }
+</style>
+</head>
+<body>
+
+<section class="app" id="s-library"></section>
+<section class="app detail" id="s-detail" hidden></section>
+<section class="app detail" id="s-material" hidden></section>
+<section class="app detail" id="s-import" hidden></section>
+<section class="app" id="s-send" hidden></section>
+<div class="mock" id="mock"></div>
+
+<script>
+/* stand-in pictures: clay shapes. Real previews go here. */
+const box = (h) => `<svg viewBox="0 0 100 100"><polygon points="50,12 88,32 50,52 12,32" fill="hsl(${h} 10% 62%)"/><polygon points="12,32 50,52 50,92 12,70" fill="hsl(${h} 10% 40%)"/><polygon points="88,32 50,52 50,92 88,70" fill="hsl(${h} 10% 26%)"/></svg>`;
+const man = (h) => `<svg viewBox="0 0 60 100"><circle cx="30" cy="13" r="10" fill="hsl(${h} 10% 66%)"/><rect x="15" y="26" width="30" height="36" rx="9" fill="hsl(${h} 10% 50%)"/><rect x="5" y="28" width="8" height="30" rx="4" fill="hsl(${h} 10% 40%)"/><rect x="47" y="28" width="8" height="30" rx="4" fill="hsl(${h} 10% 40%)"/><rect x="17" y="60" width="11" height="38" rx="5" fill="hsl(${h} 10% 32%)"/><rect x="32" y="60" width="11" height="38" rx="5" fill="hsl(${h} 10% 32%)"/></svg>`;
+const run = (h) => `<svg viewBox="0 0 80 100"><circle cx="46" cy="13" r="10" fill="hsl(${h} 10% 66%)"/><rect x="28" y="25" width="26" height="34" rx="9" transform="rotate(12 41 42)" fill="hsl(${h} 10% 50%)"/><rect x="40" y="56" width="10" height="38" rx="5" transform="rotate(-28 45 58)" fill="hsl(${h} 10% 32%)"/><rect x="26" y="56" width="10" height="36" rx="5" transform="rotate(34 31 58)" fill="hsl(${h} 10% 32%)"/></svg>`;
+const sph = (h) => `<div class="sph" style="--h:${h}"></div>`;
+const pic = (a) => a.k === "mat" ? sph(a.h) : a.k === "anim" ? run(a.h) : a.shape === "man" ? man(a.h) : box(a.h);
+
+const A = [
+  { k: "model", shape: "man", h: 210, n: "Character_Medical_Male_01", m: "Polygon Sci-Fi", picked: 1 },
+  { k: "model", shape: "man", h: 20, n: "Character_Engineer_Female_02", m: "Polygon Sci-Fi" },
+  { k: "model", h: 215, n: "SM_Door_Airlock_01", m: "Polygon Sci-Fi" },
+  { k: "mat", h: 26, n: "Rusted Hull Plating", m: "Surfaces Vol. 2" },
+  { k: "model", h: 150, n: "SM_Crate_Supply_03", m: "Polygon Sci-Fi" },
+  { k: "anim", h: 0, n: "Run_Forward", m: "Humanoid animations" },
+  { k: "mat", h: 205, n: "Brushed Steel", m: "Surfaces Vol. 2" },
+  { k: "model", h: 265, n: "SM_Console_Wide_02", m: "Polygon Sci-Fi" },
+  { k: "mat", h: 95, n: "Mossy Cobblestone", m: "Surfaces Vol. 1" },
+  { k: "model", shape: "man", h: 330, n: "Character_Guard_Male_03", m: "Polygon City" },
+  { k: "anim", h: 0, n: "Idle_Breathing", m: "Humanoid animations" },
+  { k: "model", h: 40, n: "SM_Barrel_Fuel_01", m: "Polygon City" },
+  { k: "mat", h: 8, n: "Painted Bulkhead Red", m: "Polygon Sci-Fi" },
+  { k: "model", h: 185, n: "SM_Wall_Panel_04", m: "Polygon Sci-Fi" },
+  { k: "anim", h: 0, n: "Vault_Over_Low", m: "Humanoid animations" },
+  { k: "model", h: 300, n: "SM_Lamp_Ceiling_02", m: "Polygon City" },
+  { k: "mat", h: 42, n: "Worn Oak Planks", m: "Surfaces Vol. 1" },
+  { k: "model", h: 120, n: "SM_Plant_Pot_01", m: "Polygon City" },
+];
+
+/* One type at a time. The type is the first choice; the lists under it narrow it. */
+const KINDS = [["model", "Models", "1,930"], ["mat", "Materials", "412"], ["anim", "Animations", "89"]];
+let kind = "model";
+const nav = (label, n = "", cur = false, go = "") => `<button class="nav" ${cur ? 'aria-current="true"' : ""} ${go ? `data-go="${go}"` : ""}><span class="one">${label}</span>${n ? `<span>${n}</span>` : ""}</button>`;
+const sidebar = (cur) => `<aside class="side"><div class="brand">Toybox</div>
+  ${KINDS.map(([k, label, n]) => `<button class="nav" data-kind="${k}" ${cur === "all" && k === kind ? 'aria-current="true"' : ""}><span>${label}</span><span>${n}</span></button>`).join("")}
+  <div class="lbl">Collections</div>${nav("Favourites", "64")}${nav("Spygame · level 1", "38")}${nav("Prototype kit", "12")}
+  <div class="lbl">Packs</div>${nav("Polygon Sci-Fi", "812")}${nav("Polygon City", "640")}${nav("Surfaces Vol. 1", "230")}${nav("Surfaces Vol. 2", "182")}
+  <div class="lbl">Saved exports</div>${nav("Spygame", "12 to send", cur === "send", "send")}${nav("Prototype")}
+  <div class="status"><span>Making previews · 1,204 of 1,930</span><div class="bar"><i></i></div></div></aside>`;
+
+/* the right panel: picture, name, a short list of facts, one action */
+const kv = (k, v, opens, go = "detail") => opens ? `<button class="kv" data-go="${go}"><span>${k}</span><span>${v}</span></button>` : `<div class="kv"><span>${k}</span><span>${v}</span></div>`;
+const FACTS = {
+  model: (a) => kv("Triangles", "12,408") + kv("Materials", "2", 1) + kv("Detail levels", "3", 1) + (a.shape === "man" ? kv("Animations", "12", 1) : "") + kv("Collection", "Spygame · level 1"),
+  mat: () => kv("Maps", "6", 1, "material") + kv("Sizes", "3", 1, "material") +kv("Largest size", "4096") + kv("Used by", "14 models", 1, "material"),
+  anim: () => kv("Length", "0.8 s") + kv("Root motion", "3.2 m forward") + kv("Plays on", "Humanoid rig", 1),
+};
+const opens = (a) => (a.k === "mat" ? "material" : "detail");
+const panel = (a) => `<div class="scroll"><div class="stage">${pic(a)}<button class="btn x" data-go="${opens(a)}" title="Open">⤢</button></div>
+  <div class="title"><h1 class="one">${a.n}</h1><span class="muted">${a.m}</span></div>${FACTS[a.k](a)}</div>
+  <div class="foot"><button class="btn line">Add to collection</button><button class="btn pri" data-go="send">Export</button></div>`;
+
+function library() {
+  const [, label, count] = KINDS.find(([k]) => k === kind);
+  const first = A.find((a) => a.k === kind);
+  document.getElementById("s-library").innerHTML = `${sidebar("all")}
+  <div class="main"><header class="top"><h1>${label}</h1><span class="faint">${count}</span><span class="grow"></span><div class="field" style="width:260px">Search ${label.toLowerCase()}</div><button class="btn">Filter</button><button class="btn pri" data-go="import">Import</button></header>
+    <div class="grid" id="grid">${A.map((a, i) => a.k !== kind ? "" : `<button class="tile ${a === first ? "picked" : ""}" data-i="${i}"><span class="th">${pic(a)}</span><span><b class="one">${a.n}</b><small class="one">${a.m}</small></span></button>`).join("")}</div></div>
+  <aside class="panel" id="panel">${panel(first)}</aside>`;
+}
+
+function detail() {
+  const clips = [["Idle_Breathing", "2.4 s"], ["Walk_Forward", "1.1 s"], ["Run_Forward", "0.8 s", 1], ["Run_Turn_Left", "0.9 s"], ["Crouch_Idle", "2.0 s"], ["Vault_Over_Low", "1.2 s"], ["Hit_React_Front", "0.6 s"], ["Death_Back", "1.8 s"]];
+  document.getElementById("s-detail").innerHTML = `
+  <div class="main"><header class="top"><button class="btn" data-go="library">← Back</button><h1 class="one">Character_Medical_Male_01</h1><span class="faint">Polygon Sci-Fi</span><span class="grow"></span><button class="btn">View</button></header>
+    <div class="stage"><div class="floor"></div><div class="path"><span>3.2 m</span></div>${run(210)}${ctl([["Full", "Medium", "Low"], ["By distance"]])}</div>
+    <footer class="time"><button class="play">❚❚</button><div class="track"><i></i></div><span class="muted">0.28 / 0.80 s</span><button class="btn">In place</button></footer></div>
+  <aside class="panel"><div class="tabs"><button class="btn" aria-current="true">Animations</button><button class="btn">Materials</button><button class="btn">Detail levels</button></div>
+    <div class="scroll">${clips.map(([n, d, on]) => `<button class="li ${on ? "picked" : ""}"><span class="grow one">${n}</span><span>${d}</span></button>`).join("")}
+      <div class="title" style="padding-top:22px"><span class="faint" style="font-size:12px">Run_Forward</span></div>${kv("Travels", "3.2 m forward")}${kv("Loops", "Yes")}${kv("Rig", "Humanoid")}
+      <div class="title" style="padding-top:22px"><span class="faint" style="font-size:12px">Full detail</span></div>${kv("Triangles", "12,408")}</div>
+    <div class="foot"><button class="btn pri" data-go="send">Export</button></div></aside>`;
+}
+
+/* Checking a material. The stage is the page. The strip under it picks what the
+   stage shows: the whole material, or one texture, full size. Import uses the same parts. */
+const MAPS = [["Colour", 26, "hull_albedo.png", "4096"], ["Normal", 230, "hull_normal.png", "4096"], ["Roughness", 0, "hull_orm.png, green", "2048"], ["Metal", 200, "hull_orm.png, blue", "2048"], ["Shadowing", 280, "hull_orm.png, red", "2048"], ["Height", 60, "hull_height.png", "2048"]];
+/* Variants: one thing, several forms. The switch sits on the stage; the camera stays. */
+const SIZES = ["4096", "2048", "1024"];
+const ctl = (groups) => `<div class="ctl">${groups.map((g) => g.map((b, i) => `<button class="btn" aria-current="${i === 0}">${b}</button>`).join("")).join("<i></i>")}</div>`;
+const matStage = (sel) => sel < 0
+  ? `<div class="stage">${sph(26)}${ctl([["Sphere", "Plane", "Cube"], ["1×", "2×", "4×"], SIZES])}</div>`
+  : `<div class="stage"><div class="flat tx" style="--h:${MAPS[sel][1]}"></div>${ctl([["Flat", "Tiled", "On the sphere"], ["All", "R", "G", "B", "A"], SIZES])}</div>`;
+const strip = (sel, scope, items = MAPS, first = "Material") => `<div class="strip"><button class="${sel < 0 ? "picked" : ""}" data-map="-1" data-scope="${scope}"><span class="mini">${sph(26)}</span>${first}</button>${items.map(([label, h, , sub], i) => `<button class="${sel === i ? "picked" : ""}" data-map="${i}" data-scope="${scope}"><span class="mini tx" style="--h:${h}"></span><span class="one">${label}</span>${scope === "import" ? `<small class="one">${sub}</small>` : ""}</button>`).join("")}</div>`;
+
+function material(sel = -1) {
+  const facts = sel < 0
+    ? MAPS.map(([role, , file], i) => `<button class="li" data-map="${i}" data-scope="material"><span class="grow">${role}<small class="one">${file}</small></span><span>›</span></button>`).join("") + `<div class="title" style="padding-top:18px"></div>` + kv("Used by", "14 models", 1) + kv("Collection", "Spygame · level 1")
+    : kv("File", MAPS[sel][2]) + kv("Size", `${MAPS[sel][3]} × ${MAPS[sel][3]}`) + kv("Used as", MAPS[sel][0]) + kv("Shared with", sel > 1 && sel < 5 ? "2 other maps" : "None");
+  document.getElementById("s-material").innerHTML = `
+  <div class="main"><header class="top"><button class="btn" data-go="library">← Back</button><h1 class="one">Rusted Hull Plating</h1><span class="faint">Surfaces Vol. 2</span></header>
+    <div class="work">${matStage(sel)}${strip(sel, "material")}</div></div>
+  <aside class="panel"><div class="scroll"><div class="title" style="padding-top:8px"><h1>${sel < 0 ? "Material" : MAPS[sel][0]}</h1><span class="muted">${sel < 0 ? "6 maps from 4 files" : "One texture, shown alone"}</span></div>${facts}</div>
+    <div class="foot"><button class="btn pri" data-go="send">Export</button></div></aside>`;
+}
+
+/* Import: the strip lists the FILES found in the folder. Pick a file, see it large,
+   say what it is. "Result" shows the material those choices make. */
+const FILES = [["hull_albedo.png", 26, "whole", "Colour"], ["hull_normal.png", 230, "whole", "Normal"], ["hull_rough.png", 0, "whole", "Roughness"], ["hull_orm.png", 280, "split", "3 channels"], ["hull_height.png", 60, "whole", "Height"], ["hull_preview.jpg", 26, "whole", "Not used"]];
+const USES = ["Colour", "Normal", "Roughness", "Metal", "Shadowing", "Height", "Glow", "One job per channel", "Not used"];
+const SPLIT = [["Red", "Shadowing", .9], ["Green", "Roughness", .6], ["Blue", "Metal", .35], ["Alpha", "Nothing", 1.4]];
+const pickRow = (label, on) => `<button class="li ${on ? "picked" : ""}"><span class="grow">${label}</span>${on ? "<span>✓</span>" : ""}</button>`;
+function importPanel(sel) {
+  if (sel < 0) {
+    const r = (role, file, bad) => `<div class="kv"><span>${role}</span><span class="${bad ? "warn" : ""}">${file}</span></div>`;
+    return `<div class="title" style="padding-top:8px"><h1>Rusted Hull Plating</h1><span class="warn">Two files are set as roughness</span></div>
+      ${r("Colour", "hull_albedo.png")}${r("Normal", "hull_normal.png")}${r("Roughness", "hull_rough.png + hull_orm.png", 1)}${r("Metal", "hull_orm.png, blue")}${r("Shadowing", "hull_orm.png, red")}${r("Height", "hull_height.png")}
+      <div class="group" style="margin-left:8px">Sizes to bring in</div>${SIZES.map((s) => pickRow(s, s !== "1024")).join("")}`;
+  }
+  const [file, h, mode, use] = FILES[sel];
+  const current = mode === "split" ? "One job per channel" : use;
+  return `<div class="title" style="padding-top:8px"><h1>${file}</h1><span class="muted">4096 × 4096</span></div>
+    <div class="group" style="margin-left:8px">This file is</div>${USES.map((u) => pickRow(u, u === current)).join("")}
+    ${mode === "split" ? `<div class="group" style="margin-left:8px">Each channel</div>${SPLIT.map(([c, job, b]) => `<div class="li"><span class="mini tx" style="--h:${h};filter:grayscale(1) brightness(${b})"></span><span class="grow">${c}</span><span>${job} ▾</span></div>`).join("")}` : ""}`;
+}
+const fileStage = (sel) => `<div class="stage"><div class="flat tx" style="--h:${FILES[sel][1]}"></div>${ctl([["All", "Red", "Green", "Blue", "Alpha"], ["Fit", "1:1"], SIZES])}</div>`;
+
+/* Toybox owns this screen: the list, the stage, the strip, the buttons. The import
+   plugin named in the header finds the things and says what the user can change. */
+function importer(sel = 2) {
+  const mats = A.filter((a) => a.k === "mat");
+  const row = (i, why, picked) => `<button class="li ${picked ? "picked" : ""}"><span class="mini">${pic(mats[i % mats.length])}</span><span class="grow one">${mats[i % mats.length].n}<small class="one">${why}</small></span></button>`;
+  const open = (n) => `<button class="li"><span class="grow">${n}</span><span>›</span></button>`;
+  document.getElementById("s-import").innerHTML = `
+  <div class="main"><header class="top"><button class="btn" data-go="library">← Back</button><h1>Import materials</h1><button class="btn">Texture folders ▾</button><span class="faint one">D:\\Downloads\\Surfaces_Vol_3</span><span class="grow"></span><button class="btn">All sizes ▾</button><button class="btn pri" data-go="library">Add 38 to library</button></header>
+    <div class="split"><div class="listcol"><p class="lead">38 ready. 4 need a look.</p>
+        <div class="group">Needs a look</div>
+        ${row(0, "Two files look like roughness", 1)}${row(1, "No colour map found")}${row(2, "Same name as a library material")}${row(3, "Normal map may be DirectX style")}
+        <div class="group">Ready</div>${open("38 materials")}</div>
+      <div class="work" style="padding-top:4px">${sel < 0 ? matStage(-1) : fileStage(sel)}${strip(sel, "import", FILES, "Result")}</div></div></div>
+  <aside class="panel"><div class="scroll">${importPanel(sel)}</div>
+    <div class="foot"><button class="btn line">Leave out</button><button class="btn pri">Looks right</button></div></aside>`;
+}
+
+function send() {
+  const row = (a, path, state) => `<div class="li"><span class="mini">${pic(a)}</span><span class="grow one">${a.n}</span><span class="faint one" style="width:36%">${path}</span><span style="width:64px;text-align:right">${state}</span></div>`;
+  document.getElementById("s-send").innerHTML = `${sidebar("send")}
+  <div class="main"><header class="top"><h1>Spygame</h1><button class="btn">Godot 4 exporter ▾</button><span class="faint one">D:\\code\\games\\spygame\\assets\\toybox</span><span class="grow"></span><button class="btn pri">Send 12 changes</button></header>
+    <div class="page"><p class="lead">9 new and 3 changed since you last sent.</p><p class="sub">Last sent 2 days ago. Nothing in the game is deleted.</p>
+      <div class="group">To send</div>
+      ${row(A[0], "characters/medical_male_01.tscn", "New")}${row(A[2], "buildings/door_airlock_01.tscn", "New")}${row(A[4], "props/crate_supply_03.tscn", "New")}${row(A[3], "materials/rusted_hull_plating.tres", "Changed")}${row(A[5], "animations/humanoid.res", "Changed")}${row(A[7], "props/console_wide_02.tscn", "New")}
+      <button class="li muted"><span class="grow">6 more</span></button>
+      <div class="group">Already in the game</div><button class="li"><span class="grow">52 things</span><span>›</span></button></div></div>
+  <aside class="panel" style="width:320px"><div class="scroll"><div class="title" style="padding-top:8px"><h1>Godot 4 exporter</h1><span class="muted">Saved with Spygame.</span></div>
+    ${kv("Sends", "Spygame · level 1", 1)}${kv("Takes", "Models, materials, animations")}
+    <div class="group" style="margin-left:8px">Settings from the plugin</div>
+    ${kv("Folders", "By category", 1)}${kv("Materials", "Shared between models", 1)}${kv("Largest texture", "2048", 1)}${kv("Detail levels", "All", 1)}${kv("Animations", "One library per rig", 1)}${kv("Root motion", "Keep on root bone", 1)}</div></aside>`;
+}
+
+const SCREENS = { library, detail, material, import: importer, send };
+function show(id) {
+  for (const k in SCREENS) document.getElementById("s-" + k).hidden = k !== id;
+  document.getElementById("mock").innerHTML = "<span>Mock-up, jump to:</span>" + Object.keys(SCREENS).map((k) => `<button data-go="${k}" aria-current="${k === id}">${k}</button>`).join("");
+}
+for (const k in SCREENS) SCREENS[k]();
+document.addEventListener("click", (e) => {
+  const go = e.target.closest("[data-go]");
+  if (go) return show(go.dataset.go);
+  const k = e.target.closest("[data-kind]");
+  if (k) { kind = k.dataset.kind; library(); return show("library"); }
+  const map = e.target.closest("[data-map]");
+  if (map) return SCREENS[map.dataset.scope](+map.dataset.map);
+  const t = e.target.closest("#grid .tile");
+  if (!t) return;
+  document.querySelectorAll("#grid .tile").forEach((x) => x.classList.remove("picked"));
+  t.classList.add("picked");
+  document.getElementById("panel").innerHTML = panel(A[+t.dataset.i]);
+});
+document.addEventListener("dblclick", (e) => { const t = e.target.closest("#grid .tile"); if (t) show(opens(A[+t.dataset.i])); });
+show("library");
+</script>
+</body>
+</html>

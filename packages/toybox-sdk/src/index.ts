@@ -14,23 +14,61 @@
  * primitives live in the sibling `@ldlework/toybox-sdk/ui` entry.
  */
 
-import type { ComponentType } from "react";
+import type { ComponentType, ReactNode } from "react";
+export { variantInfo, groupSeedVariants } from "./variants.js";
+export { defineRigAdapter, type RigProfile, type RigAdapterPlugin } from "./rig.js";
 
 // --- catalog view ------------------------------------------------------------
+
+/** Original source information, independent of library storage paths. */
+export interface ImportProvenance {
+  filesystemPath?: string;
+  source?: string;
+  publisher?: string;
+  url?: string;
+  license?: string;
+}
 
 /** The read-only view of a catalog asset a plugin sees. A self-contained mirror
  *  of the host's `Asset` (minus host-only fields like thumbnail state); the host
  *  passes assets typed as this. */
-export interface AssetView {
+export interface AssetViewBase {
+  rigs?: { rigId: string; nodes: Record<string, number> }[];
   id: string;
   name: string;
   fileName: string;
   relPath: string;
   pack: string;
   category: string;
+  user: { favorite: boolean; tags: string[]; collections?: string[]; previewAssetId?: string; provenance?: ImportProvenance };
+  variants?: AssetView[];
+}
+
+export interface ModelAssetView extends AssetViewBase {
+  kind: "model";
   fileset: AssetFileset;
-  user: { favorite: boolean; tags: string[] };
   animation: { clipCount: number; clipNames: string[] };
+}
+
+export interface MaterialAssetView extends AssetViewBase {
+  kind: "material";
+  material: { maps: MaterialMapInput[]; flipNormalGreen: boolean };
+}
+
+export interface AnimationAssetView extends AssetViewBase {
+  kind: "animation";
+  fileset: AssetFileset;
+  clip: { standalone?: boolean; tracks?: {node: number; path: string}[]; index: number; name: string; duration: number; sourceId: string; sourceName: string; targetNodes: string[]; rig: string };
+}
+export interface AudioAssetView extends AssetViewBase {
+  kind: "audio";
+  audio: { file: string; format: string; duration: number; sampleRate: number; channels: number; bitDepth: number | null; byteLength: number; modifiedNs: string; peaks: number[] };
+}
+export type AssetView = ModelAssetView | MaterialAssetView | AnimationAssetView | AudioAssetView;
+
+/** Expand only detail/size variants, preserving the primary asset's identity. */
+export function exportVariants(assets: AssetView[], policy: unknown): AssetView[] {
+  return assets.flatMap((a) => policy === "best" ? [a] : [a, ...(a.variants ?? [])]);
 }
 
 export interface AssetFileset {
@@ -48,10 +86,10 @@ export interface ExportReport {
 
 // --- manifest ----------------------------------------------------------------
 
-export type PluginKind = "exporter" | "importer";
+export type PluginKind = "exporter" | "importer" | "rigAdapter";
 
-/** What an asset is: a 3D model or a PBR material set. */
-export type AssetKind = "model" | "material";
+/** Library types supported by the host, importers and exporters. */
+export type AssetKind = "model" | "material" | "animation" | "audio";
 
 /** What a plugin folder's `manifest.json` declares. */
 export interface PluginManifest {
@@ -63,6 +101,9 @@ export interface PluginManifest {
   /** Entry module, relative to the plugin dir (e.g. `index.js`). */
   entry: string;
   description?: string;
+  /** Plugin-relative icon image; optional per-type overrides for navigation. */
+  icon?: string;
+  assetIcons?: Partial<Record<AssetKind,string>>;
   /** The asset kinds this plugin works with (an importer: what it produces).
    *  Absent means `["model"]`. */
   assetKinds?: AssetKind[];
@@ -131,6 +172,7 @@ export interface ReportBuilder {
 /** Reads + Rust export primitives. The primitive half is gated by
  *  `permissions.rustExport`. */
 export interface HostApi {
+  previewExport(assetIds: string[], format: "glb" | "copy", preserveStructure: boolean): Promise<string[]>;
   getSelectedAssets(): AssetView[];
   getAsset(id: string): AssetView | undefined;
   getParsedGltf(id: string): Promise<unknown>;
@@ -187,6 +229,8 @@ export interface ExportCtx {
 }
 
 export interface ExporterPlugin {
+  /** Pure planning step. Paths are relative to the chosen target folder. */
+  preview?(ctx: ExportCtx, assets: AssetView[]): Promise<string[]>;
   run(ctx: ExportCtx, assets: AssetView[]): Promise<ExportReport>;
 }
 
@@ -205,6 +249,10 @@ export type MapRole =
   | "height"
   | "emissive"
   | "opacity";
+export const MATERIAL_ROLE_LABELS: Record<MapRole, string> = {
+  albedo: "Colour", normal: "Normal", roughness: "Roughness", metallic: "Metal",
+  ao: "Shadowing", height: "Height", emissive: "Glow", opacity: "Opacity",
+};
 export type MapChannel = "r" | "g" | "b" | "a";
 
 /** One texture map of a material set: a role, the image file, and optionally the
@@ -218,6 +266,8 @@ export interface MaterialMapInput {
 }
 
 export interface ModelSeedEntry {
+  provenance?: ImportProvenance;
+  variants?: ModelSeedEntry[];
   kind?: "model";
   id: string;
   pack: string;
@@ -226,6 +276,8 @@ export interface ModelSeedEntry {
 }
 
 export interface MaterialSeedEntry {
+  provenance?: ImportProvenance;
+  variants?: MaterialSeedEntry[];
   kind: "material";
   id: string;
   pack: string;
@@ -236,7 +288,16 @@ export interface MaterialSeedEntry {
 }
 
 /** What an importer produces — exactly the shape of a library manifest entry. */
-export type SeedEntryInput = ModelSeedEntry | MaterialSeedEntry;
+export interface AnimationSeedEntry {
+  provenance?: ImportProvenance;
+  kind: "animation";
+  id: string;
+  pack: string;
+  category: string;
+  file: string;
+}
+export interface AudioSeedEntry { provenance?: ImportProvenance; kind: "audio"; id: string; pack: string; category: string; file: string; }
+export type SeedEntryInput = ModelSeedEntry | MaterialSeedEntry | AnimationSeedEntry | AudioSeedEntry;
 
 // --- slot UI (plugin-shipped React panels) -----------------------------------
 
@@ -268,12 +329,15 @@ export interface SlotHost {
 /** Context for an exporter's `exportPanel`. */
 export interface ExportPanelCtx {
   host: SlotHost;
+  /** Saved values to restore when mounting a saved export. */
+  initialConfig?: Record<string, unknown>;
   shared: { targetDir: string | null; preserveStructure: boolean };
   setConfig(values: Record<string, unknown>, ready: boolean): void;
 }
 
 /** Props of the host's interactive 3D material preview (sphere / plane / cube, orbit and zoom, tiling). */
 export interface MaterialPreviewProps {
+  controls?: ReactNode;
   maps: MaterialMapInput[];
   flipNormalGreen?: boolean;
   /** The URL to fetch a map's `file` from (e.g. an object URL of a source image). */
@@ -294,6 +358,10 @@ export interface PanelWidgets {
  *  carries the jailed `fs` directly. `widgets` are host-built components the
  *  panel mounts in its own tree, such as the 3D material preview. */
 export interface ImportPanelCtx {
+  /** The current library type, supplied by the host. */
+  kind?: AssetKind;
+  /** Optional host-owned header actions; clear them when a panel unmounts. */
+  setActions?(actions: ReactNode): void;
   host: SlotHost;
   fs: FsApi;
   widgets: PanelWidgets;

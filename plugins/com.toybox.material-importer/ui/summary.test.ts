@@ -39,7 +39,7 @@ describe("roleLabels", () => {
       file("n.png", { use: "normal", directX: true }),
       file("a.png", { use: "albedo" }),
     );
-    expect(roleLabels(d)).toEqual(["Albedo", "Normal", "Emissive"]);
+    expect(roleLabels(d)).toEqual(["Colour", "Normal", "Emissive"]);
   });
 
   it("includes each assigned channel of a packed file", () => {
@@ -48,7 +48,7 @@ describe("roleLabels", () => {
       file("a.png", { use: "albedo" }),
       file("orm.png", { use: "channels", channels: { r: "ao", g: "roughness", b: "metallic" } }),
     );
-    expect(roleLabels(d)).toEqual(["Albedo", "Roughness", "Metallic", "AO"]);
+    expect(roleLabels(d)).toEqual(["Colour", "Roughness", "Metal", "Shadowing"]);
   });
 
   it("counts a smoothness channel as roughness and drops duplicates", () => {

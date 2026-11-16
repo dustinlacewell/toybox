@@ -15,11 +15,18 @@ export function fitCameraToObject(
   margin = 1.2,
 ): void {
   const box = new Box3().setFromObject(object);
+  fitCameraToBounds(camera,box,margin);
+}
+
+/** Frame an entire motion's bounds once, keeping the camera still in playback. */
+export function fitCameraToBounds(camera:PerspectiveCamera,box:Box3,margin=1.2):void {
+  if(box.isEmpty())box=box.clone().setFromCenterAndSize(new Vector3(),new Vector3(1,1,1));
   const sphere = box.getBoundingSphere(new Sphere());
   const radius = Math.max(sphere.radius, 1e-3);
 
   const fov = (camera.fov * Math.PI) / 180;
-  const distance = (radius * margin) / Math.sin(fov / 2);
+  const horizontalFov=2*Math.atan(Math.tan(fov/2)*camera.aspect);
+  const distance = (radius * margin) / Math.sin(Math.min(fov,horizontalFov) / 2);
 
   const eye = VIEW_DIR.clone().multiplyScalar(distance).add(sphere.center);
   camera.position.copy(eye);

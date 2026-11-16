@@ -3,6 +3,7 @@
   "name": "Material folder importer",
   "version": "1.0.0",
   "kind": "importer",
+  "icon": "icons/material.svg",
   "assetKinds": ["material"],
   "description": "Import a folder of PBR texture images as material sets into your library.",
   "permissions": {

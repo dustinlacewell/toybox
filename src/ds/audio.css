@@ -1,0 +1,9 @@
+.ds-waveform { display: block; width: 100%; height: 100%; min-height: 40px; color: var(--text-1); }
+.ds-waveform--interactive { cursor: crosshair; outline-offset: 8px; touch-action: none; }
+.ds-audio-transport { display: flex; flex-wrap: wrap; align-items: center; justify-content: center; gap: 12px; padding: 12px 20px; }
+.ds-audio-transport__time { font-variant-numeric: tabular-nums; min-width: 85px; }
+.ds-audio-transport__time span { color: var(--text-2); }
+.ds-audio-transport__volume { display: flex; align-items: center; gap: 8px; color: var(--text-1); font-size: var(--fs-sm); margin-left: 16px; }
+.ds-audio-transport__volume input { width: 90px; accent-color: var(--accent); }
+.ds-cue-button[aria-pressed="true"] { color: var(--text-0); background: var(--accent-soft); border-color: var(--accent); }
+.ds-cue-button { touch-action: none; border: 1px solid var(--border); background: var(--bg-1); }

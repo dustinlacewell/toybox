@@ -14,6 +14,8 @@ use crate::error::{AppError, AppResult};
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct Catalog {
+    #[serde(default)]
+    pub rigs: Vec<crate::domain::rig::Rig>,
     pub schema_version: u32,
     pub library_root: String,
     pub assets: Vec<Asset>,
@@ -22,6 +24,11 @@ pub struct Catalog {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct Asset {
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub rigs: Vec<crate::domain::rig::RigBinding>,
+    /// Other file sets of the same thing; the primary is the best available.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub variants: Vec<Asset>,
     /// Stable primary key (e.g. `uid://p6p3bf5qgcvb`).
     pub id: String,
     /// Display name, no extension (e.g. `SM_Bld_Apartment_01`).
@@ -48,6 +55,11 @@ pub struct Asset {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(tag = "kind", rename_all = "camelCase")]
 pub enum AssetContent {
+    Audio { audio: crate::domain::audio::AudioMeta },
+    Animation {
+        fileset: AssetFileset,
+        clip: crate::domain::animation::ClipMeta,
+    },
     Model {
         fileset: AssetFileset,
         #[serde(default)]
@@ -62,8 +74,8 @@ impl Asset {
     /// The model's files, or an error if this asset is not a model.
     pub fn fileset(&self) -> AppResult<&AssetFileset> {
         match &self.content {
-            AssetContent::Model { fileset, .. } => Ok(fileset),
-            AssetContent::Material { .. } => Err(self.not_a_model()),
+            AssetContent::Model { fileset, .. } | AssetContent::Animation { fileset, .. } => Ok(fileset),
+            AssetContent::Material { .. } | AssetContent::Audio { .. } => Err(self.not_a_model()),
         }
     }
 
@@ -73,7 +85,7 @@ impl Asset {
     pub fn animation(&self) -> AppResult<&AnimationMeta> {
         match &self.content {
             AssetContent::Model { animation, .. } => Ok(animation),
-            AssetContent::Material { .. } => Err(self.not_a_model()),
+            AssetContent::Material { .. } | AssetContent::Animation { .. } | AssetContent::Audio { .. } => Err(self.not_a_model()),
         }
     }
 
@@ -127,8 +139,14 @@ impl Default for ThumbMeta {
 /// the source library; re-scans merge-preserve it.
 #[derive(Debug, Clone, Serialize, Deserialize, Default)]
 pub struct UserMeta {
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub provenance: Option<crate::domain::provenance::ImportProvenance>,
+    #[serde(default, rename = "previewAssetId", skip_serializing_if = "Option::is_none")]
+    pub preview_asset_id: Option<String>,
     pub favorite: bool,
     pub tags: Vec<String>,
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub collections: Vec<String>,
 }
 
 #[cfg(test)]
@@ -139,6 +157,8 @@ mod tests {
 
     fn asset(content: AssetContent) -> Asset {
         Asset {
+            rigs: Vec::new(),
+            variants: Vec::new(),
             id: "uid://a".into(),
             name: "N".into(),
             file_name: "N.gltf".into(),

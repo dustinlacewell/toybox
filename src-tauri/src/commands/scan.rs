@@ -3,6 +3,7 @@
 //! glTF. Thin orchestration: infra-read -> domain-transform -> infra-write.
 
 use tauri::AppHandle;
+use std::path::Path;
 
 use crate::config;
 use crate::domain::catalog_model::Catalog;
@@ -16,7 +17,9 @@ use super::catalog_build::build_catalog;
 #[tauri::command]
 pub async fn scan_library(app: AppHandle, force_reseed: bool) -> AppResult<Catalog> {
     let root = library::resolve(&app)?;
-    let prior = if force_reseed { None } else { load_catalog_inner(&app)? };
+    // A rescan rebuilds derived facts, while user metadata survives in this library.
+    let _ = force_reseed;
+    let prior = load_catalog_inner(&app)?.filter(|c| Path::new(&c.library_root) == root);
 
     let fresh = build_catalog_from_seed(&root.to_string_lossy())?;
 
@@ -34,10 +37,11 @@ pub async fn scan_library(app: AppHandle, force_reseed: bool) -> AppResult<Catal
 pub(super) fn build_catalog_from_seed(root: &str) -> AppResult<Catalog> {
     let seed_abs = paths::abs_under_root(root, config::SEED_REL);
     let seed_text = fsio::read_text(&seed_abs)?;
-    let seed_doc = serde_json::from_str(&seed_text)?;
-
+    let seed_doc = crate::infra::animation_import::prepare(root,serde_json::from_str(&seed_text)?)?;
     let entries = seed::parse_seed_entries(&seed_doc)?;
-    build_catalog(root, entries)
+    let catalog = build_catalog(root, entries)?;
+    crate::infra::animation_import::commit(root,seed_text.as_bytes(),&seed_doc)?;
+    Ok(catalog)
 }
 
 #[cfg(test)]

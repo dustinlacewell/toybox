@@ -4,7 +4,8 @@
   display: inline-flex;
   align-items: center;
   gap: var(--space-2);
-  padding: var(--space-2) var(--space-3);
+  padding: 0 11px;
+  min-height: 30px;
   background: var(--bg-2);
   color: var(--text-0);
   border: 1px solid var(--border);
@@ -28,8 +29,16 @@
   color: #fff;
 }
 .ds-button--primary:hover {
+  background: var(--accent);
+  border-color: var(--accent);
   filter: brightness(1.1);
 }
+.ds-button--danger {
+  background: color-mix(in srgb, var(--danger) 75%, #000);
+  border-color: color-mix(in srgb, var(--danger) 75%, #000);
+  color: #fff;
+}
+.ds-button--danger:hover:not(:disabled) { filter: brightness(1.1); }
 .ds-button--ghost {
   background: transparent;
   border-color: transparent;
@@ -40,7 +49,7 @@
 
 .ds-icon-strip {
   display: inline-flex;
-  border: 1px solid var(--border);
+  border: 0;
   border-radius: var(--radius-1);
   overflow: hidden;
 }
@@ -52,10 +61,11 @@
   height: 32px;
   padding: 0;
   margin: 0;
-  background: var(--bg-2);
-  color: var(--text-0);
+  background: transparent;
+  color: var(--text-1);
   border: none;
-  border-left: 1px solid var(--border);
+  border-left: 0;
+  border-radius: var(--radius-1);
   cursor: pointer;
   user-select: none;
 }
@@ -75,7 +85,8 @@
 }
 
 .ds-input {
-  padding: var(--space-2) var(--space-3);
+  padding: 5px 10px;
+  height: 30px;
   background: var(--bg-1);
   color: var(--text-0);
   border: 1px solid var(--border);
@@ -115,8 +126,7 @@
   align-items: center;
   gap: var(--space-3);
   padding: var(--space-3) var(--space-4);
-  background: var(--bg-1);
-  border-bottom: 1px solid var(--border);
+  background: transparent;
 }
 
 .ds-spinner {
@@ -151,9 +161,12 @@
   flex-direction: column;
   overflow: auto;
 }
+.ds-drawer-scrim--left { justify-content: flex-start; }
+.ds-drawer-scrim--left .ds-drawer { width: 264px; border-left: 0; border-right: 1px solid var(--border); }
 
 .ds-select {
-  padding: var(--space-2) var(--space-3);
+  padding: 5px 10px;
+  min-height: 30px;
   padding-right: calc(var(--space-3) + 16px);
   background: var(--bg-1);
   color: var(--text-0);
@@ -174,3 +187,5 @@
   outline: none;
   border-color: var(--accent);
 }
+.ds-select[size]:not([size="1"]) { background-image: none; padding: 4px; }
+.ds-select[size]:not([size="1"]) option { padding: 6px 8px; }

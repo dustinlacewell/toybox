@@ -6,14 +6,17 @@
 import { useEffect, useState } from "react";
 
 import { assetUrl } from "../../services/assetUrl";
+import { ImageViewport, type ImageChannel, type ImageScale } from "@ldlework/toybox-sdk/ui";
 
 interface Props {
   file: string;
+  channel?: ImageChannel;
+  scale?: ImageScale;
 }
 
 type UrlState = { kind: "loading" } | { kind: "ready"; url: string } | { kind: "error" };
 
-export function MapImage({ file }: Props) {
+export function MapImage({ file, channel, scale }: Props) {
   const [state, setState] = useState<UrlState>({ kind: "loading" });
 
   useEffect(() => {
@@ -32,12 +35,5 @@ export function MapImage({ file }: Props) {
     return <div className="viewer__error">Failed to load</div>;
   }
   if (state.kind === "loading") return null;
-  return (
-    <img
-      className="matview__image"
-      src={state.url}
-      alt={file}
-      onError={() => setState({ kind: "error" })}
-    />
-  );
+  return <ImageViewport src={state.url} alt={file} channel={channel} scale={scale} />;
 }

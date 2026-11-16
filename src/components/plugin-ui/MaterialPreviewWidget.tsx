@@ -16,12 +16,13 @@ export function MaterialPreviewWidget({
   flipNormalGreen = false,
   resolveUrl,
   sourceKey,
+  controls,
 }: MaterialPreviewProps) {
   const key = JSON.stringify({ sourceKey, maps, flipNormalGreen });
   const state = useMaterial(key, () =>
     buildMaterial({ maps: maps.map(toDomainMap), flipNormalGreen, resolveUrl }),
   );
-  return <MaterialStudio state={state} />;
+  return <MaterialStudio state={state} controls={controls} />;
 }
 
 function toDomainMap(map: MaterialPreviewProps["maps"][number]): MaterialMap {

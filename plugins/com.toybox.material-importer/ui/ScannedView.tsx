@@ -9,6 +9,7 @@ import { Button, Stack } from "@ldlework/toybox-sdk/ui";
 import { canImport, importable, problemsFor, type ReviewItem } from "./edit.js";
 import { MaterialList } from "./MaterialList.js";
 import type { ThumbLoader } from "./thumbs.js";
+import { materialGroups } from "./variants.js";
 
 interface Props {
   items: ReviewItem[];
@@ -36,13 +37,15 @@ export function ScannedView({
   onScan,
   onImport,
 }: Props) {
-  const n = items.length;
+  const groups = materialGroups(items);
+  const n = groups.length;
   const problems = useMemo(
     () => items.map((_, i) => problemsFor(items, i, pack, category)),
     [items, pack, category],
   );
   const indexes = useMemo(() => items.map((_, i) => i), [items]);
-  const count = useMemo(() => importable(items, pack, category).length, [items, pack, category]);
+  const valid = importable(items, pack, category);
+  const count = groups.filter((g) => g.some((i) => valid.includes(items[i]))).length;
 
   return (
     <section className="export__section">

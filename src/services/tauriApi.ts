@@ -20,6 +20,9 @@ export const loadCatalog = (): Promise<Catalog | null> =>
 export const saveCatalog = (catalog: Catalog): Promise<void> =>
   invoke("save_catalog", { catalog });
 
+export const deleteAssets = (assetIds: string[]): Promise<Catalog> =>
+  invoke("delete_assets", { assetIds });
+
 export const libraryRoot = (): Promise<string> => invoke("library_root");
 
 /** The configured library root, or null if the user hasn't picked one yet. */
@@ -76,7 +79,8 @@ export const setThumbState = (
 export const listPendingThumbs = (): Promise<string[]> =>
   invoke("list_pending_thumbs");
 
-export const clearThumbs = (): Promise<void> => invoke("clear_thumbs");
+export const clearThumbs = (assetIds?:string[], preserveExisting=false): Promise<void> => invoke("clear_thumbs", {assetIds:assetIds??null,preserveExisting});
+export const invalidateThumb = (assetId:string):Promise<void> => invoke("invalidate_thumb",{assetId});
 
 export const exportCopy = (
   assetIds: string[],
@@ -96,10 +100,12 @@ export const exportGlb = (
 
 /** A discovered plugin's validated manifest + the abs path of its entry module. */
 export interface PluginManifestDto {
+  icon?: string;
+  assetIcons?: Partial<Record<AssetKind,string>>;
   id: string;
   name: string;
   version: string;
-  kind: "exporter" | "importer";
+  kind: "exporter" | "importer" | "rigAdapter";
   entry: string;
   description?: string;
   assetKinds: AssetKind[];
@@ -110,6 +116,13 @@ export interface PluginManifestDto {
 }
 
 export const listPlugins = (): Promise<PluginManifestDto[]> => invoke("list_plugins");
+export const previewExport = (assetIds: string[], format: string, preserveStructure: boolean): Promise<string[]> =>
+  invoke("preview_export", { assetIds, format, preserveStructure });
+export const assetFingerprints = (assetIds: string[], allVariants: boolean): Promise<Record<string, string>> =>
+  invoke("asset_fingerprints", { assetIds, allVariants });
+
+export const getSavedExports = (): Promise<import("../domain/savedExport").SavedExport[]> => invoke("get_saved_exports");
+export const setSavedExports = (exports: import("../domain/savedExport").SavedExport[]): Promise<void> => invoke("set_saved_exports", { exports });
 
 /** Merge plugin-produced seed entries into the catalog (the importer commit).
  *  Opens the previously-closed inbound format. Returns the updated catalog. */
@@ -156,6 +169,16 @@ export const pluginWriteText = (
 
 export const readAssetGltf = (assetId: string): Promise<unknown> =>
   invoke("read_asset_gltf", { assetId });
+export const readPreviewPair=(animationPath:string,clipIndex:number,modelPath:string):Promise<unknown>=>
+  invoke("read_preview_pair",{animationPath,clipIndex,modelPath});
+export const readPreviewSource=(relativePath:string,clipIndex:number|null):Promise<unknown>=>
+  invoke("read_preview_source",{relativePath,clipIndex});
+
+export interface PreviewChoice { assetId: string; rigId: string; exact: boolean; }
+export const compatiblePreviews = (assetId: string): Promise<PreviewChoice[]> =>
+  invoke("compatible_previews", { assetId });
+export const readAnimationPreview = (animationId: string, modelId: string): Promise<unknown> =>
+  invoke("read_animation_preview", { animationId, modelId });
 
 export const assembleGlbForAsset = (assetId: string): Promise<number[]> =>
   invoke("assemble_glb_for_asset", { assetId });

@@ -8,117 +8,108 @@
  * the viewer closes or switches asset.
  */
 
-import { useEffect, useRef, useState } from "react";
-import { Canvas } from "@react-three/fiber";
-import { OrbitControls } from "@react-three/drei";
-import type { AnimationClip, Group } from "three";
+import { useRef, useState } from "react";
+import { Canvas, useFrame } from "@react-three/fiber";
+import { Mesh, Vector3, type AnimationClip, type Group } from "three";
 
 import type { ModelAsset } from "../domain/catalog";
-import { loadAssetScene } from "../services/gltfLoad";
-import { disposeScene } from "../services/disposeScene";
 import { recenterAsset, type Align, type Axis } from "../services/tauriApi";
 
-import { Spinner } from "@ldlework/toybox-sdk/ui";
+import { Spinner, Checkbox, NavigationItem, PropertyRow } from "@ldlework/toybox-sdk/ui";
+import { variantInfo } from "@ldlework/toybox-sdk";
+import { useScene } from "./viewer/useScene";
+import { useCompatiblePreviews } from "./viewer/useCompatiblePreviews";
+import { PreviewPicker } from "./viewer/PreviewPicker";
+import { RigFacts } from "./viewer/RigFacts";
+import { VariantSwitch } from "./VariantSwitch";
 import { ViewerFrame } from "./ViewerFrame";
-import { OriginGrid } from "./viewer/OriginGrid";
-import { OriginAxes } from "./viewer/OriginAxes";
-import { GeometryCenterMarker } from "./viewer/GeometryCenterMarker";
-import { BoundingBoxWire } from "./viewer/BoundingBoxWire";
-import { ViewerCamera, type OrbitTarget } from "./viewer/ViewerCamera";
-import { ViewerToolbar } from "./viewer/ViewerToolbar";
+import { ViewerCamera } from "./viewer/ViewerCamera";
+import { useViewerSceneControls, ViewerSceneControls, ViewerReferenceWidgets } from "./viewer/ViewerSceneControls";
+import { ViewerSceneEnvironment } from "./viewer/ViewerSceneEnvironment";
 import { AlignTools } from "./viewer/AlignTools";
 import { AnimationBar } from "./viewer/AnimationBar";
 import { AnimationDriver } from "./viewer/AnimationDriver";
 import { useAnimation } from "./viewer/useAnimation";
-import { defaultWidgetVisibility, type WidgetKey } from "./viewer/widgets";
-import { measureExtent, type ModelExtent } from "./viewer/modelExtent";
+import { type ModelExtent } from "./viewer/modelExtent";
 
 interface Props {
+  onExport?: () => void;
   asset: ModelAsset;
   onClose: () => void;
 }
 
-type LoadState =
-  | { kind: "loading" }
-  | { kind: "ready"; group: Group; extent: ModelExtent; clips: AnimationClip[] }
-  | { kind: "error"; message: string };
-
 /** Stable empty-clip reference so useAnimation's deps don't churn when idle. */
 const EMPTY_CLIPS: AnimationClip[] = [];
 
-export function ModelViewer({ asset, onClose }: Props) {
+export function ModelViewer({ asset, onClose, onExport }: Props) {
   const [reloadNonce, setReloadNonce] = useState(0);
-  const state = useAssetScene(asset, reloadNonce);
-  const [orbitTarget, setOrbitTarget] = useState<OrbitTarget>("geometry");
-  const [widgets, setWidgets] = useState(defaultWidgetVisibility);
+  const [variant, setVariant] = useState(0);
+  const [byDistance, setByDistance] = useState(false);
+  const [inPlace, setInPlace] = useState(true);
+  const variants = [asset, ...(asset.variants ?? []).filter((a): a is ModelAsset => a.kind === "model")];
+  const active = variants[variant] ?? asset;
+  const preview = useCompatiblePreviews(active, asset);
+  const state = useScene(active, reloadNonce, preview.target,!!preview.selected?.retargeted);
+  const viewControls=useViewerSceneControls();
   const [aligning, setAligning] = useState(false);
-  const toggleWidget = (key: WidgetKey) =>
-    setWidgets((w) => ({ ...w, [key]: !w[key] }));
+  const [alignmentError,setAlignmentError]=useState<string>();
 
   const ready = state.kind === "ready" ? state : null;
-  const anim = useAnimation(ready?.group ?? null, ready?.clips ?? EMPTY_CLIPS);
+  const anim = useAnimation(ready?.group ?? null, ready?.clips ?? EMPTY_CLIPS, { inPlace });
 
   const onAlign = async (axis: Axis, align: Align) => {
-    setAligning(true);
+    setAligning(true);setAlignmentError(undefined);
     try {
       await recenterAsset(asset.id, axis, align);
       // The source .gltf changed; reload to show the corrected placement.
       setReloadNonce((n) => n + 1);
+    } catch(error) {
+      setAlignmentError(String(error));
     } finally {
       setAligning(false);
     }
   };
 
   return (
-    <ViewerFrame asset={asset} onClose={onClose}>
+    <ViewerFrame asset={asset} onClose={onClose} onExport={onExport} footer={<AnimationBar controls={anim} />} sidebarTabs={[
+      {value:"animations",label:"Animations",content:<><PreviewPicker kind="animation" preview={preview} /><RigFacts asset={active} />{preview.selected&&<Checkbox label="In place" checked={inPlace} onChange={setInPlace}/>}</>},
+      {value:"materials",label:"Materials",content:ready&&materialNames(ready.group).map(name=><PropertyRow key={name} label={name} value="Embedded"/>)},
+      {value:"levels",label:"Detail levels",content:variants.map((level,i)=><NavigationItem key={level.id} label={variantInfo(level.fileName,"model").label} active={variant===i} onPress={()=>{setByDistance(false);setVariant(i);}}/>)}
+    ]} detailsExtra={<>
+      <div className="viewer-panel-section">{variantInfo(active.fileName, "model").label} detail</div>
+      {ready && <PropertyRow label="Triangles" value={triangleCount(ready.group).toLocaleString()} />}
+    </>}>
       {state.kind === "ready" && (
         <>
-          <ViewerToolbar
-            visibility={widgets}
-            onToggle={toggleWidget}
-            orbitTarget={orbitTarget}
-            onCycleOrbitTarget={() =>
-              setOrbitTarget((t) => (t === "geometry" ? "origin" : "geometry"))
-            }
-          />
-          <AlignTools onAlign={onAlign} busy={aligning} />
-          <AnimationBar controls={anim} />
+          <ViewerSceneControls controls={viewControls}>{variant === 0 && <AlignTools onAlign={onAlign} busy={aligning} error={alignmentError} />}</ViewerSceneControls>
+          {variants.length > 1 && <div className="viewer__variants">
+            <VariantSwitch variants={variants} selected={variant} onSelect={(i) => { setByDistance(false); setVariant(i); }} />
+            <Checkbox checked={byDistance} onChange={setByDistance} label="By distance" />
+          </div>}
         </>
       )}
       <Canvas camera={{ position: [3, 2, 4], fov: 45 }} dpr={[1, 2]}>
-        <ambientLight intensity={0.5} />
-        <hemisphereLight args={["#cfd8e3", "#2b2f38", 0.8]} />
-        <directionalLight position={[5, 8, 5]} intensity={1.2} />
-        <directionalLight position={[-4, 2, -3]} intensity={0.4} />
+        <ViewerSceneEnvironment radius={ready?.extent.radius} brightness={viewControls.brightness}/>
         {state.kind === "ready" && (
           <>
             {/* Model at its authored local origin (no recentering) so its
                 true placement relative to the origin is visible. */}
             <primitive object={state.group} />
+            {byDistance && <DistanceVariants extent={state.extent} count={variants.length} selected={variant} onSelect={setVariant} />}
 
             {/* Reference widgets — toggled from the viewer toolbar. */}
-            {widgets.grid && <OriginGrid modelSize={state.extent.size} />}
-            {widgets.axes && <OriginAxes length={state.extent.radius} />}
-            {widgets.geometryCenter && (
-              <GeometryCenterMarker
-                position={state.extent.center}
-                scale={state.extent.radius}
-              />
-            )}
-            {widgets.boundingBox && (
-              <BoundingBoxWire min={state.extent.min} max={state.extent.max} />
-            )}
+            <ViewerReferenceWidgets extent={state.extent} visibility={viewControls.visibility}/>
 
             <ViewerCamera
               center={state.extent.center}
               radius={state.extent.radius}
-              target={orbitTarget}
+              target={viewControls.orbitTarget}
               frameKey={asset.id}
+              resetKey={viewControls.resetKey}
             />
             <AnimationDriver tick={anim.tick} />
           </>
         )}
-        <OrbitControls makeDefault enableDamping />
       </Canvas>
 
       {state.kind === "loading" && (
@@ -129,54 +120,32 @@ export function ModelViewer({ asset, onClose }: Props) {
       {state.kind === "error" && (
         <div className="viewer__error">Failed to load: {state.message}</div>
       )}
+      {ready?.loading&&<div className="viewer__preview-status" role="status">Loading animation…</div>}
+      {ready?.previewError&&<div className="viewer__preview-status" role="alert">{ready.previewError}</div>}
     </ViewerFrame>
   );
 }
 
-/**
- * Imperatively load the asset's scene; dispose its GPU resources on swap/close.
- * `reloadNonce` forces a re-load after the source .gltf is edited in place. A
- * reload (same asset, new nonce) swaps the model without flashing the spinner or
- * disturbing the camera — the previous group stays on screen until the new one
- * is ready, then the old one is disposed. Only an asset change shows the loading
- * state. The displayed group is tracked in a ref so disposal is unambiguous.
- */
-function useAssetScene(asset: ModelAsset, reloadNonce: number): LoadState {
-  const [state, setState] = useState<LoadState>({ kind: "loading" });
-  const displayed = useRef<Group | null>(null);
+function triangleCount(group: Group): number {
+  let count = 0;
+  group.traverse((node) => {
+    if (node instanceof Mesh) count += (node.geometry.index?.count ?? node.geometry.attributes.position?.count ?? 0) / 3;
+  });
+  return Math.round(count);
+}
 
-  useEffect(() => {
-    let alive = true;
+function materialNames(group: Group): string[] {
+  const names = new Set<string>();
+  group.traverse((node) => { if (node instanceof Mesh) for (const material of Array.isArray(node.material) ? node.material : [node.material]) names.add(material.name || "Unnamed material"); });
+  return [...names];
+}
 
-    // Spinner only when switching assets; an in-place reload swaps silently.
-    setState((prev) => (prev.kind === "ready" ? prev : { kind: "loading" }));
-
-    loadAssetScene(asset, reloadNonce).then(
-      ({ scene, clips }) => {
-        if (!alive) {
-          disposeScene(scene);
-          return;
-        }
-        const old = displayed.current;
-        displayed.current = scene;
-        if (old && old !== scene) disposeScene(old);
-        setState({ kind: "ready", group: scene, extent: measureExtent(scene), clips });
-      },
-      (err) => alive && setState({ kind: "error", message: String(err) }),
-    );
-
-    return () => {
-      alive = false;
-    };
-  }, [asset.id, reloadNonce]);
-
-  // Dispose the displayed group when the viewer unmounts entirely.
-  useEffect(() => {
-    return () => {
-      if (displayed.current) disposeScene(displayed.current);
-      displayed.current = null;
-    };
-  }, []);
-
-  return state;
+function DistanceVariants({ extent, count, selected, onSelect }: { extent: ModelExtent; count: number; selected: number; onSelect: (i: number) => void }) {
+  const reference = useRef({ center: new Vector3(...extent.center), radius: Math.max(extent.radius, 0.001) });
+  useFrame(({ camera }) => {
+    const distance = camera.position.distanceTo(reference.current.center) / reference.current.radius;
+    const index = Math.min(count - 1, distance > 10 ? 2 : distance > 5 ? 1 : 0);
+    if (index !== selected) onSelect(index);
+  });
+  return null;
 }

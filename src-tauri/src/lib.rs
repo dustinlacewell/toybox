@@ -3,6 +3,10 @@ mod config;
 mod domain;
 mod error;
 mod infra;
+pub mod maintenance;
+pub mod maintenance_colors;
+#[cfg(test)]
+mod animation_library_tests;
 
 use commands::{
     catalog, export_copy, export_glb, export_plugin, import, import_convert, library, packs,
@@ -14,6 +18,12 @@ use infra::library::LibraryState;
 /// Integration tests link against the public crate API only.
 pub mod testing {
     pub use crate::domain::{export_copy_plan, glb_assemble, gltf_parse, image_embed, paths};
+}
+
+pub mod testing_animation {
+    pub use crate::domain::{catalog_model::{Catalog, AssetContent}, rig, glb_assemble};
+    pub use crate::commands::animation_preview::{choices, read_preview};
+    pub use crate::commands::export_util::{read_gltf, read_bin};
 }
 
 /// Origin-correction domain surface for integration tests.
@@ -32,6 +42,8 @@ pub fn run() {
     tauri::Builder::default()
         .plugin(tauri_plugin_opener::init())
         .plugin(tauri_plugin_dialog::init())
+        .plugin(tauri_plugin_process::init())
+        .plugin(tauri_plugin_updater::Builder::new().build())
         .manage(LibraryState::default())
         .setup(|app| {
             // Restore the persisted library root (if any) and re-open the asset
@@ -50,15 +62,20 @@ pub fn run() {
             library::create_library,
             settings::get_fbx2gltf_path,
             settings::set_fbx2gltf_path,
+            settings::get_saved_exports,
+            settings::set_saved_exports,
             import_convert::convert_to_gltf,
             scan::scan_library,
             catalog::load_catalog,
+            commands::animation_preview::compatible_previews,
+            commands::animation_preview::read_animation_preview,
             catalog::save_catalog,
             catalog::library_root,
             catalog::resolve_asset_path,
             catalog::thumb_dir,
             catalog::thumb_path,
             thumbs::save_thumb,
+            thumbs::invalidate_thumb,
             thumbs::set_thumb_state,
             thumbs::list_pending_thumbs,
             thumbs::clear_thumbs,
@@ -78,8 +95,13 @@ pub fn run() {
             plugins::plugin_write_text,
             // Per-asset export primitives plugins orchestrate.
             export_plugin::read_asset_gltf,
+            commands::preview_source::read_preview_source,
+            commands::preview_source::read_preview_pair,
+            commands::delete::delete_assets,
             export_plugin::assemble_glb_for_asset,
             export_plugin::perform_asset_copy,
+            export_plugin::preview_export,
+            export_plugin::asset_fingerprints,
             export_plugin::transcode_image,
             export_plugin::placer_merge_file,
         ])
@@ -133,6 +155,12 @@ fn mime_for(path: &std::path::Path) -> &'static str {
         Some("json") => "application/json",
         Some("css") => "text/css",
         Some("wasm") => "application/wasm",
+        Some("svg") => "image/svg+xml",
+        Some("png") => "image/png",
+        Some("jpg") | Some("jpeg") => "image/jpeg",
+        Some("webp") => "image/webp",
+        Some("gif") => "image/gif",
+        Some("ico") => "image/x-icon",
         _ => "application/octet-stream",
     }
 }

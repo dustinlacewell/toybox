@@ -1,0 +1,11 @@
+{
+  "id": "com.toybox.audio-importer",
+  "name": "Audio folders",
+  "version": "1.0.0",
+  "kind": "importer",
+  "icon": "icons/audio.svg",
+  "assetKinds": ["audio"],
+  "description": "Import WAV, MP3, Ogg Vorbis and FLAC files with waveforms and audio metadata.",
+  "permissions": { "fsRead": true, "fsWrite": true },
+  "ui": { "importPanel": "dist/ui/Import.js" }
+}
