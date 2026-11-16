@@ -115,12 +115,14 @@ pub fn apply(
         own: &ProvenanceIndex,
         peers: &ProvenanceIndex,
         inherited_pack: Option<&str>,
+        inherited_kind: &str,
     ) {
         for entry in entries {
             let pack = entry["pack"].as_str().or(inherited_pack).map(String::from);
+            let kind = entry["kind"].as_str().unwrap_or(inherited_kind).to_string();
             if let Some(object) = entry.as_object_mut() {
                 if version == 1 {
-                    object.entry("kind").or_insert_with(|| json!("model"));
+                    object.entry("kind").or_insert_with(|| json!(kind));
                 }
                 if version == 2 {
                     let id = object.get("id").and_then(Value::as_str).unwrap_or("");
@@ -164,19 +166,36 @@ pub fn apply(
                     }
                 }
                 if let Some(variants) = object.get_mut("variants").and_then(Value::as_array_mut) {
-                    visit(variants, version, cache, packs, own, peers, pack.as_deref());
+                    visit(
+                        variants,
+                        version,
+                        cache,
+                        packs,
+                        own,
+                        peers,
+                        pack.as_deref(),
+                        &kind,
+                    );
                 }
             }
         }
     }
     if let Some(entries) = doc["assets"].as_array_mut() {
-        visit(entries, version, cache, packs, &own, peers, None);
+        visit(entries, version, cache, packs, &own, peers, None, "model");
     }
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
+    #[test]
+    fn variants_inherit_their_declared_parent_kind() {
+        let mut doc = json!({"assets":[{"id":"mat","kind":"material","variants":[{"id":"small"}]},{"id":"model","variants":[{"id":"low"}]}]});
+        apply(&mut doc, 1, false, &HashMap::new(), &HashMap::new());
+        assert_eq!(doc["assets"][0]["variants"][0]["kind"], "material");
+        assert_eq!(doc["assets"][1]["kind"], "model");
+        assert_eq!(doc["assets"][1]["variants"][0]["kind"], "model");
+    }
     #[test]
     fn copies_corresponding_metadata_without_enrichment_or_overwriting_user_data() {
         let mut doc = json!({"schemaVersion":2,"assets":[{"id":"a","pack":"polygon_scifi","file":"Alien_CC0.gltf","user":{"favorite":true,"tags":["custom"],"collections":["Game"],"provenance":{"publisher":"User publisher"}},"variants":[{"id":"low"}]}]});

@@ -22,7 +22,7 @@ One-time release setup:
 
 1. Preserve the updater private key outside the repository. This workstation's key is `%USERPROFILE%\.tauri\toybox-updater.key`; its matching public key is embedded in `tauri.conf.json`.
 2. Run `node scripts/configure-update-signing.mjs` with GitHub CLI authenticated as a repository administrator. It checks the public key against the app configuration and uploads the exact private-key contents as the `TAURI_SIGNING_PRIVATE_KEY` Actions secret, without shell newline conversion. An optional argument selects another key path. Set `TAURI_SIGNING_PRIVATE_KEY_PASSWORD` separately if the key is password-protected. Never commit the private key.
-3. Publish a matching version tag through the release workflow. The first updater-enabled build is `0.4.0`. Users of older builds need that upgrade once; subsequent releases can install in-app.
+3. Push a matching version tag to start the release workflow. It builds all desktop targets into a draft release. Verify the installers, signatures, and `latest.json`, then publish the draft; the website deploys after publication. The first updater-enabled build is `0.4.0`. Users of older builds need that upgrade once; subsequent releases can install in-app.
 
 For a local signed build, set `TAURI_SIGNING_PRIVATE_KEY` to the private-key path in the build process environment before `pnpm tauri build`. Signing credentials are not loaded from `.env` files.
 
