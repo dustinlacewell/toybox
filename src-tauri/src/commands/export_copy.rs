@@ -69,7 +69,8 @@ pub(super) fn resolve_stem(
     // In preserve mode the pack/category dirs disambiguate, so collisions can't
     // happen; only flatten needs the guard.
     let base = crate::domain::animation::export_stem(asset);
-    let key = |stem:&str| if preserve_structure {format!("{}/{}/{stem}",asset.pack,asset.category)} else {stem.into()};
+    let category = if matches!(asset.content,AssetContent::Material{..}) {"materials"} else {&asset.category};
+    let key = |stem:&str| if preserve_structure {format!("{}/{}/{stem}",asset.pack,category)} else {stem.into()};
     if used.insert(key(&base)) {
         return base;
     }
@@ -78,7 +79,7 @@ pub(super) fn resolve_stem(
     let mut index = 2;
     while !used.insert(key(&namespaced)) { namespaced = format!("{prefix}_{index}"); index += 1; }
     report.warn(format!(
-        "renamed '{}' -> '{}' to avoid a flattened name collision",
+        "renamed '{}' -> '{}' to avoid an export name collision",
         asset.file_name, namespaced
     ));
     namespaced
@@ -157,6 +158,15 @@ mod tests {
             assert_eq!(report.written, planned);
             assert_eq!(std::fs::read(target.join(&planned[1])).unwrap(), b"packed");
         }
+        // Category is metadata: two identically named materials in different
+        // categories still share an export directory and must not overwrite.
+        let mut other=asset.clone();other.id="other".into();other.category="different".into();
+        let mut used=HashSet::new();let mut report=ExportReport::default();
+        let first=resolve_stem(&asset,true,&mut used,&mut report);
+        let second=resolve_stem(&other,true,&mut used,&mut report);
+        let first=material_paths_named(&asset,&first,true);
+        let second=material_paths_named(&other,&second,true);
+        assert!(first.iter().all(|(_,path)|!second.iter().any(|(_,other)|path==other)));
         std::fs::remove_dir_all(root).unwrap();
     }
 }
