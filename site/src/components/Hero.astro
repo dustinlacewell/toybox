@@ -1,5 +1,4 @@
 ---
-import ToyboxDemo from "../demo/ToyboxDemo";
 import DownloadButtons from "./DownloadButtons.astro";
 import pkg from "../../../package.json";
 
@@ -45,13 +44,13 @@ const version = pkg.version;
         </div>
 
         <div class="relative h-[520px] md:h-[640px] bg-slate-900">
-          <ToyboxDemo client:only="react" />
+          <iframe src={`${import.meta.env.BASE_URL}demo/`} title="Toybox live demo" class="absolute inset-0 h-full w-full border-0" loading="lazy"></iframe>
         </div>
       </div>
 
       <p class="mt-3 text-center text-xs text-slate-500 italic">
-        This is the real app — a slice of the Polygon Prototype pack. Click a
-        card to open the 3D viewer, drag to orbit.
+        The actual Toybox interface, with sample models, materials, animations,
+        and audio. Hover to preview or double-click an item to open it.
       </p>
     </div>
   </div>

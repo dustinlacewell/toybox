@@ -14,7 +14,7 @@ import { thumbUrl } from "../shims/assetUrl";
 
 export function useThumbUrl(asset: Asset): string | null {
   const [url, setUrl] = useState<string | null>(null);
-  const ready = asset.thumb.state === "ready";
+  const ready = asset.thumb.state === "ready" || !!asset.thumb.available;
 
   useEffect(() => {
     let alive = true;
@@ -28,7 +28,7 @@ export function useThumbUrl(asset: Asset): string | null {
     return () => {
       alive = false;
     };
-  }, [asset.id, ready]);
+  }, [asset.id, ready, asset.thumb.revision]);
 
   return url;
 }

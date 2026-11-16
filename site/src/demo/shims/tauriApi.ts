@@ -8,22 +8,37 @@
  */
 
 import type { Catalog, PackMeta, ThumbState } from "@app/domain/catalog";
-import { DEMO_ASSET_IDS, DEMO_PACKS, demoCatalog } from "../catalog";
-import { putThumb } from "./thumbStore";
+import { DEMO_PACKS, demoCatalog } from "../catalog";
+import { desktopAction } from "../nativeNotice";
+import { putThumb, getThumbUrl } from "./thumbStore";
 import { assetUrl } from "./assetUrl";
 
 export const deleteAssets = async (assetIds:string[]):Promise<Catalog> => {
-  const catalog=demoCatalog();return {...catalog,assets:catalog.assets.filter(asset=>!assetIds.includes(asset.id))};
+  catalog = {...catalog,assets:catalog.assets.filter(asset=>!assetIds.includes(asset.id))}; return catalog;
 };
 
 export interface PreviewChoice { assetId: string; rigId: string; exact: boolean; }
 export const compatiblePreviews = async (_assetId: string): Promise<PreviewChoice[]> => [];
-export const readAnimationPreview = async (): Promise<unknown> => { throw new Error("The demo has no standalone animations."); };
-export const readPreviewPair = readAnimationPreview;
+export const readPreviewPair = async (animationPath:string, clipIndex:number, modelPath:string):Promise<unknown> => {
+  const [model, source] = await Promise.all([readPreviewSource(modelPath,null),readPreviewSource(animationPath,clipIndex)]) as any[];
+  const bufferOffset=(model.buffers??=[]).length, viewOffset=(model.bufferViews??=[]).length, accessorOffset=(model.accessors??=[]).length;
+  model.buffers.push(...source.buffers);
+  model.bufferViews.push(...source.bufferViews.map((view:any)=>({...view,buffer:view.buffer+bufferOffset})));
+  model.accessors.push(...source.accessors.map((accessor:any)=>({...accessor,bufferView:accessor.bufferView+viewOffset})));
+  const animation=source.animations[0];
+  animation.samplers=animation.samplers.map((sampler:any)=>({...sampler,input:sampler.input+accessorOffset,output:sampler.output+accessorOffset}));
+  animation.channels=animation.channels.map((channel:any)=>({...channel,target:{...channel.target,node:model.nodes.findIndex((node:any)=>node.name===source.nodes[channel.target.node].name)}}));
+  model.animations=[animation];return model;
+};
+export const readAnimationPreview = async (animationId:string, modelId:string) => {
+ const animation=catalog.assets.find(a=>a.id===animationId),model=catalog.assets.find(a=>a.id===modelId);
+ if(animation?.kind!=="animation"||model?.kind!=="model")throw Error("Choose an animation and model");
+ return readPreviewPair(animation.fileset.gltf,animation.clip.index,model.fileset.gltf);
+};
 
 export const readAssetGltf = async (assetId: string): Promise<unknown> => {
-  const asset = demoCatalog().assets.find(asset => asset.id === assetId);
-  if (!asset || asset.kind === "material") throw new Error("Scene asset not found");
+  const asset = catalog.assets.find(asset => asset.id === assetId);
+  if (!asset || (asset.kind === "material" || asset.kind === "audio")) throw new Error("Scene asset not found");
   const response = await fetch(await assetUrl(asset.fileset.gltf));
   if (!response.ok) throw new Error("Could not read scene");
   return response.json();
@@ -33,7 +48,7 @@ export const readPreviewSource=async(relativePath:string,clipIndex:number|null):
   const doc=await response.json();if(clipIndex===null)delete doc.animations;else doc.animations=[doc.animations[clipIndex]];return doc;
 };
 
-// --- Thumbnails: the one genuinely live path ---------------------------------
+// --- Thumbnail cache --------------------------------------------------------
 
 export const saveThumb = async (assetId: string, png: Uint8Array): Promise<void> => {
   putThumb(assetId, png);
@@ -45,7 +60,7 @@ export const setThumbState = async (
   _error?: string,
 ): Promise<void> => {};
 
-export const listPendingThumbs = async (): Promise<string[]> => [...DEMO_ASSET_IDS];
+export const listPendingThumbs = async (): Promise<string[]> => catalog.assets.filter(a=>a.kind!=="audio"&&!getThumbUrl(a.id)).map(a=>a.id);
 
 export const clearThumbs = async (): Promise<void> => {};
 export const invalidateThumb = async (_assetId:string): Promise<void> => {};
@@ -59,9 +74,10 @@ export const thumbPath = async (assetId: string): Promise<string> => assetId;
 export const scanLibrary = async (_forceReseed: boolean): Promise<Catalog> =>
   demoCatalog();
 
-export const loadCatalog = async (): Promise<Catalog | null> => demoCatalog();
+let catalog=demoCatalog();
+export const loadCatalog = async (): Promise<Catalog | null> => catalog;
 
-export const saveCatalog = async (_catalog: Catalog): Promise<void> => {};
+export const saveCatalog = async (value: Catalog): Promise<void> => { catalog=value; };
 
 export const libraryRoot = async (): Promise<string> => "polygon_prototype";
 
@@ -106,10 +122,11 @@ export interface ExportReport {
   warnings: string[];
 }
 
-const NOOP_REPORT: ExportReport = { written: [], skipped: [], warnings: [] };
+const unavailable=async ():Promise<any>=>{desktopAction();throw Error("Use the desktop app to write files.");};
 
-export const exportCopy = async (): Promise<ExportReport> => NOOP_REPORT;
-export const exportGlb = async (): Promise<ExportReport> => NOOP_REPORT;
+
+export const exportCopy = async (): Promise<ExportReport> => unavailable();
+export const exportGlb = async (): Promise<ExportReport> => unavailable();
 
 export type PlacerFormat = "glb" | "copy";
 
@@ -123,7 +140,7 @@ export interface ExportPlacerArgs {
 }
 
 export const exportPlacer = async (_args: ExportPlacerArgs): Promise<ExportReport> =>
-  NOOP_REPORT;
+  unavailable();
 
 export type Axis = "x" | "y" | "z";
 export type Align = "min" | "center" | "max";
@@ -137,4 +154,23 @@ export const recenterAsset = async (
   _assetId: string,
   _axis: Axis,
   _align: Align,
-): Promise<Aabb> => ({ min: [0, 0, 0], max: [0, 0, 0] });
+): Promise<Aabb> => unavailable();
+
+// Discover the same bundled importers and icons as the desktop application.
+const manifests=import.meta.glob("../../../../plugins/*/manifest.json",{eager:true,import:"default"}) as Record<string,import("@app/services/tauriApi").PluginManifestDto>;
+export const listPlugins=async()=>Object.values(manifests).filter(manifest=>manifest.kind==="importer").map(manifest=>({...manifest,entry:"",entryAbsPath:"",fields:[]}));
+let savedExports:import("@app/domain/savedExport").SavedExport[]=[];
+export const getSavedExports=async()=>savedExports;
+export const setSavedExports=async(value:typeof savedExports)=>{savedExports=value;};
+export const previewExport=async(ids:string[])=>catalog.assets.filter(a=>ids.includes(a.id)).map(a=>a.fileName);
+export const assetFingerprints=async(ids:string[])=>Object.fromEntries(ids.map(id=>[id,id]));
+export const mergeSeedEntries=unavailable;
+export const pluginReadText=async(path:string)=>(await fetch(await assetUrl(path))).text();
+export const pluginExists=async(path:string)=>(await fetch(await assetUrl(path),{method:"HEAD"})).ok;
+export const pluginImageThumb=unavailable;
+export const pluginWriteBytes=unavailable;
+export const pluginWriteText=unavailable;
+export const assembleGlbForAsset=unavailable;
+export const performAssetCopy=unavailable;
+export const transcodeImage=unavailable;
+export const placerMergeFile=unavailable;

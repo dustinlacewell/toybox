@@ -1,15 +1,10 @@
-/**
- * The demo's fixture catalog: the bundled slice of the Polygon Prototype pack,
- * lifted into the app's real Catalog shape. Records are generated from the
- * actual bundled glTF filesets (_records.json); here we just decorate them with
- * the per-asset UserMeta / ThumbMeta / AnimationMeta the app expects.
- *
- * Thumbnails start "missing" — the real renderer fills them in live once the
- * demo mounts, exactly as the app does on first run.
- */
-
+/** Demo fixtures use the app catalog schema. Bundled thumbnails were generated
+ * with the app renderer; preview preference changes refresh them normally. */
 import type { Asset, Catalog, Category, PackMeta } from "@app/domain/catalog";
 import records from "./_records.json";
+import thumbnails from "./_thumbnails.json";
+import samples from "./_samples.json";
+import librarySamples from "./_library-samples.json";
 
 interface Record {
   id: string;
@@ -24,6 +19,7 @@ interface Record {
 
 export const DEMO_PACKS: PackMeta[] = [
   { slug: "polygon_prototype", name: "Polygon Prototype", color: "#7ed321" },
+  { slug: "toybox_samples", name: "Toybox samples", color: "#4a90e2" },
 ];
 
 const toAsset = (r: Record): Asset => ({
@@ -40,15 +36,16 @@ const toAsset = (r: Record): Asset => ({
   animation: { clipCount: r.clipCount, clipNames: [] },
 });
 
-const ASSETS: Asset[] = (records as Record[]).map(toAsset);
+const ASSETS: Asset[] = [...(records as Record[]).map(toAsset),...samples.assets as Asset[], ...librarySamples.assets as Asset[]];
 
 export const DEMO_ASSET_IDS: string[] = ASSETS.map((a) => a.id);
 
 export function demoCatalog(): Catalog {
   return {
     schemaVersion: 1,
+    rigs: samples.rigs,
     libraryRoot: "polygon_prototype",
     // Fresh copies so the demo store owns mutable favorite/thumb state.
-    assets: ASSETS.map((a) => ({ ...a, thumb: { ...a.thumb }, user: { ...a.user } })),
+    assets: ASSETS.map((a) => ({ ...a, thumb: { ...a.thumb, state: a.kind === "audio" || a.id in thumbnails ? "ready" : "missing" }, user: { ...a.user } })),
   };
 }

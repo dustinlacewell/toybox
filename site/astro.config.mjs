@@ -13,14 +13,14 @@ const shimDir = path.resolve(root, "src/demo/shims");
 const norm = (p) => p.replace(/\\/g, "/");
 
 /**
- * Swap only the three app service modules that touch Tauri for browser-native
+ * Swap app service modules that touch the desktop platform for browser-native
  * shims, wherever they're imported (the real components reach them through
  * relative `../services/...` paths). A resolveId hook is used rather than a
  * Vite `alias` because aliases match the import *specifier*, not the resolved
  * file — we want to redirect by final on-disk path so any importer is caught.
  */
 // Map of app module (relative to src) -> demo shim file (relative to shimDir).
-// The three services are swapped because they call Tauri; useThumbUrl is
+// Native services are adapted for browser fixtures; useThumbUrl is
 // swapped because the app appends a `?v=<state>` cache-buster to the thumbnail
 // URL — harmless on a Tauri asset:// URL, but it makes an in-memory blob: URL
 // unresolvable, so the demo reads the blob URL straight from the store.
@@ -29,6 +29,10 @@ const SWAPS = {
   "services/tauriApi.ts": "tauriApi.ts",
   "services/reveal.ts": "reveal.ts",
   "components/useThumbUrl.ts": "useThumbUrl.ts",
+  "services/pluginLoader.ts": "pluginLoader.tsx",
+  "services/pickDirectory.ts": "pickers.ts",
+  "services/pickFile.ts": "pickers.ts",
+  "services/pickSaveFile.ts": "pickers.ts",
 };
 function swapTauriSeams() {
   return {
@@ -83,6 +87,9 @@ export default defineConfig({
         "@react-three/drei",
         "@tanstack/react-virtual",
         "lucide-react",
+        "@tauri-apps/api",
+        "@tauri-apps/plugin-updater",
+        "@tauri-apps/plugin-process",
       ],
     },
   },

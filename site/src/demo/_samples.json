@@ -1,0 +1,2600 @@
+{
+  "assets": [
+    {
+      "id": "sample:material:Blue_tiles.png",
+      "name": "Blue tiles",
+      "kind": "material",
+      "category": "surfaces",
+      "fileName": "materials/Blue_tiles.png",
+      "pack": "toybox_samples",
+      "relPath": "toybox_samples/samples/materials/Blue_tiles.png",
+      "thumb": {
+        "state": "missing"
+      },
+      "user": {
+        "favorite": false,
+        "tags": [
+          "source: Toybox samples",
+          "publisher: Toybox"
+        ],
+        "provenance": {
+          "source": "Toybox samples",
+          "publisher": "Toybox"
+        }
+      },
+      "material": {
+        "flipNormalGreen": false,
+        "maps": [
+          {
+            "role": "albedo",
+            "file": "toybox_samples/samples/materials/Blue_tiles.png"
+          }
+        ]
+      }
+    },
+    {
+      "id": "sample:material:Terracotta.png",
+      "name": "Terracotta",
+      "kind": "material",
+      "category": "surfaces",
+      "fileName": "materials/Terracotta.png",
+      "pack": "toybox_samples",
+      "relPath": "toybox_samples/samples/materials/Terracotta.png",
+      "thumb": {
+        "state": "missing"
+      },
+      "user": {
+        "favorite": false,
+        "tags": [
+          "source: Toybox samples",
+          "publisher: Toybox"
+        ],
+        "provenance": {
+          "source": "Toybox samples",
+          "publisher": "Toybox"
+        }
+      },
+      "material": {
+        "flipNormalGreen": false,
+        "maps": [
+          {
+            "role": "albedo",
+            "file": "toybox_samples/samples/materials/Terracotta.png"
+          }
+        ]
+      }
+    },
+    {
+      "id": "sample:material:Brushed_metal.png",
+      "name": "Brushed metal",
+      "kind": "material",
+      "category": "surfaces",
+      "fileName": "materials/Brushed_metal.png",
+      "pack": "toybox_samples",
+      "relPath": "toybox_samples/samples/materials/Brushed_metal.png",
+      "thumb": {
+        "state": "missing"
+      },
+      "user": {
+        "favorite": false,
+        "tags": [
+          "source: Toybox samples",
+          "publisher: Toybox"
+        ],
+        "provenance": {
+          "source": "Toybox samples",
+          "publisher": "Toybox"
+        }
+      },
+      "material": {
+        "flipNormalGreen": false,
+        "maps": [
+          {
+            "role": "albedo",
+            "file": "toybox_samples/samples/materials/Brushed_metal.png"
+          },
+          {
+            "role": "metallic",
+            "file": "toybox_samples/samples/materials/Metalness.png"
+          }
+        ]
+      }
+    },
+    {
+      "id": "sample:cube",
+      "name": "Demo cube",
+      "kind": "model",
+      "category": "props",
+      "fileName": "models/Cube.gltf",
+      "pack": "toybox_samples",
+      "relPath": "toybox_samples/samples/models/Cube.gltf",
+      "thumb": {
+        "state": "missing"
+      },
+      "user": {
+        "favorite": false,
+        "tags": [
+          "source: Toybox samples",
+          "publisher: Toybox"
+        ],
+        "provenance": {
+          "source": "Toybox samples",
+          "publisher": "Toybox"
+        }
+      },
+      "fileset": {
+        "gltf": "toybox_samples/samples/models/Cube.gltf",
+        "bin": "toybox_samples/samples/models/Cube.bin",
+        "textures": []
+      },
+      "animation": {
+        "clipCount": 0,
+        "clipNames": []
+      },
+      "rigs": [
+        {
+          "rigId": "toybox-demo-cube",
+          "nodes": {
+            "Cube": 0
+          }
+        }
+      ]
+    },
+    {
+      "id": "sample:bounce",
+      "name": "Bounce",
+      "kind": "animation",
+      "category": "motion",
+      "fileName": "animations/Bounce.gltf",
+      "pack": "toybox_samples",
+      "relPath": "toybox_samples/samples/animations/Bounce.gltf",
+      "thumb": {
+        "state": "missing"
+      },
+      "user": {
+        "favorite": false,
+        "tags": [
+          "source: Toybox samples",
+          "publisher: Toybox"
+        ],
+        "provenance": {
+          "source": "Toybox samples",
+          "publisher": "Toybox"
+        }
+      },
+      "fileset": {
+        "gltf": "toybox_samples/samples/animations/Bounce.gltf",
+        "bin": "toybox_samples/samples/animations/Bounce.bin",
+        "textures": []
+      },
+      "rigs": [
+        {
+          "rigId": "toybox-demo-cube",
+          "nodes": {
+            "Cube": 0
+          }
+        }
+      ],
+      "clip": {
+        "standalone": true,
+        "index": 0,
+        "name": "Bounce",
+        "duration": 2,
+        "sourceId": "sample:cube",
+        "sourceName": "Demo cube",
+        "targetNodes": [
+          "Cube"
+        ],
+        "rig": "Cube · 1 node",
+        "tracks": [
+          {
+            "node": 0,
+            "path": "translation"
+          }
+        ]
+      }
+    },
+    {
+      "id": "sample:audio:UI blip",
+      "name": "UI blip",
+      "kind": "audio",
+      "category": "interface",
+      "fileName": "audio/UI_blip.wav",
+      "pack": "toybox_samples",
+      "relPath": "toybox_samples/samples/audio/UI_blip.wav",
+      "thumb": {
+        "state": "missing"
+      },
+      "user": {
+        "favorite": false,
+        "tags": [
+          "source: Toybox samples",
+          "publisher: Toybox"
+        ],
+        "provenance": {
+          "source": "Toybox samples",
+          "publisher": "Toybox"
+        }
+      },
+      "audio": {
+        "file": "toybox_samples/samples/audio/UI_blip.wav",
+        "format": "wav",
+        "duration": 0.22,
+        "sampleRate": 22050,
+        "channels": 1,
+        "bitDepth": 16,
+        "byteLength": 9746,
+        "modifiedNs": "0",
+        "peaks": [
+          0.4079075753966009,
+          0.6191903756616798,
+          0.5924979695633358,
+          0.5502484703007804,
+          0.5100756913897467,
+          0.471972387586171,
+          0.43591739989932093,
+          0.4018778015845193,
+          0.37242833084132176,
+          0.3457867010906904,
+          0.3204631913164191,
+          0.291668438423245,
+          0.270688007492698,
+          0.25075731432284953,
+          0.23186998159037098,
+          0.21401300740634935,
+          0.1972124382836502,
+          0.1833184537841589,
+          0.1700903152746662,
+          0.1575282124763797,
+          0.14562749593499447,
+          0.13437940381657967,
+          0.12397772225181412,
+          0.11521492557108631,
+          0.10687497699682316,
+          0.09895755895132834,
+          0.09145934663598233,
+          0.08437446283207108,
+          0.07793610743550551,
+          0.07240976248519859,
+          0.06715190922819599,
+          0.06104554185357477,
+          0.05669254199869623,
+          0.05255350831020046,
+          0.048627694304770396,
+          0.044912919954590305,
+          0.04140579279070023,
+          0.03837159015850541,
+          0.035626681639766886,
+          0.03301758008125172,
+          0.030543681676511367,
+          0.028203492292926048,
+          0.025994765804401736,
+          0.02411856209023975,
+          0.022387761607108498,
+          0.02074314770536946,
+          0.019184256356074188,
+          0.017710070670384243,
+          0.0163191074427416,
+          0.01515928832003969,
+          0.014067983185518213,
+          0.01277352433496379,
+          0.011870686352376359,
+          0.011011414749940242,
+          0.010195676807370253,
+          0.009423129967993217,
+          0.008693168697243073,
+          0.008029819767762575,
+          0.007460436007325617,
+          0.006918715161772484,
+          0.0064046084055264935,
+          0.005917874399954357,
+          0.005458108614193137,
+          0.005047619167405045
+        ]
+      }
+    },
+    {
+      "id": "sample:audio:Pickup chime",
+      "name": "Pickup chime",
+      "kind": "audio",
+      "category": "interface",
+      "fileName": "audio/Pickup_chime.wav",
+      "pack": "toybox_samples",
+      "relPath": "toybox_samples/samples/audio/Pickup_chime.wav",
+      "thumb": {
+        "state": "missing"
+      },
+      "user": {
+        "favorite": false,
+        "tags": [
+          "source: Toybox samples",
+          "publisher: Toybox"
+        ],
+        "provenance": {
+          "source": "Toybox samples",
+          "publisher": "Toybox"
+        }
+      },
+      "audio": {
+        "file": "toybox_samples/samples/audio/Pickup_chime.wav",
+        "format": "wav",
+        "duration": 0.5,
+        "sampleRate": 22050,
+        "channels": 1,
+        "bitDepth": 16,
+        "byteLength": 22094,
+        "modifiedNs": "0",
+        "peaks": [
+          0.6604774704991577,
+          0.644783844731334,
+          0.5945962193460915,
+          0.5510752962901886,
+          0.5107024750355833,
+          0.47028816557034914,
+          0.43597739428532845,
+          0.40414029453770656,
+          0.37163543413867617,
+          0.34461021328390246,
+          0.3195268942929136,
+          0.29624767259892576,
+          0.2721468195487877,
+          0.252402560502955,
+          0.23407360707331776,
+          0.21472787686084369,
+          0.199200521193103,
+          0.18478239632089494,
+          0.16996317617443413,
+          0.15745936985555153,
+          0.145864705891559,
+          0.1346197108479975,
+          0.12474808040115616,
+          0.11559186243387692,
+          0.10657753972144544,
+          0.09874367394609847,
+          0.0915195685883942,
+          0.08481777514066244,
+          0.07809003867052165,
+          0.07239547598177494,
+          0.06711127349109251,
+          0.06170113293295186,
+          0.0572163369333047,
+          0.05305364168036195,
+          0.04870811084435378,
+          0.045179303648189964,
+          0.04190307906840877,
+          0.03844951902510728,
+          0.035642559056284905,
+          0.03306639825429856,
+          0.030674180544355428,
+          0.028231209302423652,
+          0.026155264461767143,
+          0.024230189601427053,
+          0.02235772278842179,
+          0.02071899516515212,
+          0.019198972945144346,
+          0.01769033962755379,
+          0.016397909366137855,
+          0.015198791005278742,
+          0.013984788113560605,
+          0.012966396295079901,
+          0.012021286560853928,
+          0.011045531720669598,
+          0.010243802963229178,
+          0.009499571490450625,
+          0.008808765410158114,
+          0.008085626205537244,
+          0.0075001136015406785,
+          0.006956489964941732,
+          0.0063870086349375734,
+          0.0059164775046495815,
+          0.005488773754741465,
+          0.005060794323101228
+        ]
+      }
+    },
+    {
+      "id": "sample:audio:Soft impact",
+      "name": "Soft impact",
+      "kind": "audio",
+      "category": "interface",
+      "fileName": "audio/Soft_impact.wav",
+      "pack": "toybox_samples",
+      "relPath": "toybox_samples/samples/audio/Soft_impact.wav",
+      "thumb": {
+        "state": "missing"
+      },
+      "user": {
+        "favorite": false,
+        "tags": [
+          "source: Toybox samples",
+          "publisher: Toybox"
+        ],
+        "provenance": {
+          "source": "Toybox samples",
+          "publisher": "Toybox"
+        }
+      },
+      "audio": {
+        "file": "toybox_samples/samples/audio/Soft_impact.wav",
+        "format": "wav",
+        "duration": 0.35,
+        "sampleRate": 22050,
+        "channels": 1,
+        "bitDepth": 16,
+        "byteLength": 15478,
+        "modifiedNs": "0",
+        "peaks": [
+          0.38722372557102525,
+          0.6289950198872294,
+          0.5856692632933267,
+          0.545300141899247,
+          0.5076878096620477,
+          0.4726754749026908,
+          0.4282769790464053,
+          0.3815158609321568,
+          0.35520488638294934,
+          0.33073804648467525,
+          0.3079408720639074,
+          0.2867005064385844,
+          0.2669284065061733,
+          0.2485421318893119,
+          0.23141057296582807,
+          0.21544892050178088,
+          0.20044037359363456,
+          0.1774302303364722,
+          0.16190497157467076,
+          0.15073930843268984,
+          0.14035624596033702,
+          0.13068174417800196,
+          0.12166790977436474,
+          0.11327716746103841,
+          0.10547453178048306,
+          0.09820436336924192,
+          0.09143067149136774,
+          0.0844571645170907,
+          0.07379834915289969,
+          0.06870807351638876,
+          0.06396966927495605,
+          0.059563379506722136,
+          0.055457783654845896,
+          0.051632557098513575,
+          0.04807175390566529,
+          0.044760527198127516,
+          0.0416752651408984,
+          0.03880069424294609,
+          0.03532449140172681,
+          0.031318015436277165,
+          0.02915784067913096,
+          0.02714699058722644,
+          0.025277080859403795,
+          0.023534777464543574,
+          0.021911455185473803,
+          0.0204003470016292,
+          0.018995152301069875,
+          0.017685850862184462,
+          0.016463650920143992,
+          0.014530037875741355,
+          0.013290515331647592,
+          0.012373795822797943,
+          0.011520445647066672,
+          0.010726906734711553,
+          0.009987520485002108,
+          0.009298626589982484,
+          0.008657353309878619,
+          0.008061026836072092,
+          0.007505394858603355,
+          0.006926248795021113,
+          0.00605767862617869,
+          0.00564013381180442,
+          0.005251102945146323,
+          0.004888964302712311
+        ]
+      }
+    },
+    {
+      "id": "sample:mannequin",
+      "name": "Preview mannequin",
+      "kind": "model",
+      "category": "characters",
+      "fileName": "models/Mannequin.gltf",
+      "pack": "toybox_samples",
+      "relPath": "toybox_samples/samples/models/Mannequin.gltf",
+      "thumb": {
+        "state": "missing"
+      },
+      "user": {
+        "favorite": false,
+        "tags": [
+          "source: Universal Base Characters",
+          "publisher: Quaternius",
+          "license: CC0-1.0"
+        ],
+        "provenance": {
+          "source": "Universal Base Characters",
+          "publisher": "Quaternius",
+          "license": "CC0-1.0",
+          "url": "https://quaternius.itch.io/universal-base-characters"
+        }
+      },
+      "fileset": {
+        "gltf": "toybox_samples/samples/models/Mannequin.gltf",
+        "bin": "toybox_samples/samples/models/Mannequin.bin",
+        "textures": []
+      },
+      "animation": {
+        "clipCount": 0,
+        "clipNames": []
+      },
+      "rigs": [
+        {
+          "rigId": "toybox-demo-character",
+          "nodes": {
+            "Head": 0,
+            "neck_01": 1,
+            "index_04_leaf_l": 2,
+            "index_03_l": 3,
+            "index_02_l": 4,
+            "index_01_l": 5,
+            "middle_04_leaf_l": 6,
+            "middle_03_l": 7,
+            "middle_02_l": 8,
+            "middle_01_l": 9,
+            "pinky_04_leaf_l": 10,
+            "pinky_03_l": 11,
+            "pinky_02_l": 12,
+            "pinky_01_l": 13,
+            "ring_04_leaf_l": 14,
+            "ring_03_l": 15,
+            "ring_02_l": 16,
+            "ring_01_l": 17,
+            "thumb_04_leaf_l": 18,
+            "thumb_03_l": 19,
+            "thumb_02_l": 20,
+            "thumb_01_l": 21,
+            "hand_l": 22,
+            "lowerarm_l": 23,
+            "upperarm_l": 24,
+            "clavicle_l": 25,
+            "index_04_leaf_r": 26,
+            "index_03_r": 27,
+            "index_02_r": 28,
+            "index_01_r": 29,
+            "middle_04_leaf_r": 30,
+            "middle_03_r": 31,
+            "middle_02_r": 32,
+            "middle_01_r": 33,
+            "pinky_04_leaf_r": 34,
+            "pinky_03_r": 35,
+            "pinky_02_r": 36,
+            "pinky_01_r": 37,
+            "ring_04_leaf_r": 38,
+            "ring_03_r": 39,
+            "ring_02_r": 40,
+            "ring_01_r": 41,
+            "thumb_04_leaf_r": 42,
+            "thumb_03_r": 43,
+            "thumb_02_r": 44,
+            "thumb_01_r": 45,
+            "hand_r": 46,
+            "lowerarm_r": 47,
+            "upperarm_r": 48,
+            "clavicle_r": 49,
+            "spine_03": 50,
+            "spine_02": 51,
+            "spine_01": 52,
+            "ball_leaf_l": 53,
+            "ball_l": 54,
+            "foot_l": 55,
+            "calf_l": 56,
+            "thigh_l": 57,
+            "ball_leaf_r": 58,
+            "ball_r": 59,
+            "foot_r": 60,
+            "calf_r": 61,
+            "thigh_r": 62,
+            "pelvis": 63,
+            "root": 64,
+            "Eyebrows": 65,
+            "Eyes": 66,
+            "SuperHero_Male": 67,
+            "Armature": 68
+          }
+        }
+      ]
+    },
+    {
+      "id": "sample:animation:Wave",
+      "name": "Wave",
+      "kind": "animation",
+      "category": "motion",
+      "fileName": "animations/Wave.gltf",
+      "pack": "toybox_samples",
+      "relPath": "toybox_samples/samples/animations/Wave.gltf",
+      "thumb": {
+        "state": "missing"
+      },
+      "user": {
+        "favorite": false,
+        "tags": [
+          "source: Toybox samples",
+          "publisher: Toybox"
+        ],
+        "provenance": {
+          "source": "Toybox samples",
+          "publisher": "Toybox"
+        }
+      },
+      "fileset": {
+        "gltf": "toybox_samples/samples/animations/Wave.gltf",
+        "bin": "toybox_samples/samples/animations/Wave.bin",
+        "textures": []
+      },
+      "rigs": [
+        {
+          "rigId": "toybox-demo-character",
+          "nodes": {
+            "Head": 0,
+            "neck_01": 1,
+            "index_04_leaf_l": 2,
+            "index_03_l": 3,
+            "index_02_l": 4,
+            "index_01_l": 5,
+            "middle_04_leaf_l": 6,
+            "middle_03_l": 7,
+            "middle_02_l": 8,
+            "middle_01_l": 9,
+            "pinky_04_leaf_l": 10,
+            "pinky_03_l": 11,
+            "pinky_02_l": 12,
+            "pinky_01_l": 13,
+            "ring_04_leaf_l": 14,
+            "ring_03_l": 15,
+            "ring_02_l": 16,
+            "ring_01_l": 17,
+            "thumb_04_leaf_l": 18,
+            "thumb_03_l": 19,
+            "thumb_02_l": 20,
+            "thumb_01_l": 21,
+            "hand_l": 22,
+            "lowerarm_l": 23,
+            "upperarm_l": 24,
+            "clavicle_l": 25,
+            "index_04_leaf_r": 26,
+            "index_03_r": 27,
+            "index_02_r": 28,
+            "index_01_r": 29,
+            "middle_04_leaf_r": 30,
+            "middle_03_r": 31,
+            "middle_02_r": 32,
+            "middle_01_r": 33,
+            "pinky_04_leaf_r": 34,
+            "pinky_03_r": 35,
+            "pinky_02_r": 36,
+            "pinky_01_r": 37,
+            "ring_04_leaf_r": 38,
+            "ring_03_r": 39,
+            "ring_02_r": 40,
+            "ring_01_r": 41,
+            "thumb_04_leaf_r": 42,
+            "thumb_03_r": 43,
+            "thumb_02_r": 44,
+            "thumb_01_r": 45,
+            "hand_r": 46,
+            "lowerarm_r": 47,
+            "upperarm_r": 48,
+            "clavicle_r": 49,
+            "spine_03": 50,
+            "spine_02": 51,
+            "spine_01": 52,
+            "ball_leaf_l": 53,
+            "ball_l": 54,
+            "foot_l": 55,
+            "calf_l": 56,
+            "thigh_l": 57,
+            "ball_leaf_r": 58,
+            "ball_r": 59,
+            "foot_r": 60,
+            "calf_r": 61,
+            "thigh_r": 62,
+            "pelvis": 63,
+            "root": 64,
+            "Eyebrows": 65,
+            "Eyes": 66,
+            "SuperHero_Male": 67,
+            "Armature": 68
+          }
+        }
+      ],
+      "clip": {
+        "standalone": true,
+        "index": 0,
+        "name": "Wave",
+        "duration": 2,
+        "sourceId": "sample:mannequin",
+        "sourceName": "Preview mannequin",
+        "targetNodes": [
+          "upperarm_r"
+        ],
+        "rig": "Toybox mannequin",
+        "tracks": [
+          {
+            "node": 48,
+            "path": "rotation"
+          }
+        ]
+      }
+    },
+    {
+      "id": "sample:animation:Look_around",
+      "name": "Look around",
+      "kind": "animation",
+      "category": "motion",
+      "fileName": "animations/Look_around.gltf",
+      "pack": "toybox_samples",
+      "relPath": "toybox_samples/samples/animations/Look_around.gltf",
+      "thumb": {
+        "state": "missing"
+      },
+      "user": {
+        "favorite": false,
+        "tags": [
+          "source: Toybox samples",
+          "publisher: Toybox"
+        ],
+        "provenance": {
+          "source": "Toybox samples",
+          "publisher": "Toybox"
+        }
+      },
+      "fileset": {
+        "gltf": "toybox_samples/samples/animations/Look_around.gltf",
+        "bin": "toybox_samples/samples/animations/Look_around.bin",
+        "textures": []
+      },
+      "rigs": [
+        {
+          "rigId": "toybox-demo-character",
+          "nodes": {
+            "Head": 0,
+            "neck_01": 1,
+            "index_04_leaf_l": 2,
+            "index_03_l": 3,
+            "index_02_l": 4,
+            "index_01_l": 5,
+            "middle_04_leaf_l": 6,
+            "middle_03_l": 7,
+            "middle_02_l": 8,
+            "middle_01_l": 9,
+            "pinky_04_leaf_l": 10,
+            "pinky_03_l": 11,
+            "pinky_02_l": 12,
+            "pinky_01_l": 13,
+            "ring_04_leaf_l": 14,
+            "ring_03_l": 15,
+            "ring_02_l": 16,
+            "ring_01_l": 17,
+            "thumb_04_leaf_l": 18,
+            "thumb_03_l": 19,
+            "thumb_02_l": 20,
+            "thumb_01_l": 21,
+            "hand_l": 22,
+            "lowerarm_l": 23,
+            "upperarm_l": 24,
+            "clavicle_l": 25,
+            "index_04_leaf_r": 26,
+            "index_03_r": 27,
+            "index_02_r": 28,
+            "index_01_r": 29,
+            "middle_04_leaf_r": 30,
+            "middle_03_r": 31,
+            "middle_02_r": 32,
+            "middle_01_r": 33,
+            "pinky_04_leaf_r": 34,
+            "pinky_03_r": 35,
+            "pinky_02_r": 36,
+            "pinky_01_r": 37,
+            "ring_04_leaf_r": 38,
+            "ring_03_r": 39,
+            "ring_02_r": 40,
+            "ring_01_r": 41,
+            "thumb_04_leaf_r": 42,
+            "thumb_03_r": 43,
+            "thumb_02_r": 44,
+            "thumb_01_r": 45,
+            "hand_r": 46,
+            "lowerarm_r": 47,
+            "upperarm_r": 48,
+            "clavicle_r": 49,
+            "spine_03": 50,
+            "spine_02": 51,
+            "spine_01": 52,
+            "ball_leaf_l": 53,
+            "ball_l": 54,
+            "foot_l": 55,
+            "calf_l": 56,
+            "thigh_l": 57,
+            "ball_leaf_r": 58,
+            "ball_r": 59,
+            "foot_r": 60,
+            "calf_r": 61,
+            "thigh_r": 62,
+            "pelvis": 63,
+            "root": 64,
+            "Eyebrows": 65,
+            "Eyes": 66,
+            "SuperHero_Male": 67,
+            "Armature": 68
+          }
+        }
+      ],
+      "clip": {
+        "standalone": true,
+        "index": 0,
+        "name": "Look around",
+        "duration": 2,
+        "sourceId": "sample:mannequin",
+        "sourceName": "Preview mannequin",
+        "targetNodes": [
+          "spine_03"
+        ],
+        "rig": "Toybox mannequin",
+        "tracks": [
+          {
+            "node": 50,
+            "path": "rotation"
+          }
+        ]
+      }
+    },
+    {
+      "id": "sample:animation:Stretch",
+      "name": "Stretch",
+      "kind": "animation",
+      "category": "motion",
+      "fileName": "animations/Stretch.gltf",
+      "pack": "toybox_samples",
+      "relPath": "toybox_samples/samples/animations/Stretch.gltf",
+      "thumb": {
+        "state": "missing"
+      },
+      "user": {
+        "favorite": false,
+        "tags": [
+          "source: Toybox samples",
+          "publisher: Toybox"
+        ],
+        "provenance": {
+          "source": "Toybox samples",
+          "publisher": "Toybox"
+        }
+      },
+      "fileset": {
+        "gltf": "toybox_samples/samples/animations/Stretch.gltf",
+        "bin": "toybox_samples/samples/animations/Stretch.bin",
+        "textures": []
+      },
+      "rigs": [
+        {
+          "rigId": "toybox-demo-character",
+          "nodes": {
+            "Head": 0,
+            "neck_01": 1,
+            "index_04_leaf_l": 2,
+            "index_03_l": 3,
+            "index_02_l": 4,
+            "index_01_l": 5,
+            "middle_04_leaf_l": 6,
+            "middle_03_l": 7,
+            "middle_02_l": 8,
+            "middle_01_l": 9,
+            "pinky_04_leaf_l": 10,
+            "pinky_03_l": 11,
+            "pinky_02_l": 12,
+            "pinky_01_l": 13,
+            "ring_04_leaf_l": 14,
+            "ring_03_l": 15,
+            "ring_02_l": 16,
+            "ring_01_l": 17,
+            "thumb_04_leaf_l": 18,
+            "thumb_03_l": 19,
+            "thumb_02_l": 20,
+            "thumb_01_l": 21,
+            "hand_l": 22,
+            "lowerarm_l": 23,
+            "upperarm_l": 24,
+            "clavicle_l": 25,
+            "index_04_leaf_r": 26,
+            "index_03_r": 27,
+            "index_02_r": 28,
+            "index_01_r": 29,
+            "middle_04_leaf_r": 30,
+            "middle_03_r": 31,
+            "middle_02_r": 32,
+            "middle_01_r": 33,
+            "pinky_04_leaf_r": 34,
+            "pinky_03_r": 35,
+            "pinky_02_r": 36,
+            "pinky_01_r": 37,
+            "ring_04_leaf_r": 38,
+            "ring_03_r": 39,
+            "ring_02_r": 40,
+            "ring_01_r": 41,
+            "thumb_04_leaf_r": 42,
+            "thumb_03_r": 43,
+            "thumb_02_r": 44,
+            "thumb_01_r": 45,
+            "hand_r": 46,
+            "lowerarm_r": 47,
+            "upperarm_r": 48,
+            "clavicle_r": 49,
+            "spine_03": 50,
+            "spine_02": 51,
+            "spine_01": 52,
+            "ball_leaf_l": 53,
+            "ball_l": 54,
+            "foot_l": 55,
+            "calf_l": 56,
+            "thigh_l": 57,
+            "ball_leaf_r": 58,
+            "ball_r": 59,
+            "foot_r": 60,
+            "calf_r": 61,
+            "thigh_r": 62,
+            "pelvis": 63,
+            "root": 64,
+            "Eyebrows": 65,
+            "Eyes": 66,
+            "SuperHero_Male": 67,
+            "Armature": 68
+          }
+        }
+      ],
+      "clip": {
+        "standalone": true,
+        "index": 0,
+        "name": "Stretch",
+        "duration": 2,
+        "sourceId": "sample:mannequin",
+        "sourceName": "Preview mannequin",
+        "targetNodes": [
+          "spine_01"
+        ],
+        "rig": "Toybox mannequin",
+        "tracks": [
+          {
+            "node": 52,
+            "path": "rotation"
+          }
+        ]
+      }
+    }
+  ],
+  "rigs": [
+    {
+      "id": "toybox-demo-cube",
+      "name": "Cube",
+      "kind": "nodes",
+      "unambiguous": true,
+      "nodes": [
+        {
+          "key": "Cube",
+          "name": "Cube",
+          "parent": null,
+          "rest": [
+            1,
+            0,
+            0,
+            0,
+            0,
+            1,
+            0,
+            0,
+            0,
+            0,
+            1,
+            0,
+            0,
+            0.5,
+            0,
+            1
+          ]
+        }
+      ]
+    },
+    {
+      "id": "toybox-demo-character",
+      "name": "Toybox mannequin",
+      "kind": "skeleton",
+      "unambiguous": true,
+      "nodes": [
+        {
+          "key": "Head",
+          "name": "Head",
+          "parent": "neck_01",
+          "rest": [
+            1,
+            0,
+            0,
+            0,
+            0,
+            0.9651149882303396,
+            -0.26182639205270775,
+            0,
+            0,
+            0.26182639205270775,
+            0.9651149882303396,
+            0,
+            0,
+            0.08285234868526459,
+            9.313225746154785e-9,
+            1
+          ]
+        },
+        {
+          "key": "neck_01",
+          "name": "neck_01",
+          "parent": "spine_03",
+          "rest": [
+            1,
+            0,
+            0,
+            0,
+            0,
+            0.8676354489038243,
+            0.4972008940426065,
+            0,
+            0,
+            -0.4972008940426065,
+            0.8676354489038243,
+            0,
+            0,
+            0.21509313583374023,
+            1.862645149230957e-8,
+            1
+          ]
+        },
+        {
+          "key": "index_04_leaf_l",
+          "name": "index_04_leaf_l",
+          "parent": "index_03_l",
+          "rest": [
+            -0.9992918999341658,
+            1.0392342398237675e-8,
+            -0.037625398942674304,
+            0,
+            -1.7547961814983136e-8,
+            0.9999999999997243,
+            7.422613213955142e-7,
+            0,
+            0.037625401185320324,
+            7.42395985583353e-7,
+            -0.9992919594963325,
+            0,
+            -1.1732481652870774e-9,
+            0.024110054597258568,
+            -1.3058706826996058e-7,
+            1
+          ]
+        },
+        {
+          "key": "index_03_l",
+          "name": "index_03_l",
+          "parent": "index_02_l",
+          "rest": [
+            0.9999999309580073,
+            -0.00037132162698154847,
+            0.000014291069675760764,
+            0,
+            0.0003713215714825173,
+            0.999999931052595,
+            0.000003885933867376078,
+            0,
+            -0.000014292513325464946,
+            -0.000003880627479423298,
+            1.000000119099622,
+            0,
+            -5.757101462222636e-10,
+            0.027911342680454254,
+            5.889705789741129e-8,
+            1
+          ]
+        },
+        {
+          "key": "index_02_l",
+          "name": "index_02_l",
+          "parent": "index_01_l",
+          "rest": [
+            0.9999993672329777,
+            -0.0010660801822101203,
+            -0.00009898211285101889,
+            0,
+            0.0010660804490894202,
+            0.9999995509452038,
+            7.175758244042476e-7,
+            0,
+            0.00009898129750955592,
+            -8.230982115232362e-7,
+            0.9999999951010129,
+            0,
+            -8.440110832452774e-10,
+            0.032612428069114685,
+            1.2031887308694422e-7,
+            1
+          ]
+        },
+        {
+          "key": "index_01_l",
+          "name": "index_01_l",
+          "parent": "hand_l",
+          "rest": [
+            0.00014824802433866912,
+            -0.014174154045260035,
+            -0.9998996998287235,
+            0,
+            0.03822015974168852,
+            0.9991692767527385,
+            -0.014158132044373195,
+            0,
+            0.9992695012348106,
+            -0.038214215610143897,
+            0.0006898630700118139,
+            0,
+            0.007159475702792406,
+            0.1174025684595108,
+            0.040643345564603806,
+            1
+          ]
+        },
+        {
+          "key": "middle_04_leaf_l",
+          "name": "middle_04_leaf_l",
+          "parent": "middle_03_l",
+          "rest": [
+            -0.9993022096935094,
+            -2.9418243465099532e-8,
+            -0.03735307743934328,
+            0,
+            -3.346854911523358e-8,
+            0.9999997019767698,
+            1.07807928250678e-7,
+            0,
+            0.03735307743933987,
+            1.0898287810592388e-7,
+            -0.999302209693504,
+            0,
+            2.2610038286074996e-9,
+            0.030519673600792885,
+            1.955777406692505e-7,
+            1
+          ]
+        },
+        {
+          "key": "middle_03_l",
+          "name": "middle_03_l",
+          "parent": "middle_02_l",
+          "rest": [
+            0.9999959026556972,
+            -0.002839657809377627,
+            0.0001086598258805152,
+            0,
+            0.0028396575726991236,
+            0.9999957893497949,
+            -7.829247501065161e-7,
+            0,
+            -0.00010865717101980024,
+            0.000001091478465422117,
+            0.9999999940962145,
+            0,
+            -5.793481250293553e-10,
+            0.030116640031337738,
+            -6.39629433862865e-8,
+            1
+          ]
+        },
+        {
+          "key": "middle_02_l",
+          "name": "middle_02_l",
+          "parent": "middle_01_l",
+          "rest": [
+            0.9999915596109692,
+            0.00410562045675843,
+            -0.00015680655151079247,
+            0,
+            -0.004105620280737865,
+            0.9999915719048992,
+            0.0000014444122083322177,
+            0,
+            0.0001568111788317008,
+            -8.006119851576843e-7,
+            1.000000106914098,
+            0,
+            -4.098183126188815e-9,
+            0.03752607852220535,
+            -1.7083948478102684e-8,
+            1
+          ]
+        },
+        {
+          "key": "middle_01_l",
+          "name": "middle_01_l",
+          "parent": "hand_l",
+          "rest": [
+            0.000008392757244735094,
+            -0.023889957546310736,
+            -0.9997146490585231,
+            0,
+            0.038215799566397604,
+            0.9989842603826523,
+            -0.023872181997987754,
+            0,
+            0.999269504722311,
+            -0.03820469089412871,
+            0.0009213579558564261,
+            0,
+            0.004682549275457859,
+            0.1154387816786766,
+            0.015113381668925285,
+            1
+          ]
+        },
+        {
+          "key": "pinky_04_leaf_l",
+          "name": "pinky_04_leaf_l",
+          "parent": "pinky_03_l",
+          "rest": [
+            -0.9993167507160547,
+            -4.9666266784611756e-9,
+            -0.03696115247834585,
+            0,
+            -2.0844235076487158e-8,
+            0.9999999999999076,
+            4.2919024197263175e-7,
+            0,
+            0.036961152478340316,
+            4.2966740458159825e-7,
+            -0.9993167507159626,
+            0,
+            2.8803697205148637e-9,
+            0.021523315459489822,
+            -3.95521055907011e-8,
+            1
+          ]
+        },
+        {
+          "key": "pinky_03_l",
+          "name": "pinky_03_l",
+          "parent": "pinky_02_l",
+          "rest": [
+            0.9999994086803109,
+            0.0009320174785208175,
+            0.00027488885256963554,
+            0,
+            -0.0009320193762601487,
+            0.9999995060435694,
+            0.000006573543921166602,
+            0,
+            -0.00027488260651295423,
+            -0.000006829742178700437,
+            0.9999998429871588,
+            0,
+            -4.249159246683121e-9,
+            0.027430830523371696,
+            1.7808633856475353e-7,
+            1
+          ]
+        },
+        {
+          "key": "pinky_02_l",
+          "name": "pinky_02_l",
+          "parent": "pinky_01_l",
+          "rest": [
+            0.9999950680758088,
+            -0.0031348764024510672,
+            -0.00019072180373883832,
+            0,
+            0.0031348763664180257,
+            0.9999950266583545,
+            4.918459622513121e-7,
+            0,
+            0.0001907193133380511,
+            -0.0000010897327627118977,
+            0.9999999222078335,
+            0,
+            1.1932570487260818e-8,
+            0.03163102641701698,
+            -1.7530692275613546e-7,
+            1
+          ]
+        },
+        {
+          "key": "pinky_01_l",
+          "name": "pinky_01_l",
+          "parent": "hand_l",
+          "rest": [
+            0.000008535270102325065,
+            -0.030851271820651748,
+            -0.9995240573650126,
+            0,
+            0.0382037582659011,
+            0.9987945522164726,
+            -0.030828429061149052,
+            0,
+            0.9992700412934972,
+            -0.03818530655234587,
+            0.0011871593436634782,
+            0,
+            0.0060377283953130245,
+            0.09854141622781754,
+            -0.03461737558245659,
+            1
+          ]
+        },
+        {
+          "key": "ring_04_leaf_l",
+          "name": "ring_04_leaf_l",
+          "parent": "ring_03_l",
+          "rest": [
+            -0.9992743196842337,
+            3.84608612092806e-8,
+            -0.03809260353878596,
+            0,
+            -2.7040785180857573e-9,
+            0.9999999999994161,
+            0.000001080602938795572,
+            0,
+            0.03809260353880528,
+            0.000001079921657125784,
+            -0.9992743196836502,
+            0,
+            -9.167706593871117e-9,
+            0.02910165674984455,
+            5.82986103836447e-9,
+            1
+          ]
+        },
+        {
+          "key": "ring_03_l",
+          "name": "ring_03_l",
+          "parent": "ring_02_l",
+          "rest": [
+            0.999976920987765,
+            -0.006775066751607642,
+            0.0005059261253684261,
+            0,
+            0.0067750628560000106,
+            0.9999770489534221,
+            0.000009413416826208843,
+            0,
+            -0.0005059782903629547,
+            -0.000005985518192581758,
+            0.9999998719750604,
+            0,
+            1.204170985147357e-9,
+            0.028300179168581963,
+            5.35583239980042e-8,
+            1
+          ]
+        },
+        {
+          "key": "ring_02_l",
+          "name": "ring_02_l",
+          "parent": "ring_01_l",
+          "rest": [
+            0.9999883271361624,
+            0.004799514753657122,
+            -0.00043708377710575735,
+            0,
+            -0.004799518893880407,
+            0.9999884226030256,
+            -0.000008423970146041952,
+            0,
+            0.00043703831189771875,
+            0.000010521664110257555,
+            0.9999998448387573,
+            0,
+            7.916241884231567e-9,
+            0.03600123152136803,
+            -8.07840478955768e-8,
+            1
+          ]
+        },
+        {
+          "key": "ring_01_l",
+          "name": "ring_01_l",
+          "parent": "hand_l",
+          "rest": [
+            0.00026217892041435764,
+            0.005102019933597046,
+            -0.9999869849804879,
+            0,
+            0.03822844011912145,
+            0.9992557303891313,
+            0.005108313336762318,
+            0,
+            0.9992690260420221,
+            -0.03822928983102558,
+            0.00006694152198438719,
+            0,
+            0.004751814063638449,
+            0.10940060019493103,
+            -0.012370164506137371,
+            1
+          ]
+        },
+        {
+          "key": "thumb_04_leaf_l",
+          "name": "thumb_04_leaf_l",
+          "parent": "thumb_03_l",
+          "rest": [
+            0.707068012922968,
+            1.006705869185551e-8,
+            -0.7071455258556137,
+            0,
+            1.8678553456885342e-7,
+            0.9999999403953176,
+            2.0100123590248678e-7,
+            0,
+            0.7071455258555891,
+            -2.7420611966749047e-7,
+            0.7070680129229394,
+            0,
+            -1.0035000741481781e-7,
+            0.034558095037937164,
+            2.1187588572502136e-8,
+            1
+          ]
+        },
+        {
+          "key": "thumb_03_l",
+          "name": "thumb_03_l",
+          "parent": "thumb_02_l",
+          "rest": [
+            0.999999998226319,
+            0.0000034160943844640938,
+            0.00005946168657745073,
+            0,
+            -0.0000034160880229150566,
+            0.9999999999941594,
+            -1.070872440315021e-7,
+            0,
+            -0.00005946168694292357,
+            1.0688411748640408e-7,
+            0.9999999982321481,
+            0,
+            -1.2048985809087753e-8,
+            0.03549090400338173,
+            -2.9336661100387573e-8,
+            1
+          ]
+        },
+        {
+          "key": "thumb_02_l",
+          "name": "thumb_02_l",
+          "parent": "thumb_01_l",
+          "rest": [
+            0.999999999934953,
+            -0.00000642239513259604,
+            -0.000009425861519660767,
+            0,
+            0.000006422405960384798,
+            0.9999998807693304,
+            0.0000012299265639951252,
+            0,
+            0.000009425853620383922,
+            -0.0000012299872472502316,
+            0.9999999999548203,
+            0,
+            -1.050066202878952e-7,
+            0.039519939571619034,
+            3.5390257835388184e-8,
+            1
+          ]
+        },
+        {
+          "key": "thumb_01_l",
+          "name": "thumb_01_l",
+          "parent": "hand_l",
+          "rest": [
+            -0.8740052967392278,
+            0.43675555189059234,
+            0.21297823306056918,
+            0,
+            0.4859139388261705,
+            0.7871106045319595,
+            0.37992770681503324,
+            0,
+            -0.0017019125709585303,
+            0.4355477296782386,
+            -0.9001642532464378,
+            0,
+            0.0274813212454319,
+            0.03381355106830597,
+            0.04106312245130539,
+            1
+          ]
+        },
+        {
+          "key": "hand_l",
+          "name": "hand_l",
+          "parent": "lowerarm_l",
+          "rest": [
+            0.9999999999996517,
+            -5.083040383954059e-9,
+            8.3453255918233e-7,
+            0,
+            3.111758308969406e-8,
+            0.9995131764026904,
+            -0.03119952241003054,
+            0,
+            -8.339676508997806e-7,
+            0.031199520550409195,
+            0.9995131168267146,
+            0,
+            -1.5123794128157897e-7,
+            0.243594229221344,
+            2.6994939616997726e-9,
+            1
+          ]
+        },
+        {
+          "key": "lowerarm_l",
+          "name": "lowerarm_l",
+          "parent": "upperarm_l",
+          "rest": [
+            0.9999999965328423,
+            5.958611106229286e-8,
+            -0.00008327251795334372,
+            0,
+            0.000005056408562821392,
+            0.9981110603839615,
+            0.06143542476972753,
+            0,
+            0.00008311888190562004,
+            -0.06143542497778109,
+            0.9981110569230518,
+            0,
+            3.7845666156499647e-8,
+            0.251115083694458,
+            -5.1513779908418655e-9,
+            1
+          ]
+        },
+        {
+          "key": "upperarm_l",
+          "name": "upperarm_l",
+          "parent": "clavicle_l",
+          "rest": [
+            0.00004273609667001367,
+            0.0005906350009747347,
+            -0.999999633891844,
+            0,
+            0.41354306246764394,
+            0.910483801039957,
+            0.0005554320687083024,
+            0,
+            0.9104843373826614,
+            -0.4135431862320371,
+            -0.00020534153841824396,
+            0,
+            -0.009135720320045948,
+            0.20573900640010834,
+            -0.03967121243476868,
+            1
+          ]
+        },
+        {
+          "key": "clavicle_l",
+          "name": "clavicle_l",
+          "parent": "spine_03",
+          "rest": [
+            0.44090965153545625,
+            -0.20151734923646814,
+            0.8746367794465328,
+            0,
+            0.8975512505424419,
+            0.09839925657707639,
+            -0.42978971066345883,
+            0,
+            0.0005464283763245703,
+            0.9745298542421921,
+            0.22425732144432686,
+            0,
+            0.03139999881386757,
+            0.1737176477909088,
+            0.06732845306396484,
+            1
+          ]
+        },
+        {
+          "key": "index_04_leaf_r",
+          "name": "index_04_leaf_r",
+          "parent": "index_03_r",
+          "rest": [
+            -0.9992918999341658,
+            -1.0098693312815686e-8,
+            0.037625398942674415,
+            0,
+            1.7836389289076446e-8,
+            0.9999999999997244,
+            7.421171140180445e-7,
+            0,
+            -0.03762540118532021,
+            7.422627325162965e-7,
+            -0.9992919594963325,
+            0,
+            1.1732481652870774e-9,
+            0.02411006949841976,
+            -1.3124372344464064e-7,
+            1
+          ]
+        },
+        {
+          "key": "index_03_r",
+          "name": "index_03_r",
+          "parent": "index_02_r",
+          "rest": [
+            0.9999999309580171,
+            0.00037132159790306606,
+            -0.000014291139961405768,
+            0,
+            -0.0003713215423533388,
+            0.9999999310525921,
+            0.000003889461810287167,
+            0,
+            0.000014292584921001953,
+            -0.000003884155396829124,
+            1.0000001190996073,
+            0,
+            4.911271389573812e-10,
+            0.027911365032196045,
+            6.19775164523162e-8,
+            1
+          ]
+        },
+        {
+          "key": "index_02_r",
+          "name": "index_02_r",
+          "parent": "index_01_r",
+          "rest": [
+            0.9999993672544741,
+            0.0010660844899561474,
+            0.00009871818908457642,
+            0,
+            -0.0010660847560764381,
+            0.9999995509406161,
+            7.120793008990134e-7,
+            0,
+            -0.00009871737973357455,
+            -8.173207530808578e-7,
+            0.9999999951271057,
+            0,
+            1.2951204553246498e-9,
+            0.03261244669556618,
+            1.2260898074600846e-7,
+            1
+          ]
+        },
+        {
+          "key": "index_01_r",
+          "name": "index_01_r",
+          "parent": "hand_r",
+          "rest": [
+            0.000147911128219363,
+            0.01417413970064394,
+            0.9998997000056974,
+            0,
+            -0.03822015998493533,
+            0.9991692767640183,
+            -0.014158130587202685,
+            0,
+            -0.9992695011991211,
+            -0.03821422063415925,
+            0.0006895259091410331,
+            0,
+            -0.007159472443163395,
+            0.117402583360672,
+            0.040643345564603806,
+            1
+          ]
+        },
+        {
+          "key": "middle_04_leaf_r",
+          "name": "middle_04_leaf_r",
+          "parent": "middle_03_r",
+          "rest": [
+            -0.9993022096935094,
+            2.9541164153864937e-8,
+            0.03735307743934328,
+            0,
+            3.357845393802155e-8,
+            0.9999997019767698,
+            1.0745742087613604e-7,
+            0,
+            -0.03735307743933987,
+            1.0863672051987231e-7,
+            -0.999302209693504,
+            0,
+            -2.2610038286074996e-9,
+            0.030519699677824974,
+            1.9423532648943365e-7,
+            1
+          ]
+        },
+        {
+          "key": "middle_03_r",
+          "name": "middle_03_r",
+          "parent": "middle_02_r",
+          "rest": [
+            0.9999959026490887,
+            0.0028396601376656097,
+            -0.00010865979719877859,
+            0,
+            -0.002839659901019018,
+            0.9999957893431831,
+            -7.832211598708031e-7,
+            0,
+            0.00010865714149393316,
+            0.0000010917750455848638,
+            0.9999999940962174,
+            0,
+            -1.1996235116384923e-9,
+            0.030116606503725052,
+            -6.529444362968206e-8,
+            1
+          ]
+        },
+        {
+          "key": "middle_02_r",
+          "name": "middle_02_r",
+          "parent": "middle_01_r",
+          "rest": [
+            0.9999915596149713,
+            -0.0041056204563054855,
+            0.0001567810389906602,
+            0,
+            0.004105620281190809,
+            0.9999915719049054,
+            0.000001438764612441225,
+            0,
+            -0.00015678564333666256,
+            -7.950691809223503e-7,
+            1.0000001069181064,
+            0,
+            4.5683918870054185e-9,
+            0.03752603381872177,
+            -2.081651473417878e-8,
+            1
+          ]
+        },
+        {
+          "key": "middle_01_r",
+          "name": "middle_01_r",
+          "parent": "hand_r",
+          "rest": [
+            0.000008224415458446543,
+            0.023889951690488187,
+            0.9997146490788391,
+            0,
+            -0.038215794918741455,
+            0.9989842605462534,
+            -0.023872182586792114,
+            0,
+            -0.9992695047803821,
+            -0.038204690274767014,
+            0.0009211894504790486,
+            0,
+            -0.004682543221861124,
+            0.1154387965798378,
+            0.015113386325538158,
+            1
+          ]
+        },
+        {
+          "key": "pinky_04_leaf_r",
+          "name": "pinky_04_leaf_r",
+          "parent": "pinky_03_r",
+          "rest": [
+            -0.999316750716053,
+            1.0930062556939746e-8,
+            0.03696115247834708,
+            0,
+            2.6647671513334113e-8,
+            0.9999999999999094,
+            4.2475410012787036e-7,
+            0,
+            -0.03696115247833909,
+            4.2544879563235436e-7,
+            -0.9993167507159628,
+            0,
+            -1.3542376109398901e-9,
+            0.021523330360651016,
+            -4.5925844460725784e-8,
+            1
+          ]
+        },
+        {
+          "key": "pinky_03_r",
+          "name": "pinky_03_r",
+          "parent": "pinky_02_r",
+          "rest": [
+            0.9999994086781488,
+            -0.0009320198061187764,
+            -0.0002748888258742096,
+            0,
+            0.0009320217052740914,
+            0.9999995060413648,
+            0.0000065786949917898315,
+            0,
+            0.0002748825750007331,
+            -0.000006834893861909552,
+            0.9999998429871323,
+            0,
+            3.7834979593753815e-10,
+            0.027430785819888115,
+            1.7545244190841913e-7,
+            1
+          ]
+        },
+        {
+          "key": "pinky_02_r",
+          "name": "pinky_02_r",
+          "parent": "pinky_01_r",
+          "rest": [
+            0.9999950680632117,
+            0.00313488199092407,
+            0.0001906959944472875,
+            0,
+            -0.0031348819538022624,
+            0.9999950266408414,
+            4.862851520568849e-7,
+            0,
+            -0.0001906935216012527,
+            -0.000001084092136493279,
+            0.9999999222127582,
+            0,
+            -8.046299626585096e-9,
+            0.03163103014230728,
+            -5.98374754190445e-8,
+            1
+          ]
+        },
+        {
+          "key": "pinky_01_r",
+          "name": "pinky_01_r",
+          "parent": "hand_r",
+          "rest": [
+            0.000008366602018480212,
+            0.030851267285398894,
+            0.9995240575615288,
+            0,
+            -0.03820376224857904,
+            0.9987945520054998,
+            -0.030828430963018082,
+            0,
+            -0.9992700411977785,
+            -0.03818531573658864,
+            0.0011869908284141745,
+            0,
+            -0.0060377162881195545,
+            0.09854142367839813,
+            -0.03461737558245659,
+            1
+          ]
+        },
+        {
+          "key": "ring_04_leaf_r",
+          "name": "ring_04_leaf_r",
+          "parent": "ring_03_r",
+          "rest": [
+            -0.9992742601228425,
+            -3.844219741758485e-8,
+            0.03809283964359692,
+            0,
+            2.7108782489373297e-9,
+            0.9999999999994165,
+            0.0000010802846603088052,
+            0,
+            -0.038092839643616226,
+            0.000001079603795147648,
+            -0.9992742601222594,
+            0,
+            6.257323548197746e-9,
+            0.029101617634296417,
+            2.222896000603214e-8,
+            1
+          ]
+        },
+        {
+          "key": "ring_03_r",
+          "name": "ring_03_r",
+          "parent": "ring_02_r",
+          "rest": [
+            0.9999769211052107,
+            0.006775067216657468,
+            -0.0005056877040251734,
+            0,
+            -0.006775063322267375,
+            0.9999770489502579,
+            0.000009413831642435608,
+            0,
+            0.0005057398773049101,
+            -0.000005987548083978832,
+            0.9999998720956517,
+            0,
+            -1.204170985147357e-9,
+            0.028300197795033455,
+            5.154106474947184e-8,
+            1
+          ]
+        },
+        {
+          "key": "ring_02_r",
+          "name": "ring_02_r",
+          "parent": "ring_01_r",
+          "rest": [
+            0.9999883271676485,
+            -0.004799510562841212,
+            0.0004370577583352876,
+            0,
+            0.0047995147028176265,
+            0.9999884226231401,
+            -0.000008424032591420273,
+            0,
+            -0.00043701229317131445,
+            0.000010521599845895143,
+            0.9999998448501288,
+            0,
+            -4.307366907596588e-9,
+            0.036001186817884445,
+            -8.079041435848922e-8,
+            1
+          ]
+        },
+        {
+          "key": "ring_01_r",
+          "name": "ring_01_r",
+          "parent": "hand_r",
+          "rest": [
+            0.00026201033461425993,
+            -0.005102023156432711,
+            0.9999869850447178,
+            0,
+            -0.03822844318322225,
+            0.999255730288411,
+            0.005108310113927422,
+            0,
+            -0.9992690260055317,
+            -0.038229292034300144,
+            0.00006677292273393753,
+            0,
+            -0.0047518047504127026,
+            0.10940061509609222,
+            -0.012370162643492222,
+            1
+          ]
+        },
+        {
+          "key": "thumb_04_leaf_r",
+          "name": "thumb_04_leaf_r",
+          "parent": "thumb_03_r",
+          "rest": [
+            0.70706800596715,
+            -3.9432581766465935e-8,
+            0.7071457202877061,
+            0,
+            -1.458943834585542e-7,
+            0.999999999999969,
+            2.0164136940888434e-7,
+            0,
+            -0.7071456359893632,
+            -2.457427208439684e-7,
+            0.7070679216780578,
+            0,
+            9.080395102500916e-9,
+            0.03455810248851776,
+            1.7695128917694092e-8,
+            1
+          ]
+        },
+        {
+          "key": "thumb_03_r",
+          "name": "thumb_03_r",
+          "parent": "thumb_02_r",
+          "rest": [
+            0.9999999386247035,
+            -0.00000340119315272941,
+            -0.000059411573522248835,
+            0,
+            0.0000034011871842824743,
+            0.9999999999942105,
+            -1.039726059392959e-7,
+            0,
+            0.00005941157387553579,
+            1.0377052967566334e-7,
+            0.9999999386304822,
+            0,
+            1.2456439435482025e-8,
+            0.03549079969525337,
+            8.381903171539307e-9,
+            1
+          ]
+        },
+        {
+          "key": "thumb_02_r",
+          "name": "thumb_02_r",
+          "parent": "thumb_01_r",
+          "rest": [
+            0.9999999999340388,
+            0.000006336712852795902,
+            0.000009579588235736187,
+            0,
+            -0.000006336724896669668,
+            0.9999998807697409,
+            0.000001336068251455613,
+            0,
+            -0.000009579579198265988,
+            -0.0000013361290342222569,
+            0.9999999403485784,
+            0,
+            -4.563480615615845e-8,
+            0.039520014077425,
+            2.8172507882118225e-8,
+            1
+          ]
+        },
+        {
+          "key": "thumb_01_r",
+          "name": "thumb_01_r",
+          "parent": "hand_r",
+          "rest": [
+            -0.8740049939238463,
+            -0.43675547520505015,
+            -0.21297817851494696,
+            0,
+            -0.48591381702808367,
+            0.7871105510287772,
+            0.3799275848644827,
+            0,
+            0.0017019129432432768,
+            0.43554769426405393,
+            -0.9001641210191618,
+            0,
+            -0.02748131938278675,
+            0.03381356596946716,
+            0.04106312245130539,
+            1
+          ]
+        },
+        {
+          "key": "hand_r",
+          "name": "hand_r",
+          "parent": "lowerarm_r",
+          "rest": [
+            0.9999999999995453,
+            1.3646797962044452e-9,
+            -9.53691006576707e-7,
+            0,
+            -3.1118719332823374e-8,
+            0.9995131764026904,
+            -0.03119952241003035,
+            0,
+            9.531840931187072e-7,
+            0.031199520550409386,
+            0.9995131168266082,
+            0,
+            1.5123667651550932e-7,
+            0.2435941994190216,
+            2.032038537436165e-9,
+            1
+          ]
+        },
+        {
+          "key": "lowerarm_r",
+          "name": "lowerarm_r",
+          "parent": "upperarm_r",
+          "rest": [
+            0.9999999965229083,
+            -5.947072355621077e-8,
+            0.00008339172889488511,
+            0,
+            -0.000005063847506635958,
+            0.9981110603839519,
+            0.06143542476942112,
+            0,
+            -0.00008323786057602941,
+            -0.061435424978087495,
+            0.9981110569131271,
+            0,
+            -3.0872001843818e-8,
+            0.251115083694458,
+            -2.86672729998827e-9,
+            1
+          ]
+        },
+        {
+          "key": "upperarm_r",
+          "name": "upperarm_r",
+          "parent": "clavicle_r",
+          "rest": [
+            0.00004273609667001367,
+            -0.0005906144036767756,
+            0.9999996294397221,
+            0,
+            -0.41354304187035335,
+            0.910483809968908,
+            0.0005554114731709729,
+            0,
+            -0.9104843418347837,
+            -0.4135431656364912,
+            -0.00020533260946351142,
+            0,
+            0.009135720320045948,
+            0.20573900640010834,
+            -0.03967121243476868,
+            1
+          ]
+        },
+        {
+          "key": "clavicle_r",
+          "name": "clavicle_r",
+          "parent": "spine_03",
+          "rest": [
+            0.44090965153545625,
+            0.20151734923646814,
+            -0.8746367794465328,
+            0,
+            -0.8975512505424419,
+            0.09839925657707639,
+            -0.42978971066345883,
+            0,
+            -0.0005464283763245703,
+            0.9745298542421921,
+            0.22425732144432686,
+            0,
+            -0.03139999881386757,
+            0.1737176477909088,
+            0.06732845306396484,
+            1
+          ]
+        },
+        {
+          "key": "spine_03",
+          "name": "spine_03",
+          "parent": "spine_02",
+          "rest": [
+            1,
+            0,
+            0,
+            0,
+            0,
+            0.9691541898231844,
+            -0.24645517278392504,
+            0,
+            0,
+            0.24645517278392504,
+            0.9691541898231844,
+            0,
+            0,
+            0.1331336796283722,
+            0,
+            1
+          ]
+        },
+        {
+          "key": "spine_02",
+          "name": "spine_02",
+          "parent": "spine_01",
+          "rest": [
+            1,
+            0,
+            0,
+            0,
+            0,
+            0.9968659998229441,
+            -0.07910864980482302,
+            0,
+            0,
+            0.07910864980482302,
+            0.9968659998229441,
+            0,
+            0,
+            0.10634974390268326,
+            -1.3969838619232178e-9,
+            1
+          ]
+        },
+        {
+          "key": "spine_01",
+          "name": "spine_01",
+          "parent": "pelvis",
+          "rest": [
+            1,
+            0,
+            0,
+            0,
+            0,
+            0.9831248783207616,
+            -0.18293571255646235,
+            0,
+            0,
+            0.18293571255646235,
+            0.9831248783207616,
+            0,
+            0,
+            0.1280922144651413,
+            -3.259629011154175e-8,
+            1
+          ]
+        },
+        {
+          "key": "ball_leaf_l",
+          "name": "ball_leaf_l",
+          "parent": "ball_l",
+          "rest": [
+            0.9999999999999962,
+            -2.8421705618755745e-14,
+            8.742298973629618e-8,
+            0,
+            2.5816297494538456e-14,
+            0.9999999999999996,
+            2.98023223876965e-8,
+            0,
+            -8.7422989736297e-8,
+            -2.9802322387694128e-8,
+            0.9999999999999958,
+            0,
+            -1.3288261602184548e-9,
+            0.07889983803033829,
+            -4.233804418163345e-10,
+            1
+          ]
+        },
+        {
+          "key": "ball_l",
+          "name": "ball_l",
+          "parent": "foot_l",
+          "rest": [
+            -1.0000001077629617,
+            3.918473163236745e-8,
+            -3.986879582278197e-7,
+            0,
+            2.1372796522810092e-7,
+            0.8939236814322306,
+            -0.44821974526224584,
+            0,
+            3.388331593722307e-7,
+            -0.44821963839840584,
+            -0.8939235760672459,
+            0,
+            -4.181756274590498e-9,
+            0.15907371044158936,
+            -7.893650177948075e-9,
+            1
+          ]
+        },
+        {
+          "key": "foot_l",
+          "name": "foot_l",
+          "parent": "calf_l",
+          "rest": [
+            0.9999999999998863,
+            -4.47517454676263e-7,
+            -1.646269022314463e-7,
+            0,
+            -4.333247763431761e-15,
+            0.34524744009128316,
+            -0.9385117249502849,
+            0,
+            4.768373823204755e-7,
+            0.9385117249501781,
+            0.34524744009124386,
+            0,
+            0,
+            0.4587883949279785,
+            5.587935447692871e-9,
+            1
+          ]
+        },
+        {
+          "key": "calf_l",
+          "name": "calf_l",
+          "parent": "thigh_l",
+          "rest": [
+            1,
+            0,
+            0,
+            0,
+            0,
+            0.9937304777291853,
+            0.11180222500905401,
+            0,
+            0,
+            -0.11180222500905401,
+            0.9937304777291853,
+            0,
+            -7.450580596923828e-9,
+            0.4288000166416168,
+            3.1723175197839737e-9,
+            1
+          ]
+        },
+        {
+          "key": "thigh_l",
+          "name": "thigh_l",
+          "parent": "pelvis",
+          "rest": [
+            1,
+            0,
+            0,
+            0,
+            0,
+            -0.9595309373619401,
+            0.28160386304845275,
+            0,
+            0,
+            -0.28160440016519594,
+            -0.9595327675219616,
+            0,
+            0.11430513858795166,
+            0.023176943883299828,
+            0.0004878304898738861,
+            1
+          ]
+        },
+        {
+          "key": "ball_leaf_r",
+          "name": "ball_leaf_r",
+          "parent": "ball_r",
+          "rest": [
+            0.9999999999999962,
+            2.8421705618755745e-14,
+            -8.742298973629618e-8,
+            0,
+            -2.5816297494538456e-14,
+            0.9999999999999996,
+            2.98023223876965e-8,
+            0,
+            8.7422989736297e-8,
+            -2.9802322387694128e-8,
+            0.9999999999999958,
+            0,
+            1.3288261602184548e-9,
+            0.07889983803033829,
+            -4.233804418163345e-10,
+            1
+          ]
+        },
+        {
+          "key": "ball_r",
+          "name": "ball_r",
+          "parent": "foot_r",
+          "rest": [
+            -1.0000001077629617,
+            -3.918473163236745e-8,
+            3.986879582278197e-7,
+            0,
+            -2.1372796522810092e-7,
+            0.8939236814322306,
+            -0.44821974526224584,
+            0,
+            -3.388331593722307e-7,
+            -0.44821963839840584,
+            -0.8939235760672459,
+            0,
+            4.181756274590498e-9,
+            0.15907371044158936,
+            -7.893650177948075e-9,
+            1
+          ]
+        },
+        {
+          "key": "foot_r",
+          "name": "foot_r",
+          "parent": "calf_r",
+          "rest": [
+            0.9999999999998863,
+            4.47517454676263e-7,
+            1.646269022314463e-7,
+            0,
+            4.333247763431761e-15,
+            0.34524744009128316,
+            -0.9385117249502849,
+            0,
+            -4.768373823204755e-7,
+            0.9385117249501781,
+            0.34524744009124386,
+            0,
+            0,
+            0.4587883949279785,
+            5.587935447692871e-9,
+            1
+          ]
+        },
+        {
+          "key": "calf_r",
+          "name": "calf_r",
+          "parent": "thigh_r",
+          "rest": [
+            1,
+            0,
+            0,
+            0,
+            0,
+            0.9937304777291853,
+            0.11180222500905401,
+            0,
+            0,
+            -0.11180222500905401,
+            0.9937304777291853,
+            0,
+            7.450580596923828e-9,
+            0.4288000166416168,
+            3.1723175197839737e-9,
+            1
+          ]
+        },
+        {
+          "key": "thigh_r",
+          "name": "thigh_r",
+          "parent": "pelvis",
+          "rest": [
+            1,
+            0,
+            0,
+            0,
+            0,
+            -0.9595309373619401,
+            0.28160386304845275,
+            0,
+            0,
+            -0.28160440016519594,
+            -0.9595327675219616,
+            0,
+            -0.11430513858795166,
+            0.023176943883299828,
+            0.0004878304898738861,
+            1
+          ]
+        },
+        {
+          "key": "pelvis",
+          "name": "pelvis",
+          "parent": "root",
+          "rest": [
+            1,
+            0,
+            0,
+            0,
+            0,
+            -0.28182793027497866,
+            0.9594650291335824,
+            0,
+            0,
+            -0.9594650291335824,
+            -0.28182793027497866,
+            0,
+            0,
+            0.042999982833862305,
+            0.9491000175476074,
+            1
+          ]
+        },
+        {
+          "key": "root",
+          "name": "root",
+          "parent": "Armature",
+          "rest": [
+            1,
+            0,
+            0,
+            0,
+            0,
+            3.422854177870249e-8,
+            -0.9999999657714582,
+            0,
+            0,
+            0.9999999657714582,
+            3.422854177870249e-8,
+            0,
+            0,
+            0,
+            0,
+            1
+          ]
+        },
+        {
+          "key": "Eyebrows",
+          "name": "Eyebrows",
+          "parent": "Armature",
+          "rest": [
+            1,
+            0,
+            0,
+            0,
+            0,
+            1,
+            0,
+            0,
+            0,
+            0,
+            1,
+            0,
+            0,
+            0,
+            0,
+            1
+          ]
+        },
+        {
+          "key": "Eyes",
+          "name": "Eyes",
+          "parent": "Armature",
+          "rest": [
+            1,
+            0,
+            0,
+            0,
+            0,
+            1,
+            0,
+            0,
+            0,
+            0,
+            1,
+            0,
+            0,
+            0,
+            0,
+            1
+          ]
+        },
+        {
+          "key": "SuperHero_Male",
+          "name": "SuperHero_Male",
+          "parent": "Armature",
+          "rest": [
+            1,
+            0,
+            0,
+            0,
+            0,
+            1,
+            0,
+            0,
+            0,
+            0,
+            1,
+            0,
+            0,
+            0,
+            0,
+            1
+          ]
+        },
+        {
+          "key": "Armature",
+          "name": "Armature",
+          "parent": null,
+          "rest": [
+            1,
+            0,
+            0,
+            0,
+            0,
+            1,
+            0,
+            0,
+            0,
+            0,
+            1,
+            0,
+            0,
+            0,
+            0,
+            1
+          ]
+        }
+      ]
+    }
+  ]
+}

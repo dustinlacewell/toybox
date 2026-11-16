@@ -6,6 +6,8 @@
  * Tauri-seam shims share, factored out to avoid a circular import between them.
  */
 
+import thumbnails from "../_thumbnails.json";
+const bundled=thumbnails as Record<string,string>;
 const urlsById = new Map<string, string>();
 
 /** Store rendered PNG bytes and return nothing — mirrors saveThumb's contract. */
@@ -18,5 +20,5 @@ export function putThumb(assetId: string, png: Uint8Array): void {
 
 /** The object URL for a rendered thumbnail, or null if it hasn't rendered yet. */
 export function getThumbUrl(assetId: string): string | null {
-  return urlsById.get(assetId) ?? null;
+  return urlsById.get(assetId) ?? (bundled[assetId] ? `${import.meta.env.BASE_URL}demo-assets/thumbnails/${bundled[assetId]}` : null);
 }
