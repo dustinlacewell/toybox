@@ -4,11 +4,17 @@ Local asset library for models, materials, animations, and audio. Built with Tau
 
 ## Library migrations
 
+For an AI-facing procedure, including path discovery, offline commands, validation,
+and recovery, read [Migrating an existing library](docs/ai-library-migration.md).
+The [storage overview](docs/library-storage.md) describes the managed layout.
+
 Toybox runs ordered migrations before loading or rebuilding a library catalog. The durable migration version is separate from the rebuildable catalog schema version. Each library records completed steps in `_library_config/migrations.json`.
 
-The first two steps make legacy model kinds explicit and move existing pack/source metadata into provenance and searchable tags. Pack `name` maps to source; explicit `publisher`, `url`, and `license` fields map directly. If no title exists, the pack identifier is copied verbatim. Existing provenance takes precedence, and matching cached metadata is transferred by asset ID. There is no filename analysis, publisher/license guessing, web lookup, or metadata enrichment. Asset IDs, files, custom tags, favorites, collections, and unrelated JSON fields are preserved.
+The first two steps make legacy model kinds explicit and move existing pack/source metadata into provenance and searchable tags. Pack `name` maps to source; explicit `publisher`, `url`, and `license` fields map directly. If no title exists, the pack identifier is copied verbatim. Existing provenance takes precedence, and matching cached metadata is transferred by asset ID. There is no filename analysis, publisher/license guessing, web lookup, or metadata enrichment. Asset IDs, custom tags, favorites, collections, and unrelated JSON fields are preserved.
 
-Changed documents have before/after snapshots under `_library_config/migration-backups/`. A durable transaction marker allows an interrupted migration to roll back before retrying. Recovery refuses to overwrite subsequent external edits. Conflicting explicit provenance in the manifest and cached user metadata stops migration for a deliberate resolution. A library with a newer migration version is rejected rather than downgraded. Only a cache belonging to the same library is migrated.
+Step 3, introduced in 0.4.1, moves indexed media into uniform storage by type and writes explicit file locations. Pack/category names no longer determine storage. Copies are SHA-256 verified before old indexed files are removed; glTF URIs and cached paths are updated together. Existing item identities and user metadata remain attached to the same items. Unindexed source extras are archived with migration backups.
+
+Changed documents have snapshots under `_library_config/migration-backups/`. Metadata transactions can restore their before snapshots before retrying; the separate storage journal resumes publication and cleanup toward the new layout. Recovery refuses to overwrite subsequent external edits. Conflicting explicit provenance in the manifest and cached user metadata stops migration for a deliberate resolution. A library with a newer migration version is rejected rather than downgraded. Only a cache belonging to the same library is migrated.
 
 To add an upgrade, append a numbered step in `src-tauri/src/domain/library_migrations.rs`, increase `LATEST_VERSION`, and keep the transform deterministic and idempotent. Add any explicitly corresponding inputs to the infrastructure runner. Never reuse or reorder an existing version. Derived catalog changes still require a `SCHEMA_VERSION` bump.
 

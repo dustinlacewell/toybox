@@ -1,5 +1,10 @@
 # Toybox Material Set Format
 
+> The pack-folder examples below describe legacy inbound material entries.
+> Managed storage in 0.4.1 uses an explicit `storagePath` under `library/materials/`.
+> Follow the [AI migration guide](ai-library-migration.md) for existing libraries
+> and the [storage overview](library-storage.md) for the current layout.
+
 A material set is a group of texture maps. Each map has a role, such as albedo or normal.
 A material set is not a glTF model. It has its own manifest entry and its own folder.
 

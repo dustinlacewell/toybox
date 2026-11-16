@@ -1,10 +1,16 @@
 # Toybox Asset Library Format — Conversion Spec for LLM Agents
 
+> **Legacy inbound format:** the pack-folder layout in this document predates
+> managed storage in Toybox 0.4.1. It can describe conversion input, but it is not
+> the final library layout. For existing libraries, follow the
+> [AI migration guide](ai-library-migration.md); for the managed storage contract,
+> see [library-storage.md](library-storage.md). Do not recreate pack folders as
+> the final storage organization or skip the native migration.
+
 You are converting a **foreign 3D-asset collection** (some other library, a bundle of
 asset packs, a pile of loose models — anything) into the **Toybox library format**. This
-document is the complete contract. You do not need access to the Toybox application or its
-source. Produce a directory tree that matches what is described here and Toybox will ingest
-it.
+document describes the legacy inbound conversion contract. Use the current app's
+import/commit path or its native migration helper to produce final managed storage.
 
 Read the whole document once before starting. The format is small; the discipline is in
 getting paths and the source manifest exactly right.

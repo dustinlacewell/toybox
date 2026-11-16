@@ -1,5 +1,8 @@
 # Managed library storage
 
+For an operational migration procedure, see the
+[AI library migration guide](ai-library-migration.md).
+
 The manifest at `_library_config/catalog.json` is authoritative. Each record
 has an explicit `storagePath`; source titles and categories never locate files.
 

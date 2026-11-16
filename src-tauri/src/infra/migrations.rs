@@ -73,7 +73,8 @@ fn version(journal: &Value) -> AppResult<u32> {
         .ok_or_else(|| AppError::msg("Invalid migration journal version"))
 }
 
-/// Called before any catalog is read or rebuilt; it never rewrites media files.
+/// Called before catalog loading/rebuilding. Step 3 relocates media through the
+/// separate verified storage transaction; it does not derive catalog facts.
 pub fn run(root: &Path, cache: &Path) -> AppResult<()> {
     let _lock = LOCK
         .lock()
