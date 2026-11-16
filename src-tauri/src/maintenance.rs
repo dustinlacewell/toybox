@@ -3,6 +3,26 @@ use std::collections::BTreeMap;
 use std::path::Path;
 use crate::domain::{catalog_migrate, catalog_model::{AssetContent, Catalog}, merge, seed};
 
+/// Migration only: no reindex, filename inference or animation extraction.
+pub fn migrate_library(root:&Path,cache:&Path)->Result<serde_json::Value,String>{
+    (||->crate::error::AppResult<serde_json::Value>{
+        crate::infra::migrations::run(root,cache)?;
+        let manifest:serde_json::Value=serde_json::from_slice(&std::fs::read(root.join(crate::config::SEED_REL))?)?;
+        let entries=seed::parse_seed_entries(&manifest)?;
+        let validated_cache_items=if cache.exists(){
+            let doc:serde_json::Value=serde_json::from_slice(&std::fs::read(cache)?)?;
+            if doc["libraryRoot"].as_str().is_some_and(|path|Path::new(path).canonicalize().ok()==root.canonicalize().ok()){
+                let catalog:Catalog=serde_json::from_value(doc)?;Some(catalog.assets.len())
+            }else{None}
+        }else{None};
+        let mut counts=BTreeMap::new();for entry in &entries{
+            let kind=match entry.content{seed::SeedContent::Model{..}=>"model",seed::SeedContent::Material{..}=>"material",seed::SeedContent::AnimationSource{..}=>"animation",seed::SeedContent::Audio{..}=>"audio"};
+            *counts.entry(kind).or_insert(0usize)+=1;
+        }
+        Ok(serde_json::json!({"storageVersion":manifest["storageVersion"],"sourceEntries":entries.len(),"validatedCachedItems":validated_cache_items,"counts":counts,"backupDirectory":root.join("_library_config/migration-backups")}))
+    })().map_err(|e|e.to_string())
+}
+
 #[derive(Debug, serde::Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct ReindexReport { pub source_entries: usize, pub total_assets: usize, pub counts: BTreeMap<String, usize>, pub backup: Option<String> }
@@ -12,6 +32,7 @@ pub fn reindex(root: &Path, cache: &Path) -> Result<ReindexReport, String> {
 }
 
 fn reindex_inner(root: &Path, cache: &Path) -> crate::error::AppResult<ReindexReport> {
+    crate::infra::migrations::run(root,cache)?;
     let source_path = root.join(crate::config::SEED_REL);
     let source = std::fs::read(&source_path)?;
     let doc = crate::infra::animation_import::prepare(&root.to_string_lossy(),serde_json::from_slice(&source)?)?;
@@ -65,7 +86,11 @@ mod tests {
         let report = reindex(&root, &cache).unwrap(); assert_eq!(report.total_assets, 1); assert_eq!(report.counts["material"], 1);
         assert!(Path::new(report.backup.as_ref().unwrap()).is_file());
         let result: Value = serde_json::from_slice(&std::fs::read(&cache).unwrap()).unwrap();
-        assert_eq!(result["assets"][0]["user"], prior["assets"][0]["user"]);
+        let user=&result["assets"][0]["user"];
+        assert_eq!(user["favorite"],prior["assets"][0]["user"]["favorite"]);
+        assert_eq!(user["collections"],prior["assets"][0]["user"]["collections"]);
+        assert!(user["tags"].as_array().unwrap().contains(&json!("tag")));
+        assert_eq!(user["provenance"]["source"],"p");
         assert_eq!(result["schemaVersion"], crate::config::SCHEMA_VERSION);
         std::fs::remove_dir_all(folder).unwrap();
     }

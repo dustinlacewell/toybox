@@ -67,7 +67,7 @@ pub fn set(app: &AppHandle, root: &Path) -> AppResult<()> {
 /// Establish a new, empty library in `root`, then adopt it. An already-valid
 /// library is adopted as-is (idempotent); otherwise the folder must be empty, so
 /// scaffolding can never clobber unrelated files. The skeleton is the minimum a
-/// scan accepts: an empty seed catalog and the `library/` packs directory that
+/// scan accepts: an empty seed catalog and the type directories under `library/` that
 /// importers populate.
 pub fn create(app: &AppHandle, root: &Path) -> AppResult<()> {
     if validate(root).is_err() {
@@ -120,18 +120,20 @@ fn require_empty_dir(root: &Path) -> AppResult<()> {
 
 /// Lay down the minimum a library needs: an empty seed catalog at
 /// `_library_config/catalog.json` (the parent dir is created by the write) and
-/// the `library/` directory importers add packs under.
+/// the standard type directories. Importers stage files; the host owns storage.
 fn scaffold(root: &Path) -> AppResult<()> {
     let seed = paths::abs_under_root(&root.to_string_lossy(), config::SEED_REL);
     fsio::write_text(&seed, EMPTY_SEED)?;
-    std::fs::create_dir_all(root.join("library"))?;
+    for kind in ["models", "materials", "animations", "audio"] {
+        std::fs::create_dir_all(root.join("library").join(kind))?;
+    }
     Ok(())
 }
 
 /// The native seed source for an empty library. `schemaVersion: 1` is the
 /// *source* schema the seed parser reads (distinct from the cache
 /// `config::SCHEMA_VERSION`); `assets: []` is what an empty library declares.
-const EMPTY_SEED: &str = "{\n  \"schemaVersion\": 1,\n  \"assets\": []\n}\n";
+const EMPTY_SEED: &str = "{\n  \"schemaVersion\": 1,\n  \"storageVersion\": 1,\n  \"assets\": []\n}\n";
 
 /// Allow the webview's asset protocol to serve files under `root`. Without this
 /// the catalog scans fine but every gltf/texture/thumbnail 404s in the viewer.

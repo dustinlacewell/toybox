@@ -1,7 +1,7 @@
 /**
  * The material folder importer panel. Walks a user-picked source folder, groups
  * its images into material drafts, lets the user review and fix each one, then
- * copies the used images into `library/<pack>/materials/<name>/` and commits one
+ * copies the used images into private staging and commits one
  * material entry per material.
  *
  * Like the glTF importer, the whole file flow runs here in the panel: every write
@@ -13,6 +13,7 @@ import { useState } from "react";
 import { Stack, Button, TextInput } from "@ldlework/toybox-sdk/ui";
 import {
   defineImportPanel,
+  importNamespace,
   groupSeedVariants,
   type ImportPanelCtx,
   type SeedEntryInput,
@@ -42,7 +43,7 @@ type Phase =
   | { step: "error"; message: string };
 
 export default defineImportPanel(function ImportPanel({ ctx }: { ctx: ImportPanelCtx }) {
-  const [pack, setPack] = useState("imported");
+  const [pack, setPack] = useState("_import_pending");
   const [category, setCategory] = useState("uncategorized");
   const [phase, setPhase] = useState<Phase>({ step: "idle" });
   const loader = useThumbLoader(ctx.fs, phase.step === "scanned" ? phase.source : undefined);
@@ -50,6 +51,7 @@ export default defineImportPanel(function ImportPanel({ ctx }: { ctx: ImportPane
   const scan = async () => {
     const source = await ctx.host.pickDirectory();
     if (!source) return;
+    setPack(importNamespace(source));
     try {
       const drafts = groupMaterials(await findImages(ctx.fs, source));
       const items = drafts.map((draft) => ({ draft, included: true }));
@@ -110,9 +112,8 @@ export default defineImportPanel(function ImportPanel({ ctx }: { ctx: ImportPane
     <h2>Bring a texture folder into your library.</h2>
     <p className="export__hint">Review the files, their channels and the material they make before adding them.</p>
     <section className="export__section">
-      <div className="export__label">File under</div>
+      <div className="export__label">Category</div>
       <Stack dir="row" gap={8}>
-        <TextInput aria-label="Pack" value={pack} onChange={(e) => setPack(e.currentTarget.value)} placeholder="Pack" />
         <TextInput aria-label="Category" value={category} onChange={(e) => setCategory(e.currentTarget.value)} placeholder="Category" />
       </Stack>
     </section>

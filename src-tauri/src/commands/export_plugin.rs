@@ -74,7 +74,7 @@ pub async fn perform_asset_copy(
     let root = root.as_ref();
     if matches!(asset.content, crate::domain::catalog_model::AssetContent::Material { .. }) {
         let mut report = ExportReport::default();
-        super::export_copy::copy_material(root, Path::new(&target_dir), &asset, preserve_structure, &mut report)?;
+        super::export_copy::copy_material_named(root, Path::new(&target_dir), &asset, &stem, preserve_structure, &mut report)?;
         return Ok(report.written);
     }
     if matches!(asset.content,crate::domain::catalog_model::AssetContent::Audio {..}) {
@@ -186,7 +186,8 @@ pub async fn preview_export(app: AppHandle, asset_ids: Vec<String>, format: Stri
         }
         if matches!(asset.content, crate::domain::catalog_model::AssetContent::Material { .. }) {
             if format != "copy" { return Err(AppError::msg("materials require a material exporter")); }
-            out.extend(super::export_copy::material_paths(asset, preserve_structure).into_iter().map(|(_, dst)| dst));
+            let stem=super::export_copy::resolve_stem(asset,preserve_structure,&mut used,&mut report);
+            out.extend(super::export_copy::material_paths_named(asset,&stem,preserve_structure).into_iter().map(|(_, dst)| dst));
         } else if format == "glb" {
             let stem = super::export_glb::resolve_stem(asset, preserve_structure, &mut used, &mut report);
             out.push(if preserve_structure { format!("{}/{}/{}.glb", asset.pack, asset.category, stem) } else { format!("{stem}.glb") });

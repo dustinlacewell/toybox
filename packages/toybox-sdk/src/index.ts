@@ -265,7 +265,11 @@ export interface MaterialMapInput {
   invert?: boolean;
 }
 
+export { importNamespace } from "./storage.js";
+
 export interface ModelSeedEntry {
+  /** Host-managed file location; source/category never define storage. */
+  storagePath?: string;
   provenance?: ImportProvenance;
   variants?: ModelSeedEntry[];
   kind?: "model";
@@ -276,6 +280,7 @@ export interface ModelSeedEntry {
 }
 
 export interface MaterialSeedEntry {
+  storagePath?: string;
   provenance?: ImportProvenance;
   variants?: MaterialSeedEntry[];
   kind: "material";
@@ -289,6 +294,7 @@ export interface MaterialSeedEntry {
 
 /** What an importer produces — exactly the shape of a library manifest entry. */
 export interface AnimationSeedEntry {
+  storagePath?: string;
   provenance?: ImportProvenance;
   kind: "animation";
   id: string;
@@ -296,7 +302,7 @@ export interface AnimationSeedEntry {
   category: string;
   file: string;
 }
-export interface AudioSeedEntry { provenance?: ImportProvenance; kind: "audio"; id: string; pack: string; category: string; file: string; }
+export interface AudioSeedEntry { storagePath?: string; provenance?: ImportProvenance; kind: "audio"; id: string; pack: string; category: string; file: string; }
 export type SeedEntryInput = ModelSeedEntry | MaterialSeedEntry | AnimationSeedEntry | AudioSeedEntry;
 
 // --- slot UI (plugin-shipped React panels) -----------------------------------

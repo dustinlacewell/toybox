@@ -35,7 +35,8 @@ pub async fn export_copy(app: AppHandle, req: ExportCopyReq) -> AppResult<Export
             copy_audio(root,target,asset,&stem,req.preserve_structure,&mut report)?;continue;
         }
         if matches!(asset.content, AssetContent::Material { .. }) {
-            copy_material(root, target, asset, req.preserve_structure, &mut report)?;
+            let stem=resolve_stem(asset,req.preserve_structure,&mut used_stems,&mut report);
+            copy_material_named(root, target, asset, &stem, req.preserve_structure, &mut report)?;
             continue;
         }
         let doc = read_gltf(root, asset)?;
@@ -68,28 +69,29 @@ pub(super) fn resolve_stem(
     // In preserve mode the pack/category dirs disambiguate, so collisions can't
     // happen; only flatten needs the guard.
     let base = crate::domain::animation::export_stem(asset);
-    if preserve_structure {
-        return base;
-    }
-    if used.insert(base.clone()) {
+    let key = |stem:&str| if preserve_structure {format!("{}/{}/{stem}",asset.pack,asset.category)} else {stem.into()};
+    if used.insert(key(&base)) {
         return base;
     }
     let prefix = format!("{}_{}", asset.pack, base);
     let mut namespaced = prefix.clone();
     let mut index = 2;
-    while !used.insert(namespaced.clone()) { namespaced = format!("{prefix}_{index}"); index += 1; }
+    while !used.insert(key(&namespaced)) { namespaced = format!("{prefix}_{index}"); index += 1; }
     report.warn(format!(
         "renamed '{}' -> '{}' to avoid a flattened name collision",
         asset.file_name, namespaced
     ));
-    used.insert(namespaced.clone());
     namespaced
 }
 
+#[cfg(test)]
 pub(super) fn material_paths(asset: &Asset, preserve: bool) -> Vec<(String, String)> {
+    material_paths_named(asset,&asset.name,preserve)
+}
+pub(super) fn material_paths_named(asset: &Asset, stem:&str, preserve: bool) -> Vec<(String, String)> {
     let AssetContent::Material { material } = &asset.content else { return Vec::new() };
-    let folder = if preserve { format!("{}/materials/{}", asset.pack, asset.name) }
-        else { format!("{}_{}", asset.pack, asset.name) };
+    let folder = if preserve { format!("{}/materials/{}", asset.pack, stem) }
+        else { format!("{}_{}", asset.pack, stem) };
     material.textures().into_iter().map(|src| {
         let name = Path::new(&src).file_name().unwrap_or_default().to_string_lossy();
         let dst = format!("{folder}/{name}");
@@ -99,7 +101,8 @@ pub(super) fn material_paths(asset: &Asset, preserve: bool) -> Vec<(String, Stri
 
 pub(super) fn audio_path(asset:&Asset,stem:&str,preserve:bool)->AppResult<String> {
     let AssetContent::Audio {audio}=&asset.content else {return Err(crate::error::AppError::msg("Expected audio"));};
-    if preserve {Ok(audio.file.strip_prefix("library/").ok_or_else(||crate::error::AppError::msg("Audio path must be inside library"))?.to_string())}
+    // Preserve the logical export layout, never expose opaque storage keys.
+    if preserve {Ok(format!("{}/{}/{}.{}",asset.pack,asset.category,stem,Path::new(&audio.file).extension().unwrap_or_default().to_string_lossy()))}
     else {Ok(format!("{stem}.{}",Path::new(&audio.file).extension().unwrap_or_default().to_string_lossy()))}
 }
 pub(crate) fn copy_audio(root:&str,target:&Path,asset:&Asset,stem:&str,preserve:bool,report:&mut ExportReport)->AppResult<()> {
@@ -111,8 +114,12 @@ pub(crate) fn copy_audio(root:&str,target:&Path,asset:&Asset,stem:&str,preserve:
     crate::infra::fsio::write_bytes(&target.join(&dst),&crate::infra::fsio::read_bytes(&source)?)?;report.write(dst);Ok(())
 }
 
+#[cfg(test)]
 pub(super) fn copy_material(root: &str, target: &Path, asset: &Asset, preserve: bool, report: &mut ExportReport) -> AppResult<()> {
-    for (src, dst) in material_paths(asset, preserve) {
+    copy_material_named(root,target,asset,&asset.name,preserve,report)
+}
+pub(super) fn copy_material_named(root: &str, target: &Path, asset: &Asset, stem:&str, preserve: bool, report: &mut ExportReport) -> AppResult<()> {
+    for (src, dst) in material_paths_named(asset, stem, preserve) {
         let bytes = crate::infra::fsio::read_bytes(&crate::domain::paths::abs_under_root(root, &src))?;
         crate::infra::fsio::write_bytes(&target.join(&dst), &bytes)?;
         report.write(dst);

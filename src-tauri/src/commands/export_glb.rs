@@ -86,23 +86,7 @@ pub(super) fn resolve_stem(
     used: &mut HashSet<String>,
     report: &mut ExportReport,
 ) -> String {
-    let base = crate::domain::animation::export_stem(asset);
-    if preserve_structure {
-        return base;
-    }
-    if used.insert(base.clone()) {
-        return base;
-    }
-    let prefix = format!("{}_{}", asset.pack, base);
-    let mut namespaced = prefix.clone();
-    let mut index = 2;
-    while !used.insert(namespaced.clone()) { namespaced = format!("{prefix}_{index}"); index += 1; }
-    report.warn(format!(
-        "renamed '{}.glb' -> '{}.glb' to avoid a flattened name collision",
-        asset.name, namespaced
-    ));
-    used.insert(namespaced.clone());
-    namespaced
+    super::export_copy::resolve_stem(asset,preserve_structure,used,report)
 }
 
 fn parent_rel(rel: &str) -> String {

@@ -47,7 +47,7 @@ export function ReviewDialog({ items, pack, category, loader, Preview, initialSe
     <p className="import-review__summary">{source?.split(/[\\/]/).pop()}</p>
     {attention.length > 0 && <><div className="import-review__section">Needs a look</div><MaterialList items={items} problems={problems} indexes={attention.flat()} selected={selected} loader={loader} onSelect={pick} onInclude={onInclude} /></>}
     <div className="import-review__section">Ready</div><MaterialList items={items} problems={problems} indexes={readyGroups.flat()} selected={selected} loader={loader} onSelect={pick} onInclude={onInclude} />
-    <div style={{ marginTop: "auto", padding: 8 }}><PropertyRow label="Pack" value={pack} /><PropertyRow label="Category" value={category} />{onScan && <Button variant="ghost" onClick={onScan}>Choose another folder</Button>}</div>
+    <div style={{ marginTop: "auto", padding: 8 }}><PropertyRow label="Category" value={category} />{onScan && <Button variant="ghost" onClick={onScan}>Choose another folder</Button>}</div>
   </>} inspector={<Pane footer={open && <><Button onClick={() => onIncludeAll(variants, false)}>Leave out</Button><Button variant="primary" onClick={() => {
     const index = groups.findIndex((g) => g.includes(selected)); const next = groups[(index + 1) % groups.length]; if (next) pick(next[0]);
   }}>Next material</Button></>}>

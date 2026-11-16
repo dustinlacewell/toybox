@@ -27,16 +27,18 @@ pub async fn merge_seed_entries(app: AppHandle, entries: Vec<Value>) -> AppResul
 
 fn merge_entries(app:&AppHandle,entries:Vec<Value>)->AppResult<Catalog> {
     let root = library::resolve(&app)?.to_string_lossy().to_string();
+    // Finish the versioned storage migration before accepting any new writes.
+    let prior = load_catalog_inner(app)?.filter(|c| std::path::Path::new(&c.library_root) == std::path::Path::new(&root));
 
     let parsed = entries.iter().map(seed::parse_entry).collect::<AppResult<Vec<_>>>()?;
     // Validate the incoming files before updating the source manifest.
     build_catalog(&root, parsed)?;
 
-    upsert_into_manifest(&root, entries)?;
+    upsert_into_manifest(&root, &crate::infra::appdata::catalog_path(app)?, entries)?;
     // Rebuild derived animation rows too, including removals/renames of clips.
     let fresh = build_catalog_from_seed(&root)?;
 
-    let result = match load_catalog_inner(&app)?.filter(|c| std::path::Path::new(&c.library_root) == std::path::Path::new(&root)) {
+    let result = match prior {
         Some(prior) => merge::merge_preserving_user(&prior, fresh),
         None => fresh,
     };
@@ -46,13 +48,13 @@ fn merge_entries(app:&AppHandle,entries:Vec<Value>)->AppResult<Catalog> {
 }
 
 /// Read the manifest, upsert `entries` into it, and write it back pretty-printed.
-fn upsert_into_manifest(root: &str, entries: Vec<Value>) -> AppResult<()> {
+fn upsert_into_manifest(root: &str, cache: &std::path::Path, entries: Vec<Value>) -> AppResult<()> {
     let path = paths::abs_under_root(root, config::SEED_REL);
     let previous = fsio::read_bytes(&path)?;
-    let doc = serde_json::from_slice(&previous)?;
-    let updated = seed::upsert_entries(doc, entries)?;
+    let doc: Value = serde_json::from_slice(&previous)?;
+    let updated = seed::upsert_entries(doc.clone(), entries)?;
     let updated = crate::infra::animation_import::prepare(root,updated)?;
     // Validate every independent fileset before registering the new manifest.
     build_catalog(root,seed::parse_seed_entries(&updated)?)?;
-    crate::infra::animation_import::commit(root,&previous,&updated)
+    crate::infra::storage::publish(std::path::Path::new(root),cache,doc,updated)
 }

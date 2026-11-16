@@ -2,8 +2,8 @@
 use serde_json::{json, Map, Value};
 use std::collections::HashMap;
 
-pub const LATEST_VERSION: u32 = 2;
-pub const STEPS: &[(u32, &str)] = &[(1, "explicit-asset-kinds"), (2, "source-provenance")];
+pub const LATEST_VERSION: u32 = 3;
+pub const STEPS: &[(u32, &str)] = &[(1, "explicit-asset-kinds"), (2, "source-provenance"), (3, "typed-media-storage")];
 const FIELDS: &[&str] = &["filesystemPath", "source", "publisher", "url", "license"];
 pub type ProvenanceIndex = HashMap<String, Map<String, Value>>;
 

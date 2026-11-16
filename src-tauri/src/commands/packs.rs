@@ -1,6 +1,5 @@
-//! `load_packs`: read every pack's `pack.json` from the library. Packs are
-//! self-describing directories — their identity (name, color) lives with them,
-//! not in the asset catalog or the Godot curation file.
+//! Compatibility source metadata API. Managed libraries read the manifest;
+//! only libraries awaiting migration consult legacy pack.json directories.
 
 use std::path::Path;
 
@@ -12,7 +11,17 @@ use crate::infra::{fsio, library};
 
 #[tauri::command]
 pub fn load_packs(app: AppHandle) -> AppResult<Vec<PackMeta>> {
-    read_packs_under(&library::resolve(&app)?.join("library"))
+    let root=library::resolve(&app)?;
+    let manifest:serde_json::Value=serde_json::from_slice(&fsio::read_bytes(&root.join(crate::config::SEED_REL))?)?;
+    if manifest["storageVersion"]==1 {
+        let mut sources=std::collections::BTreeMap::new();
+        for entry in manifest["assets"].as_array().into_iter().flatten(){
+            let slug=entry["pack"].as_str().unwrap_or("imported");
+            sources.entry(slug.to_string()).or_insert_with(||PackMeta{slug:slug.into(),name:entry["provenance"]["source"].as_str().unwrap_or(slug).into(),color:"7ed321ff".into()});
+        }
+        return Ok(sources.into_values().collect());
+    }
+    read_packs_under(&root.join("library"))
 }
 
 /// Read every `<pack>/pack.json` directly under `library`. An absent directory

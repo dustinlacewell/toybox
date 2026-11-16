@@ -115,7 +115,7 @@ function ExportSetupEditor({ initial, kind: selectionKind, libraryRoot, exporter
           try { const path=await pickDirectory(); if(path){setFolder(path);setSaved(false);} }
           catch(failure){setError(String(failure));}
         })()}>Browse…</Button></div></div>
-        <Checkbox checked={preserve} onChange={setPreserve} label="Keep existing file layout"/>
+        <Checkbox checked={preserve} onChange={setPreserve} label="Use export subfolders"/>
         {(kind === "model" || kind === "material") && <label className="exports-manager__field">{kind === "model" ? "Detail levels" : "Sizes"}<Select value={policy} options={[{value:"all",label:kind === "model" ? "All levels" : "All sizes"},{value:"best",label:"Best only"}]} onChange={value => setPolicy(value as "all" | "best")}/></label>}
         {kind === "animation" && <p className="exports-manager__hint">Exports include the animation and its rig.</p>}
         {pluginErrors.filter(failure => failure.manifest.kind === "exporter").map(failure => <p className="exports-manager__error" key={failure.manifest.id}>{failure.manifest.name}: {failure.error}</p>)}

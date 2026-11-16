@@ -79,6 +79,7 @@ pub fn run(root: &Path, cache: &Path) -> AppResult<()> {
         .lock()
         .map_err(|_| AppError::msg("Migration lock was poisoned"))?;
     recover(root, cache)?;
+    crate::infra::storage::recover(&root.canonicalize()?, cache)?;
     let journal_path = root.join("_library_config").join(JOURNAL);
     let mut journal: Value = match read_optional(&journal_path)? {
         Some(bytes) => serde_json::from_slice(&bytes)?,
@@ -94,6 +95,7 @@ pub fn run(root: &Path, cache: &Path) -> AppResult<()> {
         return Ok(());
     }
     for &(next, name) in STEPS.iter().filter(|(next, _)| *next > current) {
+        if next == 3 { crate::infra::storage::migrate(root, cache)?; }
         let manifest_path = root.join(config::SEED_REL);
         let before = fsio::read_bytes(&manifest_path)?;
         let mut manifest: Value = serde_json::from_slice(&before)?;
@@ -212,6 +214,7 @@ fn commit(
         .into_iter()
         .filter(|(_, before, after)| before.as_ref() != Some(after))
         .collect();
+    if writes.is_empty(){return Ok(());}
     let directory = format!(
         "{version:04}-{}",
         SystemTime::now()
@@ -310,6 +313,7 @@ mod tests {
         std::fs::create_dir_all(root.join("_library_config")).unwrap();
         let manifest = json!({"unknown":"keep","assets":[{"id":"a","pack":"original_pack","category":"props","file":"Thing.gltf"}]});
         fsio::write_bytes(&root.join(config::SEED_REL), &encoded(&manifest).unwrap()).unwrap();
+        fsio::write_bytes(&root.join("library/original_pack/props/Thing.gltf"),br#"{"asset":{"version":"2.0"},"nodes":[],"buffers":[]}"#).unwrap();
         let cache = root.join("appdata/catalog.json");
         fsio::write_bytes(&cache,&encoded(&json!({"libraryRoot":root,"assets":[{"id":"a","pack":"original_pack","user":{"favorite":true,"tags":["custom"],"collections":["Game"]}}]})).unwrap()).unwrap();
         (root, cache)
@@ -339,7 +343,7 @@ mod tests {
             std::fs::read_dir(root.join("_library_config/migration-backups"))
                 .unwrap()
                 .count(),
-            2
+            3
         );
         std::fs::remove_dir_all(root).unwrap();
     }

@@ -1,6 +1,6 @@
 /**
  * The glTF/glb importer panel. Walks a user-picked source folder, copies/unpacks
- * every `.gltf`/`.glb` into `library/<pack>/<category>/`, then commits seed
+ * every `.gltf`/`.glb` into private staging, then commits seed
  * entries so the assets appear in the grid.
  *
  * The whole file flow runs here in the panel (not a separate `run` phase) because
@@ -10,9 +10,10 @@
 
 import { useState } from "react";
 
-import { Stack, Button, TextInput, Select, Checkbox } from "@ldlework/toybox-sdk/ui";
+import { Stack, Button, Select, Checkbox } from "@ldlework/toybox-sdk/ui";
 import {
   defineImportPanel,
+  importNamespace,
   groupSeedVariants,
   variantInfo,
   type ImportPanelCtx,
@@ -34,13 +35,14 @@ type Phase =
   | { step: "error"; message: string };
 
 export default defineImportPanel(function ImportPanel({ ctx }: { ctx: ImportPanelCtx }) {
-  const [pack, setPack] = useState("imported");
+  const [pack, setPack] = useState("_import_pending");
   const [category, setCategory] = useState<string>(ctx.kind === "animation" ? "animations" : "props");
   const [phase, setPhase] = useState<Phase>({ step: "idle" });
 
   const scan = async () => {
     const source = await ctx.host.pickDirectory();
     if (!source) return;
+    setPack(importNamespace(source));
     try {
       const found = await findModels(ctx.fs, source);
       setPhase({ step: "scanned", source, found });
@@ -111,14 +113,8 @@ export default defineImportPanel(function ImportPanel({ ctx }: { ctx: ImportPane
   return (
     <Stack gap={12}>
       <section className="export__section">
-        <div className="export__label">Destination</div>
+        <div className="export__label">Category</div>
         <Stack dir="row" gap={8}>
-          <TextInput
-            value={pack}
-            onChange={(e) => setPack(e.currentTarget.value)}
-            placeholder="pack"
-            style={{ maxWidth: 180 }}
-          />
           <Select
             value={category}
             options={CATEGORIES.map((c) => ({ value: c, label: c }))}
@@ -126,7 +122,7 @@ export default defineImportPanel(function ImportPanel({ ctx }: { ctx: ImportPane
           />
         </Stack>
         <div className="export__hint">
-          Every imported asset is filed under library/{pack || "…"}/{category}/.
+          Files are stored automatically in the library by asset type.
         </div>
       </section>
 

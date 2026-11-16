@@ -112,7 +112,7 @@ fn prepare_entry(root: &str, entry: &mut Value, generated: &mut Vec<Value>) -> A
             crate::domain::rig::hash(fileset.gltf.as_bytes()),
             clip.index
         );
-        let folder = format!("library/{}/animations", asset.pack);
+        let folder = format!("library/animations/{:016x}",crate::domain::rig::hash(clip_asset.id.as_bytes()));
         let metadata = json!({"id":clip_asset.id,"clip":clip});
         let extracted = animation_extract::extract(
             &doc,
@@ -143,7 +143,7 @@ fn prepare_entry(root: &str, entry: &mut Value, generated: &mut Vec<Value>) -> A
         }
         write_if_changed(&bin_path, &extracted.bin)?;
         write_if_changed(&gltf_path, &serde_json::to_vec_pretty(&extracted.doc)?)?;
-        generated.push(json!({"kind":"animation","standalone":true,"id":clip_asset.id,"pack":asset.pack,"category":"animations","file":format!("{stem}.gltf"),"provenance":entry.get("provenance").cloned().unwrap_or(Value::Null)}));
+        generated.push(json!({"kind":"animation","standalone":true,"id":clip_asset.id,"pack":asset.pack,"category":"animations","file":format!("{stem}.gltf"),"storagePath":format!("{folder}/{stem}.gltf"),"provenance":entry.get("provenance").cloned().unwrap_or(Value::Null)}));
     }
     if animation_only {
         entry["_toyboxReplaceSource"] = json!(true);

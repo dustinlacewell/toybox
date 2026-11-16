@@ -7,12 +7,8 @@
 import type { MaterialSet } from "./material";
 import type { ImportProvenance } from "@ldlework/toybox-sdk";
 
-/**
- * A pack is the top-level division of the library (`library/<pack>/...`).
- * Identity is the directory slug; display metadata (name, color) is authored in
- * each pack's `pack.json` and surfaced via `PackMeta`, not hardcoded here —
- * packs are data added by ingestion, not a fixed code-level set.
- */
+/** Legacy source identifier retained for plugin/export compatibility.
+ * Storage locations come from explicit file sets, never source/category names. */
 export type Pack = string;
 
 export interface PackMeta {

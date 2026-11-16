@@ -27,7 +27,8 @@ pub struct ClipMeta {
 
 pub fn clips(doc: &Value, source: &Asset, fileset: &AssetFileset) -> Vec<Asset> {
     let Some(animations) = doc["animations"].as_array() else { return vec![] };
-    let key = fileset.gltf.bytes().fold(0xcbf29ce484222325u64, |hash, byte| (hash ^ byte as u64).wrapping_mul(0x100000001b3));
+    let identity_path = doc["extras"]["toyboxSourcePath"].as_str().or_else(||doc["extensions"]["TOYBOX_library"]["sourcePath"].as_str()).unwrap_or(&fileset.gltf);
+    let key = identity_path.bytes().fold(0xcbf29ce484222325u64, |hash, byte| (hash ^ byte as u64).wrapping_mul(0x100000001b3));
     animations.iter().enumerate().filter_map(|(index, animation)| {
         let channels = animation["channels"].as_array()?;
         if channels.is_empty() { return None; }

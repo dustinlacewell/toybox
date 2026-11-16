@@ -123,7 +123,7 @@ function ExportSession({ kind, selectedIds, exporters, pluginErrors, setupId, on
         {active && <ExportPanelHost key={`${exporterId}:${panelKey}`} plugin={active} initialConfig={initialConfig} shared={{ targetDir, preserveStructure: preserve }} onConfig={onPanelConfig} />}
         <h3>Folder</h3><Button onClick={async () => { const folder = await pickDirectory(); if (folder) setTargetDir(folder); }}>Choose folder…</Button>
         <p className="export__path" title={targetDir}>{targetDir || "No folder selected"}</p>
-        <Checkbox checked={preserve} onChange={setPreserve} label="Keep existing file layout" />
+        <Checkbox checked={preserve} onChange={setPreserve} label="Use export subfolders" />
          {(kind === "model" || kind === "material") && <><h3>{kind === "model" ? "Detail levels" : "Sizes"}</h3>
         <Select value={policy} options={[{ value: "all", label: kind === "model" ? "All levels" : "All sizes" }, { value: "best", label: "Best only" }]} onChange={(v) => setPolicy(v as "all" | "best")} /></>}
         {kind === "animation" && <p className="export__hint">Exports include the animation and its rig. The preview model is left out.</p>}

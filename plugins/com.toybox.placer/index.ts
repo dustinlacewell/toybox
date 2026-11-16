@@ -96,13 +96,16 @@ function resolveStem(
   used: Set<string>,
   report: { warn(m: string): void },
 ): string {
-  if (preserve || !used.has(asset.name)) {
-    used.add(asset.name);
+  const key=(stem:string)=>preserve?`${asset.pack}/${asset.category}/${stem}`:stem;
+  if (!used.has(key(asset.name))) {
+    used.add(key(asset.name));
     return asset.name;
   }
-  const namespaced = `${asset.pack}_${asset.name}`;
+  const prefix = `${asset.pack}_${asset.name}`;
+  let namespaced=prefix,index=2;
+  while(used.has(key(namespaced)))namespaced=`${prefix}_${index++}`;
   report.warn(`renamed '${asset.name}' -> '${namespaced}' to avoid a flattened name collision`);
-  used.add(namespaced);
+  used.add(key(namespaced));
   return namespaced;
 }
 

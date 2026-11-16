@@ -1,3 +1,6 @@
+//! Managed entries use explicit storagePath locations. Pack/category are
+//! metadata. Folder reconstruction below accepts legacy importer staging and
+//! old manifests only; the host normalizes them before publishing new imports.
 //! Pure seeding logic: turn Toybox's native `catalog.json` source document into
 //! our catalog model. The source is a flat asset list — each entry already names
 //! its two facets (`pack`, `category`) explicitly, so seeding is a direct
@@ -92,14 +95,42 @@ pub fn parse_entry(a: &Value) -> AppResult<SeedEntry> {
 
 fn parse_single(a: &Value) -> AppResult<SeedEntry> {
     let mut entry=parse_single_content(a)?;
+    if let Some(path) = a.get("storagePath").and_then(Value::as_str) {
+        let kind = a["kind"].as_str().unwrap_or("model");
+        let folder = match kind { "model" => "models", "animation" => "animations", "material" => "materials", "audio" => "audio", _ => unreachable!() };
+        let parts:Vec<_>=path.split('/').collect();
+        let key=parts.get(2).copied().unwrap_or("");
+        if !path.starts_with(&format!("library/{folder}/")) || parts.len()!=if kind=="material"{3}else{4} || !matches!(key.len(),16|64) || !key.bytes().all(|b|b.is_ascii_hexdigit()) || path.contains('\\') || parts.iter().any(|part| part.is_empty() || *part == "." || *part == ".." || part.contains(':')) {
+            return Err(AppError::msg("Invalid managed storage path"));
+        }
+        entry.rel_path = path.into();
+        match &mut entry.content {
+            SeedContent::Model { gltf_rel, bin_rel } | SeedContent::AnimationSource { gltf_rel, bin_rel } => {
+                *gltf_rel = path.into();
+                *bin_rel = Path::new(path).with_extension("bin").to_string_lossy().replace('\\', "/");
+            }
+            SeedContent::Audio { file } => *file = path.into(),
+            SeedContent::Material { material } => {
+                let declared: MaterialSet = serde_json::from_value(a.clone())?;
+                *material = declared;
+                for map in &mut material.maps {
+                    if map.file.contains(['/', '\\', ':']) || matches!(map.file.as_str(), "." | "..") {
+                        return Err(AppError::msg("Managed material map must be a file name"));
+                    }
+                    map.file = format!("{path}/{}", map.file);
+                }
+            }
+        }
+    }
     entry.provenance=a.get("provenance").filter(|value|!value.is_null()).map(|value|serde_json::from_value::<crate::domain::provenance::ImportProvenance>(value.clone())).transpose()?.and_then(|value|value.normalized());
     Ok(entry)
 }
 
 fn parse_single_content(a: &Value) -> AppResult<SeedEntry> {
     let id = str_field(a, "id")?;
-    let pack = str_field(a, "pack")?;
-    let category = str_field(a, "category")?;
+    let managed = a.get("storagePath").is_some();
+    let pack = if managed { a["pack"].as_str().unwrap_or("imported").into() } else { str_field(a,"pack")? };
+    let category = if managed { a["category"].as_str().unwrap_or("uncategorized").into() } else { str_field(a,"category")? };
     match a.get("kind").map(|k| k.as_str()) {
         Some(Some("audio")) => {
             let file=str_field(a,"file")?;
@@ -116,7 +147,7 @@ fn parse_single_content(a: &Value) -> AppResult<SeedEntry> {
             Ok(entry)
         }
         None | Some(Some("model")) => {
-            if category == RESERVED_MATERIALS_CATEGORY {
+            if category == RESERVED_MATERIALS_CATEGORY && !managed {
                 return Err(AppError::msg(format!(
                     "asset {id}: category '{RESERVED_MATERIALS_CATEGORY}' is reserved for material sets"
                 )));
