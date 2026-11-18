@@ -1,0 +1,29 @@
+# Example Caddy configuration for the Toybox server.
+#
+# deploy/install.sh --domain example.com writes this for you (with your domain).
+# To do it by hand: replace example.com, save as /etc/caddy/Caddyfile (or import
+# it from there) and run: sudo systemctl reload caddy
+#
+# Caddy gets and renews the HTTPS certificate by itself. For that, the domain
+# must point at this machine and ports 80 and 443 must be reachable from the
+# internet.
+
+example.com {
+	# Imports send one file per request. Keep this above the server's own
+	# limit (2048 MB per file unless you changed --max-file-mb).
+	request_body {
+		max_size 2500MB
+	}
+
+	# Only the big JSON lists benefit from compression; media is already compressed.
+	@lists path /api/v1/catalog /api/v1/thumbs
+	encode @lists zstd gzip
+
+	reverse_proxy 127.0.0.1:8787 {
+		# Stream downloads instead of buffering them.
+		flush_interval -1
+		transport http {
+			dial_timeout 5s
+		}
+	}
+}

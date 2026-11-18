@@ -1,0 +1,49 @@
+# systemd unit for the Toybox library server.
+# deploy/install.sh installs this file to /etc/systemd/system/ and, if you use a
+# different data folder or port, edits the two lines marked "edited by install.sh".
+
+[Unit]
+Description=Toybox library server
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=toybox
+Group=toybox
+# edited by install.sh when --data is given
+Environment=TOYBOX_DATA=/var/lib/toybox
+# edited by install.sh when --port is given. Keep this on 127.0.0.1: the
+# reverse proxy (Caddy) is what the internet talks to.
+ExecStart=/usr/local/bin/toybox-server serve --listen 127.0.0.1:8787
+Restart=on-failure
+RestartSec=3
+TimeoutStopSec=30
+LimitNOFILE=65536
+
+# Hardening: the server may only write inside its data folder.
+# edited by install.sh when --data is given
+ReadWritePaths=/var/lib/toybox
+ProtectSystem=strict
+ProtectHome=true
+PrivateTmp=true
+PrivateDevices=true
+NoNewPrivileges=true
+CapabilityBoundingSet=
+ProtectKernelTunables=true
+ProtectKernelModules=true
+ProtectKernelLogs=true
+ProtectControlGroups=true
+ProtectClock=true
+ProtectHostname=true
+RestrictAddressFamilies=AF_INET AF_INET6 AF_UNIX
+RestrictNamespaces=true
+RestrictRealtime=true
+RestrictSUIDSGID=true
+LockPersonality=true
+MemoryDenyWriteExecute=true
+SystemCallArchitectures=native
+UMask=0027
+
+[Install]
+WantedBy=multi-user.target

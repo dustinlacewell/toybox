@@ -1,0 +1,4 @@
+# Shell scripts and unit files run on Linux: keep LF line endings even in a Windows checkout.
+deploy/*.sh text eol=lf
+deploy/*.service text eol=lf
+deploy/Caddyfile* text eol=lf
