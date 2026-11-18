@@ -1,59 +1,22 @@
-//! Persisted application settings at `<app-data>/settings.json`. Currently holds
-//! only the user-chosen library root; this is the durable backing for the
-//! runtime `LibraryState` so the choice survives restarts.
+//! Persisted application settings at `<app-data>/settings.json`. The schema and
+//! the path-based read/write live in `toybox-core`; these wrappers resolve the
+//! path from the app handle.
 
-use serde::{Deserialize, Serialize};
 use tauri::AppHandle;
 
 use crate::error::AppResult;
-use crate::infra::{appdata, fsio};
+use crate::infra::appdata;
 
-#[derive(Debug, Default, Serialize, Deserialize)]
-#[serde(rename_all = "camelCase")]
-pub struct AppSettings {
-    #[serde(default)]
-    pub animation_preview_version: u32,
-    #[serde(default)]
-    pub saved_exports: Vec<serde_json::Value>,
-    /// Absolute path to the asset library the user picked, if any.
-    pub library_root: Option<String>,
-    /// Absolute path to the user's FBX2glTF executable, if configured. Used by
-    /// the importer to convert `.fbx` sources; absent means FBX import is off.
-    #[serde(default)]
-    pub fbx2gltf_path: Option<String>,
-}
+pub use toybox_core::infra::settings::AppSettings;
 
 /// Load settings, defaulting to empty whenever the file can't be read as our
-/// schema — absent, unreadable (locked / ACL-denied), or corrupt all collapse to
-/// "no settings yet". This is load-bearing: `load` runs in `.setup()`, where any
-/// `Err` would abort window creation, so it must never fail.
+/// schema (see `toybox_core::infra::settings::load_from`). This is
+/// load-bearing: `load` runs in `.setup()`, where any `Err` would abort window
+/// creation, so it must never fail.
 pub fn load(app: &AppHandle) -> AppResult<AppSettings> {
-    let path = appdata::settings_path(app)?;
-    let Ok(text) = fsio::read_text(&path) else {
-        return Ok(AppSettings::default());
-    };
-    Ok(serde_json::from_str(&text).unwrap_or_default())
+    toybox_core::infra::settings::load_from(&appdata::settings_path(app)?)
 }
 
 pub fn save(app: &AppHandle, settings: &AppSettings) -> AppResult<()> {
-    let path = appdata::settings_path(app)?;
-    let text = serde_json::to_string_pretty(settings)?;
-    fsio::write_bytes_atomic(&path, text.as_bytes())
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-    use serde_json::json;
-
-    #[test]
-    fn saved_exports_round_trip_and_old_settings_still_load() {
-        let mut settings: AppSettings = serde_json::from_value(json!({ "libraryRoot": "D:/assets", "fbx2gltfPath": "D:/convert.exe" })).unwrap();
-        assert!(settings.saved_exports.is_empty());
-        settings.saved_exports.push(json!({ "id":"spy", "name":"Spygame", "kind":"model", "exporterId":"com.toybox.placer", "targetDir":"D:/game", "variantPolicy":"all", "config":{"format":"glb","subDir":"assets"} }));
-        let restored: AppSettings = serde_json::from_str(&serde_json::to_string(&settings).unwrap()).unwrap();
-        assert_eq!(restored.saved_exports, settings.saved_exports);
-        assert_eq!(restored.library_root.as_deref(), Some("D:/assets"));
-        assert_eq!(restored.fbx2gltf_path.as_deref(), Some("D:/convert.exe"));
-    }
+    toybox_core::infra::settings::save_to(&appdata::settings_path(app)?, settings)
 }

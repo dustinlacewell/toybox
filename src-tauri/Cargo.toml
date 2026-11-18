@@ -8,6 +8,37 @@ default-run = "toybox"
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
+# The app package is also the workspace root, so `tauri dev` / `tauri build`
+# (run from here, with `src-tauri/Cargo.lock` and `src-tauri/target`) behave as
+# before. `toybox-core` holds the GUI-free library logic; its maintenance
+# binaries (reindex, migrate-library, repair-colors) are built by a plain
+# `cargo build` here because it is a default member.
+[workspace]
+members = ["crates/toybox-core", "crates/toybox-server", "crates/toybox-remote"]
+default-members = [".", "crates/toybox-core"]
+
+[workspace.dependencies]
+serde = { version = "1", features = ["derive"] }
+serde_json = { version = "1", features = ["preserve_order", "float_roundtrip"] }
+thiserror = "2"
+semver = "1"
+sha2 = "0.10"
+image = { version = "0.25", default-features = false, features = ["png", "tga", "jpeg"] }
+symphonia = { version = "0.5.5", default-features = false, features = ["wav", "pcm", "adpcm", "mp3", "ogg", "vorbis", "flac"] }
+rusqlite = { version = "0.43", features = ["bundled"] }
+# Headless server only (crates/toybox-server); the desktop app does not use these.
+axum = { version = "0.8", default-features = false, features = ["http1", "tokio", "json", "query"] }
+tokio = { version = "1", features = ["rt-multi-thread", "macros", "fs", "io-util", "net", "signal", "sync", "time"] }
+tokio-util = { version = "0.7", features = ["io"] }
+futures-util = { version = "0.3", default-features = false, features = ["std"] }
+clap = { version = "4", features = ["derive", "env"] }
+rand = "0.8"
+base64 = "0.22"
+subtle = "2"
+# Remote libraries (crates/toybox-remote): a blocking HTTPS client (rustls, no OpenSSL) and the OS credential store.
+ureq = { version = "3", default-features = false, features = ["rustls", "gzip"] }
+keyring = "4"
+
 [lib]
 # The `_lib` suffix may seem redundant but it is necessary
 # to make the lib name unique and wouldn't conflict with the bin name.
@@ -19,16 +50,15 @@ crate-type = ["staticlib", "cdylib", "rlib"]
 tauri-build = { version = "2", features = [] }
 
 [dependencies]
+toybox-core = { path = "crates/toybox-core" }
+toybox-remote = { path = "crates/toybox-remote" }
 tauri = { version = "2", features = ["protocol-asset"] }
 tauri-plugin-opener = "2"
 tauri-plugin-dialog = "2"
-serde = { version = "1", features = ["derive"] }
-serde_json = { version = "1", features = ["preserve_order", "float_roundtrip"] }
-thiserror = "2"
-semver = "1"
-sha2 = "0.10"
-image = { version = "0.25", default-features = false, features = ["png", "tga", "jpeg"] }
-symphonia = { version = "0.5.5", default-features = false, features = ["wav", "pcm", "adpcm", "mp3", "ogg", "vorbis", "flac"] }
+serde = { workspace = true }
+serde_json = { workspace = true }
+semver = { workspace = true }
+image = { workspace = true }
 tauri-plugin-updater = "2"
 tauri-plugin-process = "2"
 

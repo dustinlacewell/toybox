@@ -1,0 +1,9 @@
+{
+  "productName": "Toybox Dev",
+  "identifier": "com.toybox.dev",
+  "app": {
+    "windows": [
+      { "title": "Toybox Dev — isolated app data", "width": 1400, "height": 900, "minWidth": 900, "minHeight": 600 }
+    ]
+  }
+}

@@ -3,6 +3,7 @@
 
 use tauri::AppHandle;
 
+use super::plugins;
 use crate::error::AppResult;
 use crate::infra::settings;
 
@@ -16,6 +17,19 @@ pub fn set_saved_exports(app: AppHandle, exports: Vec<serde_json::Value>) -> App
     let mut s = settings::load(&app)?;
     s.saved_exports = exports;
     settings::save(&app, &s)
+}
+
+/// Turn an installed plugin on or off. The plugin's files are untouched; the
+/// frontend reloads its registry to apply the change. Turning a plugin on also
+/// turns on what it depends on; turning one off is refused while a switched-on
+/// plugin needs it. Returns the sorted ids whose switch changed.
+#[tauri::command]
+pub fn set_plugin_enabled(app: AppHandle, id: String, enabled: bool) -> AppResult<Vec<String>> {
+    let mut s = settings::load(&app)?;
+    let plan = plugins::plan_plugin_enabled(&plugins::discover(&app)?, &s.disabled_plugins, &id, enabled)?;
+    s.disabled_plugins = plan.disabled;
+    settings::save(&app, &s)?;
+    Ok(plan.changed)
 }
 
 /// The configured FBX2glTF executable path, or `null` if unset.

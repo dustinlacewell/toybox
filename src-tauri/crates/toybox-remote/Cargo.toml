@@ -1,0 +1,24 @@
+[package]
+name = "toybox-remote"
+version = "0.4.1"
+description = "Client for remote Toybox libraries: a blocking HTTP client for toybox-server, the local file cache and the shared-thumbnail sync (no GUI dependency)"
+authors = ["Dustin Lacewell"]
+edition = "2021"
+
+[lib]
+name = "toybox_remote"
+
+[dependencies]
+toybox-core = { path = "../toybox-core" }
+serde = { workspace = true }
+serde_json = { workspace = true }
+sha2 = { workspace = true }
+ureq = { workspace = true }
+keyring = { workspace = true }
+
+[dev-dependencies]
+rusqlite = { workspace = true }
+# The tests run a real toybox-server in process on a loopback port.
+toybox-server = { path = "../toybox-server" }
+axum = { workspace = true }
+tokio = { workspace = true }

@@ -1,280 +1,75 @@
 //! Per-asset export primitives exposed to JS plugins. These decompose what the
-//! native `export_glb`/`export_copy`/`export_placer` commands do internally into
-//! single-asset callables a plugin orchestrates in a loop:
-//!
-//! - `read_asset_gltf`        — the parsed glTF JSON for one asset.
-//! - `assemble_glb_for_asset` — bake one asset to self-contained GLB bytes.
-//! - `perform_asset_copy`     — write one asset's loose `.gltf`+`.bin`+textures.
-//! - `transcode_image`        — GLB-prepare arbitrary image bytes (PNG passthrough,
-//!                              TGA->PNG).
-//! - `placer_merge_file`      — create/merge a Godot `asset_library.json`. The
-//!                              banding/idempotent-merge logic stays in
-//!                              `domain::placer_library` (its unit tests still cover it).
-//!
-//! Each reuses the same domain functions the native exporters use, so a plugin
-//! that leans on these produces byte-identical output. Capability gating lives at
-//! the JS host layer; the real filesystem boundary is the target dir the user
-//! picked, which the plugin passes straight through.
+//! native `export_glb`/`export_copy` commands do internally into single-asset
+//! callables a plugin orchestrates in a loop. The work is
+//! `toybox_core::ops::export_plugin`; capability gating lives at the JS host
+//! layer.
 
-use std::collections::HashSet;
-use std::path::Path;
-
-use serde::{Deserialize, Serialize};
 use serde_json::Value;
 use tauri::AppHandle;
 
-use crate::domain::export_copy_plan::plan_copy;
-use crate::domain::export_model::ExportReport;
-use crate::domain::glb_assemble::assemble;
-use crate::domain::image_embed::prepare_for_glb;
-use crate::domain::placer_library::{self, PlacerAsset};
 use crate::error::{AppError, AppResult};
-use crate::infra::{fsio, library};
-
-use super::export_glb::gather_images;
-use super::export_util::{collect_assets, execute_copy_plan, read_bin, read_gltf};
+use crate::infra::library;
+use toybox_core::ops::export_plugin as ops;
+use toybox_core::ops::export_plugin::{PlacerAssetDto, PreparedImageDto};
 
 /// Resolve and parse one catalog asset's glTF document.
 #[tauri::command]
-pub async fn read_asset_gltf(app: AppHandle, asset_id: String) -> AppResult<Value> {
-    let asset = one_asset(&app, &asset_id)?;
-    let root = library::resolve(&app)?;
-    read_gltf(&root.to_string_lossy(), &asset)
+pub async fn read_asset_gltf(app: AppHandle, library: String, asset_id: String) -> AppResult<Value> {
+    let handle = library::resolve(&app, &library)?;
+    crate::commands::remote::blocking(move || ops::read_asset_gltf(&handle, &asset_id)).await
 }
 
-/// Bake one asset to a self-contained `.glb` and return its bytes. Reuses the
-/// same gltf/bin/image gather + `assemble` path as `export_glb`.
+/// Bake one asset to a self-contained `.glb` and return its bytes.
 #[tauri::command]
-pub async fn assemble_glb_for_asset(app: AppHandle, asset_id: String) -> AppResult<Vec<u8>> {
-    let asset = one_asset(&app, &asset_id)?;
-    let root = library::resolve(&app)?;
-    let root = root.to_string_lossy();
-    let root = root.as_ref();
-    let doc = read_gltf(root, &asset)?;
-    let bin = read_bin(root, &asset)?;
-    let mut report = ExportReport::default(); // image warnings are returned separately when needed
-    let images = gather_images(root, &asset, &doc, &mut report)?;
-    assemble(&doc, &bin, images)
+pub async fn assemble_glb_for_asset(app: AppHandle, library: String, asset_id: String) -> AppResult<Vec<u8>> {
+    let handle = library::resolve(&app, &library)?;
+    crate::commands::remote::blocking(move || ops::assemble_glb_for_asset(&handle, &asset_id)).await
 }
 
-/// Write one asset as a loose `.gltf` + `.bin` + textures under `target_dir`,
-/// using the chosen `stem` and layout. Returns the target-relative paths
-/// written. Reuses `plan_copy` + the shared `execute_copy_plan` writer.
+/// Write one asset as a loose `.gltf` + `.bin` + textures under `target_dir`.
 #[tauri::command]
 pub async fn perform_asset_copy(
     app: AppHandle,
+    library: String,
     asset_id: String,
     target_dir: String,
     stem: String,
     preserve_structure: bool,
 ) -> AppResult<Vec<String>> {
-    let asset = one_asset(&app, &asset_id)?;
-    let root = library::resolve(&app)?;
-    let root = root.to_string_lossy();
-    let root = root.as_ref();
-    if matches!(asset.content, crate::domain::catalog_model::AssetContent::Material { .. }) {
-        let mut report = ExportReport::default();
-        super::export_copy::copy_material_named(root, Path::new(&target_dir), &asset, &stem, preserve_structure, &mut report)?;
-        return Ok(report.written);
-    }
-    if matches!(asset.content,crate::domain::catalog_model::AssetContent::Audio {..}) {
-        let mut report=ExportReport::default();super::export_copy::copy_audio(root,Path::new(&target_dir),&asset,&stem,preserve_structure,&mut report)?;return Ok(report.written);
-    }
-    let doc = read_gltf(root, &asset)?;
-    let fileset = asset.fileset()?;
-    let plan = plan_copy(
-        &doc,
-        &fileset.gltf,
-        &fileset.bin,
-        &asset.pack,
-        &asset.category,
-        &stem,
-        preserve_structure,
-    )?;
-    let mut report = ExportReport::default();
-    let mut copied = HashSet::new();
-    execute_copy_plan(root, Path::new(&target_dir), &plan, &mut copied, &mut report)?;
-    Ok(report.written)
+    let handle = library::resolve(&app, &library)?;
+    crate::commands::remote::blocking(move || ops::perform_asset_copy(&handle, &asset_id, &target_dir, &stem, preserve_structure)).await
 }
 
 /// GLB-prepare arbitrary image bytes (PNG/JPEG passthrough, TGA->PNG), for a
 /// JS-side exporter assembling its own container.
-#[derive(Serialize)]
-#[serde(rename_all = "camelCase")]
-pub struct PreparedImageDto {
-    pub mime: String,
-    pub bytes: Vec<u8>,
-}
-
 #[tauri::command]
 pub async fn transcode_image(file_name: String, bytes: Vec<u8>) -> AppResult<PreparedImageDto> {
-    let prepared = prepare_for_glb(&file_name, bytes)?;
-    Ok(PreparedImageDto { mime: prepared.mime, bytes: prepared.bytes })
-}
-
-/// One asset to publish into a Godot `asset_library.json`. Mirrors
-/// `placer_library::PlacerAsset` over the command boundary.
-#[derive(Debug, Clone, Deserialize)]
-#[serde(rename_all = "camelCase")]
-pub struct PlacerAssetDto {
-    pub pack: String,
-    pub category: String,
-    pub favorite: bool,
-    pub tags: Vec<String>,
-    pub res_path: String,
-    pub name: String,
-}
-
-impl From<PlacerAssetDto> for PlacerAsset {
-    fn from(d: PlacerAssetDto) -> Self {
-        PlacerAsset {
-            pack: d.pack,
-            category: d.category,
-            favorite: d.favorite,
-            tags: d.tags,
-            res_path: d.res_path,
-            name: d.name,
-        }
-    }
+    ops::transcode_image(&file_name, bytes)
 }
 
 /// Read-or-empty the Godot `asset_library.json` at `library_json_path`, merge in
 /// the published assets, register the recursive root folder for `sub_dir_res`,
-/// and write it back. The banding/idempotency logic is `placer_library`'s — this
-/// is the same orchestration the old `export_placer::merge_library` performed.
+/// and write it back.
 #[tauri::command]
 pub async fn placer_merge_file(
     library_json_path: String,
     sub_dir_res: String,
     assets: Vec<PlacerAssetDto>,
 ) -> AppResult<()> {
-    let placer_assets: Vec<PlacerAsset> = assets.into_iter().map(Into::into).collect();
-    let lib_path = Path::new(&library_json_path);
-    let existing = if fsio::exists(lib_path) {
-        let text = fsio::read_text(lib_path)?;
-        serde_json::from_str(&text).unwrap_or_else(|_| placer_library::empty_library())
-    } else {
-        placer_library::empty_library()
-    };
-    let mut merged = placer_library::merge(&existing, &placer_assets);
-    placer_library::ensure_folder(&mut merged, &sub_dir_res);
-    fsio::write_text(lib_path, &serde_json::to_string_pretty(&merged)?)
-}
-
-/// Resolve a single asset by id (a one-element `collect_assets`), erroring if
-/// the id is unknown rather than silently skipping it.
-fn one_asset(app: &AppHandle, asset_id: &str) -> AppResult<crate::domain::catalog_model::Asset> {
-    let (mut assets, _) = collect_assets(app, std::slice::from_ref(&asset_id.to_string()))?;
-    assets
-        .pop()
-        .ok_or_else(|| AppError::msg(format!("asset not found: {asset_id}")))
+    ops::placer_merge_file(&library_json_path, &sub_dir_res, assets)
 }
 
 /// Plan native output using the same layout and collision rules as the writers.
 #[tauri::command]
-pub async fn preview_export(app: AppHandle, asset_ids: Vec<String>, format: String, preserve_structure: bool) -> AppResult<Vec<String>> {
-    let (assets, mut report) = collect_assets(&app, &asset_ids)?;
-    if !report.skipped.is_empty() { return Err(AppError::msg(report.skipped.join("; "))); }
-    let root = library::resolve(&app)?;
-    let mut used = HashSet::new();
-    let mut out = Vec::new();
-    for asset in &assets {
-        if matches!(asset.content, crate::domain::catalog_model::AssetContent::Audio {..}) {
-            if format!="copy" {return Err(AppError::msg("Audio requires a file exporter"));}
-            let stem=super::export_copy::resolve_stem(asset,preserve_structure,&mut used,&mut report);
-            out.push(super::export_copy::audio_path(asset,&stem,preserve_structure)?);continue;
-        }
-        if matches!(asset.content, crate::domain::catalog_model::AssetContent::Material { .. }) {
-            if format != "copy" { return Err(AppError::msg("materials require a material exporter")); }
-            let stem=super::export_copy::resolve_stem(asset,preserve_structure,&mut used,&mut report);
-            out.extend(super::export_copy::material_paths_named(asset,&stem,preserve_structure).into_iter().map(|(_, dst)| dst));
-        } else if format == "glb" {
-            let stem = super::export_glb::resolve_stem(asset, preserve_structure, &mut used, &mut report);
-            out.push(if preserve_structure { format!("{}/{}/{}.glb", asset.pack, asset.category, stem) } else { format!("{stem}.glb") });
-        } else if format == "copy" {
-            let stem = super::export_copy::resolve_stem(asset, preserve_structure, &mut used, &mut report);
-            let doc = read_gltf(&root.to_string_lossy(), asset)?;
-            let files = asset.fileset()?;
-            let plan = plan_copy(&doc, &files.gltf, &files.bin, &asset.pack, &asset.category, &stem, preserve_structure)?;
-            out.push(plan.gltf_dst);
-            out.push(plan.bin_dst);
-            out.extend(plan.textures.iter().map(|t| format!("{}/{}", plan.textures_dst_dir, t.dst_basename)));
-        } else { return Err(AppError::msg("unknown export format")); }
-    }
-    let mut seen = HashSet::new();
-    out.retain(|p| seen.insert(p.clone()));
-    Ok(out)
+pub async fn preview_export(app: AppHandle, library: String, asset_ids: Vec<String>, format: String, preserve_structure: bool) -> AppResult<Vec<String>> {
+    let handle = library::resolve(&app, &library)?;
+    crate::commands::remote::blocking(move || ops::preview_export(&handle, &asset_ids, &format, preserve_structure)).await
 }
 
 /// Hash the selected file sets so saved exports can detect changes in file contents.
 #[tauri::command]
-pub async fn asset_fingerprints(app: AppHandle, asset_ids: Vec<String>, all_variants: bool) -> AppResult<std::collections::BTreeMap<String, String>> {
-    let (assets, report) = collect_assets(&app, &asset_ids)?;
-    if !report.skipped.is_empty() { return Err(AppError::msg(report.skipped.join("; "))); }
-    let root = library::resolve(&app)?;
-    tauri::async_runtime::spawn_blocking(move || fingerprint_assets(&root, &assets, all_variants))
+pub async fn asset_fingerprints(app: AppHandle, library: String, asset_ids: Vec<String>, all_variants: bool) -> AppResult<std::collections::BTreeMap<String, String>> {
+    let handle = library::resolve(&app, &library)?;
+    tauri::async_runtime::spawn_blocking(move || ops::asset_fingerprints(&handle, &asset_ids, all_variants))
         .await.map_err(|e| AppError::msg(e.to_string()))?
-}
-
-fn fingerprint_assets(root: &Path, assets: &[crate::domain::catalog_model::Asset], all_variants: bool) -> AppResult<std::collections::BTreeMap<String, String>> {
-    use std::hash::{Hash, Hasher};
-    use std::io::Read;
-    use crate::domain::catalog_model::AssetContent;
-    let mut result = std::collections::BTreeMap::new();
-    for asset in assets {
-        let mut hasher = std::collections::hash_map::DefaultHasher::new();
-        let variants = std::iter::once(asset).chain(asset.variants.iter().filter(|_| all_variants));
-        let mut files = std::collections::BTreeSet::new();
-        for variant in variants {
-            serde_json::to_string(&variant.content)?.hash(&mut hasher);
-            serde_json::to_string(&variant.user)?.hash(&mut hasher);
-            match &variant.content {
-                AssetContent::Model { fileset, .. } | AssetContent::Animation { fileset, .. } => {
-                    files.insert(fileset.gltf.clone()); files.insert(fileset.bin.clone());
-                    files.extend(fileset.textures.iter().cloned());
-                }
-                AssetContent::Material { material } => { files.extend(material.textures()); }
-                AssetContent::Audio {audio} => {files.insert(audio.file.clone());}
-            }
-        }
-        for path in files {
-            path.hash(&mut hasher);
-            let mut file = std::fs::File::open(root.join(&path))?;
-            let mut chunk = [0u8; 65536];
-            loop {
-                let count = file.read(&mut chunk)?;
-                if count == 0 { break; }
-                hasher.write(&chunk[..count]);
-            }
-        }
-        result.insert(asset.id.clone(), format!("{:016x}", hasher.finish()));
-    }
-    Ok(result)
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-    use crate::domain::catalog_model::Asset;
-    use serde_json::json;
-
-    #[test]
-    fn change_tracking_hashes_contents_and_respects_best_only() {
-        let root = std::env::temp_dir().join(format!("toybox-fingerprints-{}", std::process::id()));
-        std::fs::create_dir_all(&root).unwrap();
-        std::fs::write(root.join("full.png"), b"full").unwrap();
-        std::fs::write(root.join("small.png"), b"small").unwrap();
-        let value = |id: &str, file: &str| json!({ "kind":"material", "id":id, "name":id, "fileName":id, "relPath":id, "pack":"p", "category":"wood", "thumb":{"state":"missing"}, "user":{"favorite":false,"tags":[]}, "material":{"maps":[{"role":"albedo","file":file}]} });
-        let mut asset: Asset = serde_json::from_value(value("wood", "full.png")).unwrap();
-        asset.variants.push(serde_json::from_value(value("small", "small.png")).unwrap());
-        let assets = [asset];
-        let best = fingerprint_assets(&root, &assets, false).unwrap();
-        let all = fingerprint_assets(&root, &assets, true).unwrap();
-        std::fs::write(root.join("small.png"), b"changed").unwrap();
-        assert_eq!(best, fingerprint_assets(&root, &assets, false).unwrap());
-        assert_ne!(all, fingerprint_assets(&root, &assets, true).unwrap());
-        std::fs::write(root.join("full.png"), b"new full").unwrap();
-        assert_ne!(best, fingerprint_assets(&root, &assets, false).unwrap());
-        std::fs::remove_dir_all(root).unwrap();
-    }
 }

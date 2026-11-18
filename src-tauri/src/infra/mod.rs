@@ -1,14 +1,11 @@
-//! Infrastructure layer: the only side-effecting code (filesystem, app-data).
+//! Infrastructure layer. The path-based, framework-free modules live in
+//! `toybox-core` and are re-exported here under their old names; what remains
+//! in this crate is what needs a Tauri `AppHandle` (app-data location, live
+//! library state, bundled plugins).
+
+pub use toybox_core::infra::{fsio, registry};
 
 pub mod appdata;
-pub mod animation_import;
-pub mod audio;
-#[cfg(test)]
-mod audio_tests;
 pub mod bundled;
-pub mod converter;
-pub mod fsio;
 pub mod library;
-pub mod migrations;
-pub mod storage;
 pub mod settings;

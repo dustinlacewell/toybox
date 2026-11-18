@@ -1,41 +1,14 @@
 mod commands;
-mod config;
-mod domain;
-mod error;
+// The path-based library logic lives in `toybox-core`; these aliases keep
+// `crate::domain::...`, `crate::error::...` paths valid across the app crate.
+use toybox_core::{domain, error};
 mod infra;
-pub mod maintenance;
-pub mod maintenance_colors;
-#[cfg(test)]
-mod animation_library_tests;
 
 use commands::{
-    catalog, export_copy, export_glb, export_plugin, import, import_convert, library, packs,
+    browse, catalog, export_copy, export_glb, export_plugin, import, import_convert, library, packs,
     plugins, recenter, scan, settings, thumbs,
 };
 use infra::library::LibraryState;
-
-/// Re-exports of the pure domain modules for integration tests in `tests/`.
-/// Integration tests link against the public crate API only.
-pub mod testing {
-    pub use crate::domain::{export_copy_plan, glb_assemble, gltf_parse, image_embed, paths};
-}
-
-pub mod testing_animation {
-    pub use crate::domain::{catalog_model::{Catalog, AssetContent}, rig, glb_assemble};
-    pub use crate::commands::animation_preview::{choices, read_preview};
-    pub use crate::commands::export_util::{read_gltf, read_bin};
-}
-
-/// Origin-correction domain surface for integration tests.
-pub mod testing_origin {
-    pub use crate::domain::gltf_origin::{recenter, world_aabb, Aabb, Align, Axis};
-}
-
-/// FBX-conversion surface for the real end-to-end integration test.
-pub mod testing_convert {
-    pub use crate::commands::import_convert::promote;
-    pub use crate::infra::converter::convert_fbx;
-}
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
@@ -45,10 +18,12 @@ pub fn run() {
         .plugin(tauri_plugin_process::init())
         .plugin(tauri_plugin_updater::Builder::new().build())
         .manage(LibraryState::default())
+        .manage(commands::plugin_services::ToolProcesses::default())
+        .manage(commands::fingerprint::Fingerprinter::default())
         .setup(|app| {
-            // Restore the persisted library root (if any) and re-open the asset
-            // scope to it, so a returning user skips the picker and the viewer
-            // can serve files immediately.
+            // Migrate an old single-library setup, restore the registered
+            // libraries and re-open the asset scope to each root, so a returning
+            // user skips the picker and the viewer can serve files immediately.
             infra::library::hydrate(app.handle())?;
             // Install bundled plugins (the importer) into the user's plugins dir
             // on first run, so a built app ships with a working import path.
@@ -57,19 +32,49 @@ pub fn run() {
         })
         .register_uri_scheme_protocol("plugin", serve_plugin_asset)
         .invoke_handler(tauri::generate_handler![
-            library::get_library_root,
-            library::set_library_root,
+            library::list_libraries,
+            library::add_library,
             library::create_library,
+            library::rename_library,
+            library::remove_library,
+            library::set_default_library,
+            commands::remote::probe_remote_library,
+            commands::remote::add_remote_library,
+            commands::remote::change_remote_token,
+            commands::remote::reconnect_remote_library,
+            commands::remote::remote_cache_size,
+            commands::remote::clear_remote_cache,
+            commands::remote::ensure_asset_files,
+            commands::remote::list_remote_tokens,
+            commands::remote::create_remote_token,
+            commands::remote::revoke_remote_token,
             settings::get_fbx2gltf_path,
             settings::set_fbx2gltf_path,
+            settings::set_plugin_enabled,
             settings::get_saved_exports,
             settings::set_saved_exports,
             import_convert::convert_to_gltf,
             scan::scan_library,
-            catalog::load_catalog,
+            browse::open_library,
+            browse::query_assets,
+            browse::count_assets,
+            browse::query_ids,
+            browse::get_assets,
+            browse::facet_counts,
+            browse::search_tags,
+            browse::type_counts,
+            browse::list_collections,
+            browse::elsewhere,
+            browse::rig_catalog,
+            browse::list_rigs,
+            browse::personal_tag_assets,
+            browse::pending_thumbs,
+            browse::set_favorite,
+            browse::set_collection,
+            browse::set_preview_choice,
+            browse::drop_personal_tags,
             commands::animation_preview::compatible_previews,
             commands::animation_preview::read_animation_preview,
-            catalog::save_catalog,
             catalog::library_root,
             catalog::resolve_asset_path,
             catalog::thumb_dir,
@@ -77,7 +82,6 @@ pub fn run() {
             thumbs::save_thumb,
             thumbs::invalidate_thumb,
             thumbs::set_thumb_state,
-            thumbs::list_pending_thumbs,
             thumbs::clear_thumbs,
             export_copy::export_copy,
             export_glb::export_glb,
@@ -90,14 +94,28 @@ pub fn run() {
             plugins::plugin_exists,
             plugins::plugin_read_dir,
             plugins::plugin_read_bytes,
+            plugins::plugin_copy_file,
             plugins::plugin_image_thumb,
             plugins::plugin_write_bytes,
             plugins::plugin_write_text,
+            // Services for plugins that drive an external program.
+            commands::plugin_services::get_plugin_settings,
+            commands::plugin_services::set_plugin_setting,
+            commands::plugin_services::plugin_launch_tool,
+            commands::plugin_services::plugin_run_tool,
+            commands::plugin_services::plugin_host_process_id,
+            commands::plugin_services::plugin_local_port_open,
+            commands::plugin_services::plugin_local_json,
+            commands::plugin_services::plugin_scratch_dir,
             // Per-asset export primitives plugins orchestrate.
             export_plugin::read_asset_gltf,
             commands::preview_source::read_preview_source,
             commands::preview_source::read_preview_pair,
             commands::delete::delete_assets,
+            commands::metadata::update_asset_metadata,
+            commands::transfer::transfer_assets,
+            commands::fingerprint::start_fingerprinting,
+            commands::fingerprint::fingerprint_status,
             export_plugin::assemble_glb_for_asset,
             export_plugin::perform_asset_copy,
             export_plugin::preview_export,
@@ -105,8 +123,16 @@ pub fn run() {
             export_plugin::transcode_image,
             export_plugin::placer_merge_file,
         ])
-        .run(tauri::generate_context!())
-        .expect("error while running tauri application");
+        .build(tauri::generate_context!())
+        .expect("error while running tauri application")
+        .run(|app, event| {
+            // Programs plugins started must not outlive the app.
+            if let tauri::RunEvent::Exit = event {
+                use tauri::Manager;
+                app.state::<commands::plugin_services::ToolProcesses>().stop_all();
+                app.state::<commands::fingerprint::Fingerprinter>().stop();
+            }
+        });
 }
 
 /// Serve plugin module source over `plugin://localhost/<id>/<rel>` so the webview

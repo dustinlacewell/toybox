@@ -1,60 +1,39 @@
-//! `merge_seed_entries`: the importer commit. An importer's entries have exactly
-//! the shape of a manifest (`_library_config/catalog.json`) entry; the manifest is
-//! the single source of truth, so the commit upserts them into it and the cached
-//! catalog gains the new assets without losing any other.
-//!
-//! Order matters: every entry is parsed and its files validated (via
-//! `build_catalog`) before anything is written, so a bad import leaves the
-//! library untouched. The referenced files must already exist under the library.
+//! `merge_seed_entries`: the importer commit. The work (validate, upsert into
+//! the manifest, rebuild the catalog) is `toybox_core::ops::import::merge_entries`.
 
 use serde_json::Value;
 use tauri::AppHandle;
 
-use crate::config;
-use crate::domain::catalog_model::Catalog;
-use crate::domain::{merge, paths, seed};
-use crate::error::AppResult;
-use crate::infra::{fsio, library};
-
-use super::catalog::{load_catalog_inner, save_catalog_inner};
-use super::catalog_build::build_catalog;
-use super::scan::build_catalog_from_seed;
+use crate::error::{AppError, AppResult};
+use crate::infra::library;
+use toybox_core::ops::browse::{summary, LibrarySummary};
+use toybox_core::ops::import::merge_entries;
 
 #[tauri::command]
-pub async fn merge_seed_entries(app: AppHandle, entries: Vec<Value>) -> AppResult<Catalog> {
-    tauri::async_runtime::spawn_blocking(move||merge_entries(&app,entries)).await.map_err(|error|crate::error::AppError::msg(format!("Import worker failed: {error}")))?
-}
-
-fn merge_entries(app:&AppHandle,entries:Vec<Value>)->AppResult<Catalog> {
-    let root = library::resolve(&app)?.to_string_lossy().to_string();
-    // Finish the versioned storage migration before accepting any new writes.
-    let prior = load_catalog_inner(app)?.filter(|c| std::path::Path::new(&c.library_root) == std::path::Path::new(&root));
-
-    let parsed = entries.iter().map(seed::parse_entry).collect::<AppResult<Vec<_>>>()?;
-    // Validate the incoming files before updating the source manifest.
-    build_catalog(&root, parsed)?;
-
-    upsert_into_manifest(&root, &crate::infra::appdata::catalog_path(app)?, entries)?;
-    // Rebuild derived animation rows too, including removals/renames of clips.
-    let fresh = build_catalog_from_seed(&root)?;
-
-    let result = match prior {
-        Some(prior) => merge::merge_preserving_user(&prior, fresh),
-        None => fresh,
-    };
-
-    save_catalog_inner(&app, &result)?;
-    Ok(result)
-}
-
-/// Read the manifest, upsert `entries` into it, and write it back pretty-printed.
-fn upsert_into_manifest(root: &str, cache: &std::path::Path, entries: Vec<Value>) -> AppResult<()> {
-    let path = paths::abs_under_root(root, config::SEED_REL);
-    let previous = fsio::read_bytes(&path)?;
-    let doc: Value = serde_json::from_slice(&previous)?;
-    let updated = seed::upsert_entries(doc.clone(), entries)?;
-    let updated = crate::infra::animation_import::prepare(root,updated)?;
-    // Validate every independent fileset before registering the new manifest.
-    build_catalog(root,seed::parse_seed_entries(&updated)?)?;
-    crate::infra::storage::publish(std::path::Path::new(root),cache,doc,updated)
+pub async fn merge_seed_entries(app: AppHandle, library: String, entries: Vec<Value>) -> AppResult<LibrarySummary> {
+    let handle = library::resolve(&app, &library)?;
+    // Into a remote library the staged files are uploaded and the server commits.
+    if let Some(remote) = library::remote_if(&app, &library)? {
+        return crate::commands::remote::blocking(move || {
+            let total = entries.len();
+            let (imported, errors) = remote.import_rows(entries).map_err(AppError::from)?;
+            if errors.is_empty() {
+                return summary(&handle);
+            }
+            let shown: Vec<String> = errors.iter().take(5).map(|e| format!("{}: {}", e.id.as_deref().unwrap_or("an item"), e.message)).collect();
+            let more = errors.len().saturating_sub(5);
+            Err(AppError::msg(format!(
+                "{} of {} items could not be imported ({} were added). {}{}",
+                errors.len(), total, imported.len(), shown.join(" | "),
+                if more > 0 { format!(" | and {more} more") } else { String::new() }
+            )))
+        })
+        .await;
+    }
+    tauri::async_runtime::spawn_blocking(move || {
+        merge_entries(&handle, entries)?;
+        summary(&handle)
+    })
+    .await
+    .map_err(|error| AppError::msg(format!("Import worker failed: {error}")))?
 }

@@ -1,108 +1,47 @@
-//! Catalog persistence and path-resolution commands. The frontend turns the
-//! absolute paths returned here into webview URLs via `convertFileSrc`.
+//! Path-resolution commands. The frontend turns the
+//! absolute paths returned here into webview URLs via `convertFileSrc`. Every
+//! command works on one library, named by its id.
 
 use tauri::AppHandle;
 
-use crate::config;
-use crate::domain::catalog_migrate;
-use crate::domain::catalog_model::{Catalog, ThumbState};
 use crate::domain::paths;
+use crate::commands::remote::blocking;
 use crate::error::AppResult;
-use crate::infra::{appdata, fsio, library};
-
-/// Frontend entry point: hand back the cache only if it was built under the
-/// current schema. A cache from an older schema may carry stale *derived* fields
-/// (e.g. a v1 `clipCount` predating the animation channel filter), so we reject
-/// it as `None` — the frontend then rescans, which rebuilds those fields while
-/// `scan_library` reads the same stale file internally to preserve user metadata
-/// (favorites/tags survive a schema bump).
-#[tauri::command]
-pub async fn load_catalog(app: AppHandle) -> AppResult<Option<Catalog>> {
-    Ok(load_catalog_inner(&app)?.filter(|c| c.schema_version == config::SCHEMA_VERSION))
-}
+use crate::infra::library;
 
 #[tauri::command]
-pub async fn save_catalog(app: AppHandle, catalog: Catalog) -> AppResult<()> {
-    save_catalog_inner(&app, &catalog)
-}
-
-#[tauri::command]
-pub fn library_root(app: AppHandle) -> AppResult<String> {
-    Ok(library::resolve(&app)?.to_string_lossy().to_string())
+pub fn library_root(app: AppHandle, library: String) -> AppResult<String> {
+    Ok(library::resolve(&app, &library)?.root_str())
 }
 
 /// Map a library-relative path to an absolute path the asset protocol can serve.
+/// For a remote library the file (and the rest of the item it belongs to) is
+/// downloaded first, off the main thread; the viewer shows its loading state
+/// until this answers.
 #[tauri::command]
-pub fn resolve_asset_path(app: AppHandle, rel_path: String) -> AppResult<String> {
-    let root = library::resolve(&app)?;
-    Ok(paths::abs_under_root(&root.to_string_lossy(), &rel_path)
-        .to_string_lossy()
-        .to_string())
+pub async fn resolve_asset_path(app: AppHandle, library: String, rel_path: String) -> AppResult<String> {
+    let handle = library::resolve(&app, &library)?;
+    let resolve = move || -> AppResult<String> {
+        handle.ensure_files(std::slice::from_ref(&rel_path))?;
+        Ok(paths::abs_under_root(&handle.root_str(), &rel_path).to_string_lossy().to_string())
+    };
+    blocking(resolve).await
 }
 
 #[tauri::command]
-pub fn thumb_dir(app: AppHandle) -> AppResult<String> {
-    Ok(appdata::thumb_dir(&app)?.to_string_lossy().to_string())
+pub fn thumb_dir(app: AppHandle, library: String) -> AppResult<String> {
+    Ok(library::resolve(&app, &library)?.thumbs_dir.to_string_lossy().to_string())
 }
 
+/// Where an item's thumbnail is. A remote library's shared picture is downloaded
+/// the first time it is asked for; if that fails the path is still returned and
+/// the picture simply does not show.
 #[tauri::command]
-pub fn thumb_path(app: AppHandle, asset_id: String) -> AppResult<String> {
-    Ok(appdata::thumb_path(&app, &asset_id)?
-        .to_string_lossy()
-        .to_string())
-}
-
-// --- inner helpers (no #[command]) so other command modules can reuse them ---
-
-pub fn load_catalog_inner(app: &AppHandle) -> AppResult<Option<Catalog>> {
-    let path = appdata::catalog_path(app)?;
-    if let Some(root)=library::current(app) { crate::infra::migrations::run(&root,&path)?; }
-    if !fsio::exists(&path) {
-        return Ok(None);
+pub async fn thumb_path(app: AppHandle, library: String, asset_id: String) -> AppResult<String> {
+    let handle = library::resolve(&app, &library)?;
+    let path = handle.thumb_path(&asset_id).to_string_lossy().to_string();
+    if let Some(link) = handle.remote.clone() {
+        let _ = blocking(move || Ok(link.files.ensure_thumb(&asset_id)?)).await;
     }
-    let text = fsio::read_text(&path)?;
-    let doc = catalog_migrate::upgrade(serde_json::from_str(&text)?);
-    let mut catalog: Catalog = serde_json::from_value(doc)?;
-    crate::infra::audio::remember(std::path::Path::new(&catalog.library_root),&catalog.assets);
-    refresh_animation_preview_thumbs(app,&mut catalog)?;
-    reconcile_thumb_states(app, &mut catalog)?;
-    Ok(Some(catalog))
-}
-
-fn refresh_animation_preview_thumbs(app:&AppHandle,catalog:&mut Catalog)->AppResult<()> {
-    static MIGRATION:std::sync::Mutex<()>=std::sync::Mutex::new(());
-    let _guard=MIGRATION.lock().map_err(|_|crate::error::AppError::msg("Preview migration lock was poisoned"))?;
-    const VERSION:u32=1;
-    let mut settings=crate::infra::settings::load(app)?;
-    if settings.animation_preview_version==VERSION{return Ok(());}
-    for asset in &mut catalog.assets {
-        if !matches!(asset.content,crate::domain::catalog_model::AssetContent::Animation{..}){continue;}
-        let path=appdata::thumb_path(app,&asset.id)?;
-        // Refresh the old animation picture without discarding it first.
-        fsio::write_bytes(&path.with_extension("stale"),&[])?;
-    }
-    settings.animation_preview_version=VERSION;
-    crate::infra::settings::save(app,&settings)
-}
-
-/// The thumbnail PNG on disk is the source of truth for "is this thumb ready".
-/// We never churn the catalog file with per-thumbnail writes; instead, every
-/// time the catalog is handed to the frontend we derive `ready`/`missing` from
-/// disk. An `error` recorded on disk-less assets is preserved.
-fn reconcile_thumb_states(app: &AppHandle, catalog: &mut Catalog) -> AppResult<()> {
-    for asset in &mut catalog.assets {
-        let exists = fsio::exists(&appdata::thumb_path(app, &asset.id)?);
-        asset.thumb.state = match (exists, &asset.thumb.state) {
-            (true, _) => ThumbState::Ready,
-            (false, ThumbState::Error) => ThumbState::Error,
-            (false, _) => ThumbState::Missing,
-        };
-    }
-    Ok(())
-}
-
-pub fn save_catalog_inner(app: &AppHandle, catalog: &Catalog) -> AppResult<()> {
-    let path = appdata::catalog_path(app)?;
-    let text = serde_json::to_string_pretty(catalog)?;
-    fsio::write_bytes_atomic(&path, text.as_bytes())
+    Ok(path)
 }

@@ -1,139 +1,203 @@
-//! The runtime library root: the single live source of truth for "where the
-//! asset library lives." It replaces the former compile-time `config::LIBRARY_ROOT`
-//! const so the location is the user's choice, persisted in `settings.json` and
-//! held in Tauri-managed state.
+//! The live library registry: which libraries are registered, resolved to
+//! `LibraryHandle`s that commands work through. Settings (`settings.json`) are
+//! the durable copy; the managed `LibraryState` is the in-memory one, so a
+//! command resolving a library never depends on re-reading a file.
 //!
-//! Three responsibilities live here because they are inseparable: validating that
-//! a folder is a usable library, persisting the choice, and extending the
-//! asset-protocol scope so the webview can actually load files from it (the
-//! scope is otherwise a static allowlist that wouldn't cover an arbitrary path).
+//! Validation, scaffolding, handle resolution and the start-up migrations are
+//! in `toybox_core::infra::library`; this module adds the Tauri-managed state
+//! and extends the asset-protocol scope so the webview can load files from
+//! every registered root (the scope is otherwise a static allowlist that
+//! wouldn't cover an arbitrary path).
 
-use std::path::{Path, PathBuf};
-use std::sync::Mutex;
+use std::path::Path;
+use std::sync::{Arc, Mutex};
 
-use tauri::{AppHandle, Manager};
+use tauri::{AppHandle, Emitter, Manager};
+use toybox_remote::secrets::KeyringStore;
+use toybox_remote::RemoteLibrary;
 
-use crate::config;
-use crate::domain::paths;
 use crate::error::{AppError, AppResult};
-use crate::infra::{fsio, settings};
+use crate::infra::registry::{self, LibraryHandle};
+use crate::infra::{appdata, settings};
 
-/// Tauri-managed live root. `None` until the user has chosen a library.
+pub use toybox_core::infra::library::{ensure_library_folder, validate, LibraryInfo, Registry};
+
+/// Tauri-managed registry: the libraries in the order added, and the default.
 #[derive(Default)]
-pub struct LibraryState(pub Mutex<Option<PathBuf>>);
+pub struct LibraryState(pub Mutex<Registry>);
 
-/// Hydrate the live root from persisted settings and, if one is present and
-/// valid, extend the asset-protocol scope to it. Called once from `.setup()`.
-/// A persisted-but-now-missing root is dropped (left unset) so the app falls
-/// back to the picker rather than erroring on a stale path.
+/// Tauri-managed set of open remote libraries (connections, file caches).
+pub struct RemoteHub(pub toybox_remote::Hub);
+
+/// Event name transfer progress of remote libraries is emitted under.
+pub const PROGRESS_EVENT: &str = "library-progress";
+
+/// Load settings, migrate old single-library settings and app data into the
+/// registry layout, re-open the asset scope to every registered root and fill
+/// the live state. Called once from `.setup()`; it never fails, because an
+/// error there would abort window creation. A step that fails is retried on the
+/// next start.
 pub fn hydrate(app: &AppHandle) -> AppResult<()> {
-    let Some(root) = settings::load(app)?.library_root.map(PathBuf::from) else {
-        return Ok(());
-    };
-    if validate(&root).is_err() {
-        return Ok(());
+    let data = appdata::app_data_dir(app)?;
+    let loaded = toybox_core::infra::library::hydrate_registry(&appdata::settings_path(app)?, &data)?;
+    for entry in loaded.libraries.iter().filter(|entry| entry.kind == registry::LibraryKind::Local) {
+        extend_scope(app, Path::new(&entry.root));
     }
-    extend_scope(app, &root);
-    store(app, Some(root));
+    // Remote libraries keep downloaded files in the app cache; the viewer loads them from there.
+    let cache = appdata::remote_files_dir(app)?;
+    let _ = std::fs::create_dir_all(&cache);
+    extend_scope(app, &cache);
+    let events = app.clone();
+    let sink: toybox_remote::progress::Sink = Arc::new(move |progress| {
+        let _ = events.emit(PROGRESS_EVENT, progress);
+    });
+    app.manage(RemoteHub(toybox_remote::Hub::new(Arc::new(KeyringStore), data, cache, Some(sink))));
+    *app.state::<LibraryState>().0.lock().unwrap() = loaded;
     Ok(())
 }
 
-/// The current root, or `AppError::NoLibrary` if none is configured. Every file
-/// read/write keyed to the library funnels through this, so an unconfigured app
-/// fails with a distinguishable sentinel rather than a raw IO error.
-pub fn resolve(app: &AppHandle) -> AppResult<PathBuf> {
-    current(app).ok_or(AppError::NoLibrary)
-}
-
-/// The current root without erroring — for the picker gate (`get_library_root`).
-pub fn current(app: &AppHandle) -> Option<PathBuf> {
+pub fn snapshot(app: &AppHandle) -> Registry {
     app.state::<LibraryState>().0.lock().unwrap().clone()
 }
 
-/// Adopt a user-chosen folder: validate it is a Toybox-style library, persist
-/// the choice, extend the asset-protocol scope, and update the live root.
-pub fn set(app: &AppHandle, root: &Path) -> AppResult<()> {
+/// Resolve a library id to its handle. `NoLibrary` when nothing is registered,
+/// so the frontend can route to the picker; an unknown id is a plain error.
+pub fn resolve(app: &AppHandle, id: &str) -> AppResult<LibraryHandle> {
+    let registry = snapshot(app);
+    if registry.libraries.is_empty() {
+        return Err(AppError::NoLibrary);
+    }
+    let hub = app.state::<RemoteHub>();
+    registry.resolve_with(&appdata::app_data_dir(app)?, id, &|entry| Ok(hub.0.get(entry).map_err(AppError::from)?.handle()))
+}
+
+/// The open remote library `id`, or an error when it is a local one.
+pub fn remote(app: &AppHandle, id: &str) -> AppResult<Arc<RemoteLibrary>> {
+    let registry = snapshot(app);
+    let entry = registry.libraries.iter().find(|l| l.id == id).ok_or_else(|| AppError::msg(format!("Unknown library: {id}")))?;
+    if entry.kind != registry::LibraryKind::Remote {
+        return Err(AppError::msg(format!("{} is not a remote library", entry.name)));
+    }
+    Ok(app.state::<RemoteHub>().0.get(entry).map_err(AppError::from)?)
+}
+
+/// The open remote library `id`, or `None` for a local library.
+pub fn remote_if(app: &AppHandle, id: &str) -> AppResult<Option<Arc<RemoteLibrary>>> {
+    let is_remote = snapshot(app).libraries.iter().any(|l| l.id == id && l.kind == registry::LibraryKind::Remote);
+    if is_remote { remote(app, id).map(Some) } else { Ok(None) }
+}
+
+/// The libraries as the frontend sees them. A remote library is described by what
+/// is known without using the network (role and offline state from the last visit).
+pub fn list(app: &AppHandle) -> Vec<LibraryInfo> {
+    let hub = app.state::<RemoteHub>();
+    let mut infos = snapshot(app).list_with(&|entry| Some(hub.0.status(entry)));
+    for info in &mut infos {
+        if info.kind == registry::LibraryKind::Remote {
+            info.root = hub.0.files_root(&info.id).to_string_lossy().to_string();
+        }
+    }
+    infos
+}
+
+fn info(app: &AppHandle, id: &str) -> AppResult<LibraryInfo> {
+    list(app).into_iter().find(|l| l.id == id).ok_or_else(|| AppError::msg("Unknown library"))
+}
+
+/// Apply one registry change: start from the live registry (so an unreadable
+/// `settings.json` can never empty it), persist, then publish to the live state.
+/// The state lock is held throughout, serialising registry changes.
+fn mutate<T>(app: &AppHandle, change: impl FnOnce(&mut settings::AppSettings) -> AppResult<T>) -> AppResult<T> {
+    let state = app.state::<LibraryState>();
+    let mut live = state.0.lock().unwrap();
+    let mut stored = settings::load(app)?;
+    stored.libraries = live.libraries.clone();
+    stored.default_library = live.default.clone();
+    let result = change(&mut stored)?;
+    settings::save(app, &stored)?;
+    *live = Registry { libraries: stored.libraries, default: stored.default_library };
+    Ok(result)
+}
+
+/// Register an existing library folder. A folder that was registered before
+/// and removed gets its previous id (and so its kept favourites, tags and
+/// thumbnails) back.
+pub fn add(app: &AppHandle, root: &Path, name: Option<&str>) -> AppResult<LibraryInfo> {
     validate(root)?;
-    let root = root.to_path_buf();
-    // Preserve any other settings (e.g. the converter path) — only the root changes.
-    let mut settings = settings::load(app)?;
-    settings.library_root = Some(root.to_string_lossy().to_string());
-    settings::save(app, &settings)?;
-    extend_scope(app, &root);
-    store(app, Some(root));
-    Ok(())
+    let root_text = root.to_string_lossy().to_string();
+    let data = appdata::app_data_dir(app)?;
+    let entry = mutate(app, |stored| {
+        let id = registry::retained_id_for(&data, stored, &root_text).unwrap_or_else(registry::new_id);
+        stored.add_library(&root_text, name, id)
+    })?;
+    let _ = registry::write_sidecar(&data, &entry);
+    extend_scope(app, root);
+    info(app, &entry.id)
 }
 
-/// Establish a new, empty library in `root`, then adopt it. An already-valid
+/// Establish a new, empty library in `root`, then register it. An already-valid
 /// library is adopted as-is (idempotent); otherwise the folder must be empty, so
-/// scaffolding can never clobber unrelated files. The skeleton is the minimum a
-/// scan accepts: an empty seed catalog and the type directories under `library/` that
-/// importers populate.
-pub fn create(app: &AppHandle, root: &Path) -> AppResult<()> {
-    if validate(root).is_err() {
-        require_empty_dir(root)?;
-        scaffold(root)?;
-    }
-    set(app, root)
+/// scaffolding can never clobber unrelated files.
+pub fn create(app: &AppHandle, root: &Path, name: Option<&str>) -> AppResult<LibraryInfo> {
+    ensure_library_folder(root)?;
+    add(app, root, name)
 }
 
-/// A valid library is a Toybox-curated tree: it must carry the native catalog
-/// seed at `_library_config/catalog.json`. Anything else is rejected with a
-/// message the picker shows verbatim.
-fn validate(root: &Path) -> AppResult<()> {
-    if !root.is_dir() {
-        return Err(AppError::msg(format!(
-            "not a folder: {}",
-            root.to_string_lossy()
-        )));
+pub fn rename(app: &AppHandle, id: &str, name: &str) -> AppResult<LibraryInfo> {
+    let entry = mutate(app, |stored| stored.rename_library(id, name))?;
+    if let Ok(data) = appdata::app_data_dir(app) {
+        let _ = registry::write_sidecar(&data, &entry);
     }
-    let seed = paths::abs_under_root(&root.to_string_lossy(), config::SEED_REL);
-    if !fsio::exists(&seed) {
-        return Err(AppError::msg(
-            "not a Toybox library: missing _library_config/catalog.json".to_string(),
-        ));
+    info(app, id)
+}
+
+/// Unregister a library. Its folder is not touched and its app data (cache with
+/// favourites and tags, thumbnails) is kept under `<app-data>/libraries/<id>`,
+/// so adding the same folder again restores them.
+pub fn remove(app: &AppHandle, id: &str) -> AppResult<()> {
+    let removed = mutate(app, |stored| stored.remove_library(id))?;
+    if removed.kind == registry::LibraryKind::Remote {
+        // The token leaves the credential store and the downloaded files go; the
+        // catalog, favourites and pictures stay in the app data like for any library.
+        app.state::<RemoteHub>().0.forget(id).map_err(AppError::from)?;
     }
     Ok(())
 }
 
-/// Refuse to scaffold into a folder that already holds files. Creating into an
-/// empty (or not-yet-existing) folder is fine; anything else risks surprising
-/// the user, so it's an error they can act on.
-fn require_empty_dir(root: &Path) -> AppResult<()> {
-    if !root.exists() {
-        return Ok(());
-    }
-    if !root.is_dir() {
-        return Err(AppError::msg(format!(
-            "not a folder: {}",
-            root.to_string_lossy()
-        )));
-    }
-    let mut entries = std::fs::read_dir(root)?;
-    if entries.next().is_some() {
-        return Err(AppError::msg(
-            "folder is not empty — choose an empty folder for a new library".to_string(),
-        ));
-    }
-    Ok(())
+/// Add a remote library: the address and token were checked against the server
+/// (`prepared`), the token goes to the credential store, the address to the registry.
+pub fn add_remote(app: &AppHandle, prepared: &toybox_remote::hub::Prepared, token: &str) -> AppResult<LibraryInfo> {
+    let hub = app.state::<RemoteHub>();
+    let data = appdata::app_data_dir(app)?;
+    let entry = match mutate(app, |stored| hub.0.register(stored, prepared, token).map_err(AppError::from)) {
+        Ok(entry) => entry,
+        Err(error) => {
+            // The registry could not be saved: do not leave the token behind.
+            let _ = hub.0.forget(&prepared.id);
+            return Err(error);
+        }
+    };
+    let _ = registry::write_sidecar(&data, &entry);
+    hub.0.get(&entry).map_err(AppError::from)?.remember(&prepared.probe.server_name, prepared.probe.role);
+    info(app, &entry.id)
 }
 
-/// Lay down the minimum a library needs: an empty seed catalog at
-/// `_library_config/catalog.json` (the parent dir is created by the write) and
-/// the standard type directories. Importers stage files; the host owns storage.
-fn scaffold(root: &Path) -> AppResult<()> {
-    let seed = paths::abs_under_root(&root.to_string_lossy(), config::SEED_REL);
-    fsio::write_text(&seed, EMPTY_SEED)?;
-    for kind in ["models", "materials", "animations", "audio"] {
-        std::fs::create_dir_all(root.join("library").join(kind))?;
-    }
-    Ok(())
+/// Use another access token for a remote library, after checking it with the server.
+pub fn change_token(app: &AppHandle, id: &str, token: &str) -> AppResult<LibraryInfo> {
+    let library = remote(app, id)?;
+    let probe = toybox_remote::probe(library.url(), token).map_err(AppError::from)?;
+    app.state::<RemoteHub>().0.replace_token(id, token.trim()).map_err(AppError::from)?;
+    library.remember(&probe.server_name, probe.role);
+    info(app, id)
 }
 
-/// The native seed source for an empty library. `schemaVersion: 1` is the
-/// *source* schema the seed parser reads (distinct from the cache
-/// `config::SCHEMA_VERSION`); `assets: []` is what an empty library declares.
-const EMPTY_SEED: &str = "{\n  \"schemaVersion\": 1,\n  \"storageVersion\": 1,\n  \"assets\": []\n}\n";
+pub fn info_of(app: &AppHandle, id: &str) -> AppResult<LibraryInfo> {
+    info(app, id)
+}
+
+pub fn set_default(app: &AppHandle, id: &str) -> AppResult<()> {
+    mutate(app, |stored| stored.set_default_library(id))
+}
 
 /// Allow the webview's asset protocol to serve files under `root`. Without this
 /// the catalog scans fine but every gltf/texture/thumbnail 404s in the viewer.
@@ -141,58 +205,4 @@ fn extend_scope(app: &AppHandle, root: &Path) {
     // Best-effort: a scope error here shouldn't abort adopting the library; the
     // viewer would degrade, but scanning/exports still work.
     let _ = app.asset_protocol_scope().allow_directory(root, true);
-}
-
-fn store(app: &AppHandle, root: Option<PathBuf>) {
-    *app.state::<LibraryState>().0.lock().unwrap() = root;
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-    use crate::domain::seed::parse_seed_entries;
-
-    /// A unique temp dir for one test, removed on drop so a failed run doesn't
-    /// leak. Names are derived from the test, not a clock/RNG, so they're stable.
-    struct TmpDir(PathBuf);
-    impl TmpDir {
-        fn new(tag: &str) -> Self {
-            let dir = std::env::temp_dir().join(format!("toybox_lib_test_{tag}"));
-            let _ = std::fs::remove_dir_all(&dir);
-            std::fs::create_dir_all(&dir).unwrap();
-            TmpDir(dir)
-        }
-    }
-    impl Drop for TmpDir {
-        fn drop(&mut self) {
-            let _ = std::fs::remove_dir_all(&self.0);
-        }
-    }
-
-    #[test]
-    fn scaffold_produces_a_library_that_validates_and_scans_empty() {
-        let tmp = TmpDir::new("scaffold");
-        scaffold(&tmp.0).expect("scaffold");
-
-        // The skeleton is a valid library, with the packs dir present.
-        validate(&tmp.0).expect("scaffolded dir should validate");
-        assert!(tmp.0.join("library").is_dir(), "library/ dir created");
-
-        // The seed the scan reads parses as an empty asset list — no crash, no
-        // phantom assets.
-        let seed = paths::abs_under_root(&tmp.0.to_string_lossy(), config::SEED_REL);
-        let doc: serde_json::Value =
-            serde_json::from_str(&fsio::read_text(&seed).unwrap()).unwrap();
-        assert!(parse_seed_entries(&doc).unwrap().is_empty(), "empty seed");
-    }
-
-    #[test]
-    fn require_empty_dir_accepts_empty_or_absent_and_rejects_occupied() {
-        let tmp = TmpDir::new("empty");
-        require_empty_dir(&tmp.0).expect("fresh empty dir is allowed");
-        require_empty_dir(&tmp.0.join("does-not-exist")).expect("absent dir is allowed");
-
-        fsio::write_text(&tmp.0.join("stray.txt"), "x").unwrap();
-        assert!(require_empty_dir(&tmp.0).is_err(), "occupied dir is rejected");
-    }
 }

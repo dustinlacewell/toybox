@@ -1,0 +1,31 @@
+[package]
+name = "toybox-server"
+version = "0.4.1"
+description = "Headless Toybox library server: one library over HTTP with token roles"
+authors = ["Dustin Lacewell"]
+edition = "2021"
+
+[lib]
+name = "toybox_server"
+
+[[bin]]
+name = "toybox-server"
+path = "src/main.rs"
+
+[dependencies]
+toybox-core = { path = "../toybox-core" }
+serde = { workspace = true }
+serde_json = { workspace = true }
+sha2 = { workspace = true }
+axum = { workspace = true }
+tokio = { workspace = true }
+tokio-util = { workspace = true }
+futures-util = { workspace = true }
+clap = { workspace = true }
+rand = { workspace = true }
+base64 = { workspace = true }
+subtle = { workspace = true }
+
+[dev-dependencies]
+tower = { version = "0.5", features = ["util"] }
+http-body-util = "0.1"

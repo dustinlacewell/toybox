@@ -1,0 +1,5 @@
+# The window reads several libraries through one connection that attaches each
+# library's two databases (src-tauri/crates/toybox-core/src/infra/store/browse.rs).
+# SQLite allows 10 attached databases by default (5 libraries); this allows 40 (20 libraries).
+[env]
+LIBSQLITE3_FLAGS = "-DSQLITE_MAX_ATTACHED=40"

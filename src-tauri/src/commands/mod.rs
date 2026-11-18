@@ -1,22 +1,26 @@
-//! Command layer: thin orchestration exposed to the frontend. Each command
-//! reads via infra, transforms via domain, writes via infra.
+//! Command layer: thin Tauri wrappers exposed to the frontend. Each command
+//! resolves its library from the app handle and calls the matching function in
+//! `toybox_core::ops`, which holds the actual work.
 
+pub mod browse;
 pub mod catalog;
 pub mod animation_preview;
-pub mod catalog_build;
 pub mod export_copy;
 pub mod export_glb;
 pub mod export_plugin;
-pub mod export_util;
+pub mod fingerprint;
 pub mod import;
 pub mod import_convert;
 pub mod library;
+pub mod metadata;
 pub mod packs;
 pub mod plugins;
+pub mod plugin_services;
 pub mod preview_source;
 pub mod delete;
-mod delete_files;
 pub mod recenter;
+pub mod remote;
 pub mod scan;
 pub mod settings;
 pub mod thumbs;
+pub mod transfer;

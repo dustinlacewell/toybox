@@ -1,5 +1,6 @@
-//! Resolution of the app-data locations where the catalog and thumbnail cache
-//! live. This is the only place that asks Tauri for the app-data directory.
+//! Resolution of the app-data locations. This is the only place that asks Tauri
+//! for the app-data directory. Per-library data (catalog cache, thumbnails) lives
+//! under `<app-data>/libraries/<id>/`; see `infra::registry`.
 
 use std::path::PathBuf;
 
@@ -14,19 +15,18 @@ pub fn app_data_dir(app: &AppHandle) -> AppResult<PathBuf> {
         .map_err(|e| AppError::msg(format!("app_data_dir: {e}")))
 }
 
-/// The catalog JSON path: `<app-data>/catalog.json`.
-pub fn catalog_path(app: &AppHandle) -> AppResult<PathBuf> {
-    Ok(app_data_dir(app)?.join("catalog.json"))
+/// Where downloaded files of remote libraries live: `<app-cache>/libraries`. A cache
+/// the OS may clear and that can always be fetched again, unlike the app data.
+pub fn remote_files_dir(app: &AppHandle) -> AppResult<PathBuf> {
+    app.path()
+        .app_cache_dir()
+        .map(|dir| dir.join("libraries"))
+        .map_err(|e| AppError::msg(format!("app_cache_dir: {e}")))
 }
 
-/// The settings JSON path: `<app-data>/settings.json` (holds the library root).
+/// The settings JSON path: `<app-data>/settings.json` (holds the library registry).
 pub fn settings_path(app: &AppHandle) -> AppResult<PathBuf> {
-    Ok(app_data_dir(app)?.join("settings.json"))
-}
-
-/// The thumbnail cache directory: `<app-data>/thumbs`.
-pub fn thumb_dir(app: &AppHandle) -> AppResult<PathBuf> {
-    Ok(app_data_dir(app)?.join("thumbs"))
+    Ok(toybox_core::infra::appdata::settings_path(&app_data_dir(app)?))
 }
 
 /// The plugins directory: `<app-data>/plugins`. Each subdirectory is one
@@ -34,18 +34,4 @@ pub fn thumb_dir(app: &AppHandle) -> AppResult<PathBuf> {
 /// protocol and the loader's source reads are jailed to this root.
 pub fn plugins_dir(app: &AppHandle) -> AppResult<PathBuf> {
     Ok(app_data_dir(app)?.join("plugins"))
-}
-
-/// The PNG path for one asset's thumbnail. The asset id contains `uid://` and
-/// other unsafe characters, so it is sanitized into a flat filename.
-pub fn thumb_path(app: &AppHandle, asset_id: &str) -> AppResult<PathBuf> {
-    Ok(thumb_dir(app)?.join(format!("{}.png", sanitize_id(asset_id))))
-}
-
-/// Make an asset id safe as a single path segment.
-pub fn sanitize_id(asset_id: &str) -> String {
-    asset_id
-        .chars()
-        .map(|c| if c.is_ascii_alphanumeric() { c } else { '_' })
-        .collect()
 }
