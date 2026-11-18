@@ -3,8 +3,11 @@
 Model import extracts every usable transform clip into its own glTF and compact
 binary buffer under `library/<pack>/animations/`. Empty takes are skipped.
 Animation-only import performs the same extraction without adding model tiles.
-A rescan migrates older embedded-clip entries automatically, with a source
-manifest backup. Stable clip IDs, favourites, collections and tags survive.
+A rescan migrates older embedded-clip entries automatically, with a backup of
+the source entries. (The entries now live in `library.db`, not a JSON manifest;
+see [SQLite library storage](sqlite-storage.md) for the files. Where this
+particular backup is written after the move to databases is not described there
+and was not checked.) Stable clip IDs, favourites, collections and tags survive.
 
 Each animation contains its node hierarchy, authored rest transforms and sampled
 tracks. It has no mesh, textures, skin weights, inverse-bind matrices or links
@@ -38,7 +41,9 @@ edits cannot bypass cached compatibility.
 
 Native animation exports contain one clip and its target hierarchy. The preview
 model is never included. Saved exports continue to remember their type and plugin
-settings. Import accepts glTF/GLB and FBX through the configured converter.
+settings. Import is done by the Animations plugin through the model formats that are
+turned on (glTF and GLB with the glTF models plugin); it keeps no original files,
+because the source is replaced by the extracted clips. See [Models](models.md).
 Morph-target clips and animation-pointer extensions need additional target
 schemas; extraction currently reports them as unsupported rather than discarding
 tracks or embedding a model. Object transform animations are supported separately
@@ -57,10 +62,13 @@ Models receive `animationsExtracted: true` after extraction. New imports replace
 that marker and run extraction again. Level/size variants do not apply to clips.
 
 Run the optional real-library check with `TOYBOX_TEST_CATALOG` set to the catalog
-cache path:
+cache path (the test reads a JSON catalog file, the old per-machine
+`libraries/<id>/catalog.json`; a converted library no longer has one, only the copy
+moved to `_library_config/migration-backups/0004-<stamp>/cache.before.json`, and the test
+has not been updated to read `library.db`):
 
 ```text
-cargo test --lib independent_animation_library_and_cross_model_preview -- --ignored --nocapture
+cargo test -p toybox-core --lib independent_animation_library_and_cross_model_preview -- --ignored --nocapture
 ```
 
 `TOYBOX_TEST_ARTIFACT_DIR` optionally saves a pure animation GLB and a compatible

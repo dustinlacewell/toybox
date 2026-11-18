@@ -107,10 +107,17 @@ bun run src/pack/register-pack.ts \
   Toybox reads this for the pack's display name/color. This is the source of
   truth for pack identity, independent of any Godot file.
 
-> NB: the in-app catalog seed is now `_library_config/catalog.json` (the new
+> NB: the in-app catalog seed was `_library_config/catalog.json` (the
 > `{ id, pack, category, file }` shape), not the old Godot `asset_library.json`.
-> The register step writes whatever the current Toybox library expects; confirm
-> the on-disk seed format before running, since the app schema has moved.
+> Since migration step 4 a library's entries are rows of
+> `_library_config/library.db` (`items.entry` holds the same entry JSON), and a
+> library that has been opened by a current Toybox has no `catalog.json` any more.
+> A register step that appends to `catalog.json` therefore no longer works against
+> such a library, and the database must not be edited by hand. This document does
+> not re-establish how to register a converted pack now: bring the converted glTF
+> files in through Toybox (the glTF importer, which commits entries the same way
+> any importer does), and see [SQLite library storage](sqlite-storage.md). The
+> `register-pack.ts` script is not in this repository, so it was not checked.
 
 ---
 
@@ -120,10 +127,8 @@ bun run src/pack/register-pack.ts \
   `SK_Chr_SpaceSoldier_Male_Helmet` corresponds to the prefab
   `SM_Chr_SpaceSoldier_Helmet_Male_01`. Prefix swapping alone misses it.
   Its actual glTF mesh names still match MaterialList mesh names after `SK_`
-  becomes `SM_`. `scripts/repair-synty-bindings.mjs` restores missing bindings
-  using those explicit, unambiguous mesh entries. Run with library root and
-  source pack root to inspect matches; add `--apply` for backed-up corrections.
-  It preserves glass, painted heads, existing textures and all geometry. A
+  becomes `SM_`, so missing bindings can be restored from those explicit,
+  unambiguous mesh entries. A
   texture-existence check alone cannot find this omission: untextured files
   have no image references to check. Audit used material slots too.
 
@@ -158,16 +163,19 @@ bun run src/pack/register-pack.ts \
   space first; the scratch temp dirs are safe to delete.
 
 - **Back up the catalog seed** before `register-pack` (`.bak`). It's append-only,
-  but verify the existing packs' counts are untouched afterward.
+  but verify the existing packs' counts are untouched afterward. (A library
+  that has `library.db` instead of `catalog.json` has no such file to copy; to back
+  it up, copy `library.db` with Toybox closed, and do not edit it by hand.)
 
 ---
 
 ## Why this isn't an in-app import plugin (yet)
 
-Toybox has a plugin system with an **importer** kind (see
-`plugins/com.toybox.gltf-importer`). That importer works because glTF/GLB needs
-**no conversion** — its panel just walks a source folder and copies/unpacks files
-via the jailed `ctx.fs`, then calls `ctx.commit(entries)`.
+Toybox has a plugin system whose importers ship an import panel (see
+`plugins/com.toybox.model-core`, which hands each file to a format plugin such as
+`plugins/com.toybox.model-gltf`). The glTF format works because glTF/GLB needs
+**no conversion** — it just copies/unpacks files via the jailed `ctx.fs`, and the
+panel then calls `ctx.commit(entries)`.
 
 FBX is different: it requires running **FBX2glTF.exe**, a native binary. The
 plugin sandbox is deliberately jailed:
@@ -188,6 +196,6 @@ Synty importer becomes a normal panel-only plugin (pick pack folder → per FBX
 call `host.convertFbx` → patch via existing primitives → `ctx.commit`). That's a
 deliberate design step, not a drop-in — tracked as future work.
 
-Until then: **run the toolkit pipeline above**, then point the existing
-`gltf-importer` plugin at the converted `library/<theme>/` folder, or let
-`register-pack.ts` register it directly.
+Until then: **run the toolkit pipeline above**, then point the Models import
+(with the glTF models plugin turned on) at the converted `library/<theme>/`
+folder, or let `register-pack.ts` register it directly.

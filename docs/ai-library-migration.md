@@ -13,18 +13,24 @@ renames, filename classification, or a newly generated catalog.
 
 ## 1. Identify the input and the requested scope
 
-An existing Toybox library has an authoritative manifest at
-`<library-root>/_library_config/catalog.json`. Its derived catalog normally lives
-outside that directory, in the user's Toybox app-data directory.
+A Toybox library before migration step 4 (`sqlite-store`) has an authoritative
+JSON manifest at `<library-root>/_library_config/catalog.json`. Its derived catalog
+normally lives outside that directory, in the user's Toybox app-data directory, in
+a folder per registered library (see [Libraries](libraries.md)), as
+`libraries/<id>/catalog.json` next to `content-hashes.json`. Step 4 turns these
+files into SQLite databases; a library that has already been through it has
+`<library-root>/_library_config/library.db` instead and no `catalog.json` there.
+See [SQLite library storage](sqlite-storage.md).
 
 Distinguish these cases:
 
 | Input | Procedure |
 | --- | --- |
-| Existing Toybox manifest and matching cache | Migrate both with the native helper. Preserve cached user data. |
-| Existing Toybox manifest, no cache | Migrate the manifest and media. Use the intended cache path; the helper does not create a derived cache. |
+| Existing JSON manifest and matching cache | Migrate both with the native helper. Preserve cached user data. Step 4 moves them into `library.db` and `user.db`. |
+| Existing JSON manifest, no cache | Migrate the manifest and media. Use the intended cache path; the helper does not create a derived cache. |
 | Cache exists but the source manifest is missing | Recover the source manifest from an existing backup before proceeding. Do not substitute the cache for the manifest. |
-| Foreign asset collection with no Toybox manifest | Import through Toybox's plugins, or prepare an isolated inbound library and then run the migration helper. This is conversion/import work, not an existing Toybox format upgrade. |
+| `_library_config/library.db` already present | The library is already at step 4. The helper only finishes any pending work and reports. To inspect entries, read `library.db` in read-only mode (section 2). |
+| Foreign asset collection with no Toybox manifest or database | Import through Toybox's plugins, or prepare an isolated inbound library and then run the migration helper. This is conversion/import work, not an existing Toybox format upgrade. |
 
 For foreign collections, the model conversion details in
 [the legacy conversion spec](library-format-spec.md) can help prepare inbound
@@ -45,16 +51,33 @@ These numbers describe different things. Do not copy one into another.
 | Document or setting | Meaning in 0.4.1 |
 | --- | --- |
 | Application version | `0.4.1`, the first release with this managed-storage upgrade. |
-| `_library_config/migrations.json` → `version` | Durable migration version; completed storage migration is step **3**. |
-| `_library_config/catalog.json` → `storageVersion` | Managed media layout version **1**. |
-| Source manifest → `schemaVersion` | Legacy source-schema field, commonly `1`; the storage migration does not replace it with `3` or `5`. |
-| App-data `catalog.json` → `schemaVersion` | Derived-cache schema; current code uses **5**. Migration-only work can leave an older cache schema unchanged. |
+| `_library_config/migrations.json` → `version` | Durable migration version; the latest step is **4** (`sqlite-store`, which follows the storage migration, step **3**). |
+| Manifest `storageVersion` (before step 4: `_library_config/catalog.json`; after: `library.db`, table `meta`, key `storageVersion`) | Managed media layout version **1**. |
+| Manifest `schemaVersion` (after step 4: `meta` key `manifestSchemaVersion`) | Legacy source-schema field, commonly `1`; the storage migration does not replace it with `3` or `5`. |
+| Derived catalog schema (before step 4: app-data `catalog.json` → `schemaVersion`; after: `meta` key `catalogSchema`) | Derived-catalog schema; current code uses **5**. Migration-only work can leave an older schema unchanged. |
+| `library.db` / `user.db` `user_version` | Schema version of each database file (currently 1). Not related to the numbers above. |
 
-The source manifest registers assets and their file locations. The app-data
-catalog contains resolved file sets, rig information, cached audio facts, user
-tags, favorites, collections, and preview-model choices. It is derived data, but
-it can contain user information that must survive. Never discard it to force a
-rescan during a preservation-only migration.
+The manifest registers assets and their file locations. After step 4 it is the
+`items` table of `library.db`: one row per top-level item, with `items.entry`
+holding the same entry JSON the manifest held. The derived catalog contains
+resolved file sets, rig information, cached audio facts and content hashes; it is
+the `assets` table (and its tag, file and rig tables). The user's tags,
+favorites, collections and preview-model choices are personal data and live in
+the per-machine `user.db` (`libraries/<id>/user.db`), not in the library. Before
+step 4 they were in the app-data `catalog.json`. The derived catalog is derived
+data, but the personal data can contain user information that must survive. Never
+discard it to force a rescan during a preservation-only migration. The full
+description is in [SQLite library storage](sqlite-storage.md).
+
+Do not edit `library.db` or `user.db` by hand, and do not generate entries into
+them yourself. Changes to entries go through Toybox (the importer commit path and
+the metadata commands), which also keep the derived rows, the revision counter and
+the change log consistent. Reading is fine with any SQLite tool opened read-only,
+for example:
+
+```sh
+sqlite3 -readonly "<library-root>/_library_config/library.db" "SELECT id, kind, name, entry FROM items"
+```
 
 Settings and thumbnails are separate app-data files. Preserve settings, saved
 exports, plugins, and thumbnail files. They do not need new asset identities.
@@ -64,8 +87,14 @@ an active media reference. Do not replace it with the new storage path.
 ## 3. Find and record the actual paths
 
 On Windows, the usual app-data directory is `%APPDATA%\com.toybox.app`.
-`settings.json` stores the configured root as `libraryRoot`; the matching cache
-is `catalog.json` in that app-data directory. On other systems, locate Toybox's
+`settings.json` lists the registered libraries in `libraries` (`id`, `name`,
+`kind`, `root`; Toybox before several libraries stored one `libraryRoot`, which
+it converts on first start). The cache of a library, before step 4, is
+`libraries/<id>/catalog.json` in that app-data directory; `user.db` (personal data)
+sits in the same folder, and step 4 creates it. The helper still takes the path
+`libraries/<id>/catalog.json` as its cache argument: it finds the old cache and
+`content-hashes.json` there, and places `user.db` beside it. The file itself no
+longer exists once the library has been migrated. On other systems, locate Toybox's
 Tauri app-data directory for identifier `com.toybox.app` and verify its contents.
 Do not reuse another person's username, drive letter, or library path.
 
@@ -74,15 +103,19 @@ Example discovery in PowerShell:
 ```powershell
 $toyboxData = Join-Path $env:APPDATA 'com.toybox.app'
 $toyboxSettings = Get-Content -Raw -LiteralPath (Join-Path $toyboxData 'settings.json') | ConvertFrom-Json
-$toyboxRoot = $toyboxSettings.libraryRoot
-$toyboxCache = Join-Path $toyboxData 'catalog.json'
-Get-Item -LiteralPath (Join-Path $toyboxRoot '_library_config/catalog.json')
+$toyboxLibrary = $toyboxSettings.libraries[0]   # pick the library you were asked to migrate
+$toyboxRoot = $toyboxLibrary.root
+$toyboxCache = Join-Path $toyboxData "libraries/$($toyboxLibrary.id)/catalog.json"
+Get-Item -LiteralPath (Join-Path $toyboxRoot '_library_config/catalog.json')   # before step 4; after it, library.db
 ```
 
 Resolve the root to an absolute path. Confirm that a supplied cache's
 `libraryRoot` refers to this same directory. The helper deliberately leaves a
 cache for another library untouched; `validatedCachedItems: null` is not proof
 that the intended user's cache was migrated.
+
+If `_library_config/library.db` already exists, the library was converted by a
+Toybox that has step 4; its personal data is in `user.db` beside the cache path.
 
 ## 4. Prepare a migration-only run
 
@@ -91,11 +124,14 @@ that the intended user's cache was migrated.
    all Node, Cargo, or Explorer processes.
 2. Close or navigate away from Explorer windows showing old source folders.
    Windows can otherwise block the final archive rename.
-3. Save byte-for-byte copies of the source manifest, matching cache when present,
-   settings, and existing migration journal to a separate backup directory
-   outside `library/`. Record IDs, counts by kind, variants, and existing user
-   metadata for comparison. Use a full media backup if complete rollback is a
-   requirement; JSON snapshots alone are not a full library backup.
+3. Save byte-for-byte copies of the source manifest (`catalog.json`, or
+   `library.db` with its `-wal`/`-shm` files if it exists; copy them with Toybox
+   closed), matching cache and `content-hashes.json` when present, `user.db` when
+   present, settings, and existing migration journal to a separate backup
+   directory outside `library/`. Record IDs, counts by kind, variants, and
+   existing user metadata for comparison. Use a full media backup if complete
+   rollback is a requirement; copies of these metadata files are not a full
+   library backup.
 4. Keep enough free space on the library volume for verified copies of the
    indexed media while originals still exist. Do not delete originals to free
    space halfway through the operation.
@@ -123,13 +159,24 @@ Equivalent command with explicit paths on any supported shell:
 
 ```sh
 cargo run --manifest-path src-tauri/Cargo.toml --bin migrate-library -- \
-  "/absolute/library-root" "/absolute/toybox-app-data/catalog.json"
+  "/absolute/library-root" "/absolute/toybox-app-data/libraries/<library-id>/catalog.json"
 ```
 
 The helper performs ordered migrations, resumes interrupted work, validates the
 source entries, and validates a matching existing cache against the native
 catalog types. It does not launch Toybox, rebuild catalog facts, extract clips,
 or research metadata. A missing cache remains absent.
+
+The last migration step (4, `sqlite-store`) converts the JSON files into
+databases. It builds `_library_config/library.db.new` from the manifest, the
+cache and `content-hashes.json`, creates `user.db` beside the cache path from the
+cache's personal data, checks that the entry count, the asset count and the
+catalog read back from the databases equal the originals, and only then renames
+the file to `library.db`. The old manifest, cache and `content-hashes.json` are
+moved (never deleted) into `_library_config/migration-backups/0004-<stamp>/` as
+`manifest.before.json`, `cache.before.json` and `content-hashes.before.json`. If
+the check fails, `library.db.new` is discarded and the originals stay in place.
+Details: [SQLite library storage](sqlite-storage.md#migration-library-migration-step-4-sqlite-store).
 
 Its JSON report includes `storageVersion`, `sourceEntries`, `validatedCachedItems`,
 `counts`, and `backupDirectory`. Counts are observations, not target numbers to
@@ -138,15 +185,17 @@ can differ from cached clip rows, so source-entry and cache-item totals need not
 be equal.
 
 Opening Toybox 0.4.1 also runs migrations. Normal app startup may subsequently
-rebuild an outdated derived cache. When the task forbids deriving new facts,
+rebuild an outdated derived catalog. When the task forbids deriving new facts,
 use the offline helper and leave app startup/reindexing for a separate task.
+A Toybox from before step 4 refuses a library that has been through it; do not
+open a migrated library with an older build.
 
 ## 6. Recognize the resulting storage contract
 
 ```text
 <library-root>/
   _library_config/
-    catalog.json
+    library.db          (before migration step 4: catalog.json)
     migrations.json
     migration-backups/
   library/
@@ -167,7 +216,8 @@ The migrator owns key generation. Do not regenerate asset IDs or substitute a
 folder's opaque key for its asset ID. The `pack` field remains for plugin and
 export compatibility; retaining it does not make it a storage location.
 
-In the **source manifest**, each primary and variant entry has `storagePath`:
+In the **source manifest** (the entry JSON, `items.entry` after step 4), each
+primary and variant entry has `storagePath`:
 
 | Kind | `storagePath` points to | Other declarations retained |
 | --- | --- | --- |
@@ -181,10 +231,12 @@ leaf filename for scene/audio paths, and a directory path for materials. Paths
 use forward slashes and are relative to the library root. They cannot contain
 traversal components or absolute paths. Let the helper write these fields.
 
-In the **derived cache**, media locations are resolved into `relPath`,
-`fileset.gltf`, `fileset.bin`, `fileset.textures`, `material.maps[].file`, and
-`audio.file`. Material map paths there are full library-relative paths, unlike
-the source manifest's map filenames. Walk `variants` recursively in both documents.
+In the **derived catalog** (the app-data cache before step 4, the `assets` table
+of `library.db` after it; its `asset` column holds the same JSON), media
+locations are resolved into `relPath`, `fileset.gltf`, `fileset.bin`,
+`fileset.textures`, `material.maps[].file`, and `audio.file`. Material map paths
+there are full library-relative paths, unlike the source manifest's map
+filenames. Walk `variants` recursively in both.
 
 The migrator rewrites glTF buffer/image URIs, preserves scene data, and deduplicates
 shared model textures by SHA-256 content. Preserve its animation identity markers:
@@ -193,10 +245,14 @@ shared model textures by SHA-256 content. Preserve its animation identity marker
 
 ## 7. Validate before reporting success
 
-Perform read-only checks against the snapshots and the resulting files:
+Perform read-only checks against the snapshots and the resulting files (open
+`library.db` and `user.db` read-only if you query them):
 
 - The command exited successfully, `storageVersion` is `1`, the durable journal
-  is at version `3` for this release, and both pending markers are absent.
+  is at version `4` for this release (`3` was the storage migration; `4` is the
+  conversion to databases), `library.db` exists, `catalog.json` and
+  `content-hashes.json` are gone from their old places and present under
+  `migration-backups/0004-<stamp>/`, and both pending markers are absent.
   A version marker alone is insufficient: publication can precede cleanup.
 - Source IDs, cached IDs, ordering, and variant membership match their respective
   baselines. No item was silently dropped, duplicated, renamed, or regrouped.
@@ -209,8 +265,8 @@ Perform read-only checks against the snapshots and the resulting files:
 - Each external glTF URI resolves to its intended file inside the library.
   Verify resolved paths, not texture basenames. Two files called `Atlas.png`
   may contain different data.
-- Favorites, custom tags, collections, preview-model choices, rig bindings and
-  matrices, animation facts, audio facts, material channel assignments, provenance,
+- Favorites, personal tags, collections and preview-model choices (now rows of
+  `user.db`), library tags, rig bindings and matrices, animation facts, audio facts, material channel assignments, provenance,
   and unrelated fields are preserved. Compare parsed numeric values without
   rounding away differences or reserializing through low-precision floats.
 - For a library already at migration version `2`, cached non-path data should
@@ -243,7 +299,8 @@ delete a pending marker, edit an applied version number, or manufacture a
 | Missing source file, unsupported multi-buffer scene, invalid/external URI, or path escape | Inspect the exact entry and restore/repair it only from known source data within the authorized scope. Do not invent replacement textures or silently drop the asset. |
 | Insufficient free space | Keep originals and partially copied files. Make space elsewhere, then retry; verified matching destinations can be reused. |
 | Conflicting explicit provenance | Show both values and obtain the owner's choice if no existing instruction resolves them. Do not guess a winner. |
-| Catalog, manifest, or journal edited externally | Preserve both versions and the transaction. Stop automatic recovery; reconcile the actual edits deliberately. |
+| Catalog, manifest, database, or journal edited externally | Preserve both versions and the transaction. Stop automatic recovery; reconcile the actual edits deliberately. |
+| Step 4 reports that the library cache cannot be read, or that its check failed | The cache (`libraries/<id>/catalog.json`) holds personal data, so the migration stops rather than skip it. Nothing was moved; a half-built `library.db.new` is discarded on the next run. Move the unreadable cache away only if the user accepts losing its personal data, then rerun. |
 | A verified destination is missing or changed | Preserve remaining originals and backups. Investigate the transaction's expected hashes; do not delete originals or rewrite expected hashes to suppress the error. |
 | Library has a newer durable version | Use a compatible newer Toybox build. Do not lower its journal version or run an older reader against it. |
 
@@ -252,11 +309,15 @@ their before snapshots before retrying. The storage migration uses
 `_library_config/storage-pending.json` to resume publication/cleanup toward the
 new layout. These are different recovery protocols; let the runner choose.
 
-Storage backups contain previous manifest/cache documents when applicable,
-original scene JSON, a `transaction.json` with source/target hashes and locations,
-and `unindexed/` source extras. This is not a second complete media library:
-unchanged binary/image/audio data is generally at its managed destination.
-Restoring an old manifest alone would point at removed paths. There is no
+Storage backups (`migration-backups/storage-<stamp>/`) contain previous
+manifest/cache documents when applicable, original scene JSON, a `transaction.json`
+with source/target hashes and locations, and `unindexed/` source extras. This is
+not a second complete media library: unchanged binary/image/audio data is
+generally at its managed destination. The step 4 backup
+(`migration-backups/0004-<stamp>/`) holds the old JSON manifest, cache and content
+hashes; it is never deleted. Restoring an old manifest alone would point at
+removed paths, and putting JSON files back beside an existing `library.db` is not
+a supported rollback. There is no
 built-in rollback command; a requested rollback needs a complete backup or a
 careful, separately validated reverse restoration using the transaction and
 original scene documents. Do not perform that as routine cleanup.
@@ -272,10 +333,12 @@ file/reference error remains. Keep enrichment and reindexing as separate work.
 ## Implementation references
 
 - [Storage overview](library-storage.md)
-- [Migration CLI](../src-tauri/src/bin/migrate-library.rs)
-- [CLI orchestration and report](../src-tauri/src/maintenance.rs)
-- [Ordered migrations and metadata recovery](../src-tauri/src/infra/migrations.rs)
-- [Migration steps and corresponding provenance](../src-tauri/src/domain/library_migrations.rs)
-- [Media relocation and storage recovery](../src-tauri/src/infra/storage.rs)
-- [Source manifest parser](../src-tauri/src/domain/seed.rs)
-- [Derived catalog types](../src-tauri/src/domain/catalog_model.rs)
+- [SQLite library storage](sqlite-storage.md)
+- [Step 4 conversion](../src-tauri/crates/toybox-core/src/infra/store/adopt.rs)
+- [Migration CLI](../src-tauri/crates/toybox-core/src/bin/migrate-library.rs)
+- [CLI orchestration and report](../src-tauri/crates/toybox-core/src/maintenance.rs)
+- [Ordered migrations and metadata recovery](../src-tauri/crates/toybox-core/src/infra/migrations.rs)
+- [Migration steps and corresponding provenance](../src-tauri/crates/toybox-core/src/domain/library_migrations.rs)
+- [Media relocation and storage recovery](../src-tauri/crates/toybox-core/src/infra/storage.rs)
+- [Source manifest parser](../src-tauri/crates/toybox-core/src/domain/seed.rs)
+- [Derived catalog types](../src-tauri/crates/toybox-core/src/domain/catalog_model.rs)

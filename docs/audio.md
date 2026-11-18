@@ -11,7 +11,7 @@ Tiles and the inspector share a single lazy player, so cueing another sound,
 selecting a different item or opening the full player stops the previous audition.
 Cueing preserves the current multi-selection. Audio files load only when cued.
 
-The bundled **Audio folders** importer scans recursively for WAV, MP3, Ogg Vorbis
+The bundled **Audio** plugin (`com.toybox.audio-core`) scans recursively for WAV, MP3, Ogg Vorbis
 and FLAC. Choose the pack/category, listen to source files, select which ones to
 bring in, and import. Source subfolders are preserved, so equal basenames in
 different folders stay distinct. Stable IDs include the pack, category and source

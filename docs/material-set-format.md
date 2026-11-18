@@ -6,7 +6,11 @@
 > and the [storage overview](library-storage.md) for the current layout.
 
 A material set is a group of texture maps. Each map has a role, such as albedo or normal.
-A material set is not a glTF model. It has its own manifest entry and its own folder.
+A material set is not a glTF model. It has its own entry and its own folder. (An
+entry is the JSON an importer produces. Toybox stores it in the library database
+`_library_config/library.db`, in `items.entry`; before migration step 4 it was an
+element of `assets[]` in `_library_config/catalog.json`. The entry shape is the same.
+See [SQLite library storage](sqlite-storage.md).)
 
 This document describes material entries. For models, packs and the rest of the library
 layout, read `library-format-spec.md`.
@@ -39,8 +43,13 @@ library/rock_pack/materials/granite_01/
 
 ## 2. Manifest entry
 
-A material entry sits in `assets[]` of `_library_config/catalog.json`, next to model
-entries. The field `kind` tells the two apart.
+A material entry is one item of the library's manifest, next to model entries: a row of
+the `items` table of `_library_config/library.db` (`items.entry` holds this JSON). In a
+library from before migration step 4 it sat in `assets[]` of
+`_library_config/catalog.json`, and the same entry shape is still what an importer
+hands to Toybox. Do not edit the database by hand; entries are added and changed
+through Toybox (the importer commit and the metadata commands). The field `kind` tells
+the two apart.
 
 | Field            | Type    | Required | Meaning                                                      |
 | ---------------- | ------- | -------- | ------------------------------------------------------------ |
@@ -52,7 +61,7 @@ entries. The field `kind` tells the two apart.
 | `maps`           | array   | yes      | The maps of the material. See section 3.                     |
 | `flipNormalGreen`| boolean | no       | `true` if the normal map uses the DirectX convention.        |
 
-`kind` is an optional field on every manifest entry. If `kind` is absent or `"model"`, the
+`kind` is an optional field on every entry. If `kind` is absent or `"model"`, the
 entry is a glTF model. If `kind` is `"material"`, the entry is a material set. Any other
 value is an error.
 

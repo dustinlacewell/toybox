@@ -6,6 +6,19 @@
 > [AI migration guide](ai-library-migration.md); for the managed storage contract,
 > see [library-storage.md](library-storage.md). Do not recreate pack folders as
 > the final storage organization or skip the native migration.
+>
+> **Where the `catalog.json` described here ends up.** Toybox no longer keeps a
+> library's manifest as `_library_config/catalog.json`. Since migration step 4
+> (`sqlite-store`) the items are rows of `_library_config/library.db` (`items.entry`
+> holds the entry JSON; see [SQLite library storage](sqlite-storage.md)). A
+> `catalog.json` that you author in this document is **inbound input only**: when
+> Toybox opens a library folder that has a `catalog.json` and no `library.db`, it
+> converts the file into `library.db` (and runs the earlier migration steps) and
+> moves the original into `_library_config/migration-backups/0004-<stamp>/`. Once
+> `library.db` exists, never hand-edit it and never recreate `catalog.json` next to
+> it; add or change entries through Toybox (the importer commit and the metadata
+> commands). Reading `library.db` with a SQLite tool in read-only mode is fine.
+> Importer plugins still produce entries of the shape specified below.
 
 You are converting a **foreign 3D-asset collection** (some other library, a bundle of
 asset packs, a pile of loose models — anything) into the **Toybox library format**. This
@@ -24,7 +37,8 @@ A Toybox library is a **directory** with two parts:
 ```
 <library-root>/
 ├── _library_config/
-│   └── catalog.json          ← the manifest YOU author (the only hand-written file)
+│   └── catalog.json          ← the inbound manifest YOU author (the only hand-written file;
+│                                Toybox turns it into library.db when it first opens the library)
 └── library/
     ├── <pack>/
     │   ├── pack.json          ← per-pack identity (name, color)
@@ -68,9 +82,9 @@ materials remain separate assets; material assignments belong to the game.
 }
 ```
 
-Importer commits upsert this same manifest format. When an import groups former
-standalone entries into variants, those former top-level rows are absorbed.
-Unrelated entries remain in the manifest.
+Importer commits upsert this same entry format (into `library.db`). When an import
+groups former standalone entries into variants, those former top-level rows are
+absorbed. Unrelated entries remain in the library.
 
 Everything else — each asset's texture set, its `.bin`, its animation clips, thumbnails,
 user tags — Toybox computes or owns. **Do not try to author those.** Your job ends at the
@@ -202,7 +216,9 @@ A pack directory without a `pack.json` is silently ignored as a pack, so don't f
 ## 5. `catalog.json` — the manifest you author
 
 Place at `<library-root>/_library_config/catalog.json`. This is the inbound source document
-Toybox seeds from. Shape:
+Toybox seeds from: it is read once, on the first open of a library folder that has no
+`_library_config/library.db`, and then moved to the migration backup (see the note at the
+top). Do not write it into a library that already has `library.db`. Shape:
 
 ```json
 {
@@ -228,7 +244,7 @@ Toybox seeds from. Shape:
 
 - **`schemaVersion`** — integer literal **`1`**. (This is the *source-document* schema
   version; it is not the same number as Toybox's internal catalog version. Always write
-  `1`.)
+  `1`. After conversion it is kept as `manifestSchemaVersion` in `library.db`.)
 - **`assets`** — array of asset entries. Order is irrelevant.
 
 ### Each model entry — exactly four string fields
@@ -302,7 +318,8 @@ import on the first violation, so check them yourself first.
 
 **Structure**
 
-- [ ] `<library-root>/_library_config/catalog.json` exists and is valid JSON.
+- [ ] `<library-root>/_library_config/catalog.json` exists and is valid JSON, and
+      `_library_config/library.db` does not exist (a new, unopened library).
 - [ ] Every pack has `library/<pack>/pack.json` with `slug` == the directory name.
 - [ ] Every asset's `.gltf` exists at `library/<pack>/<category>/<file>` matching its
       manifest `pack`/`category`/`file` exactly.
@@ -397,23 +414,28 @@ that neither is animated, and presents them under the **Medieval Village** pack 
    output are deterministic.
 
 The output is a self-contained library directory; point Toybox at its root to ingest.
+On that first open Toybox converts `catalog.json` into `library.db`; afterwards, change
+the library only through Toybox.
 
 ## Deleting library items
 
 Select tiles and use **Delete** in the selection bar. After confirmation, Toybox
-removes their registrations (including variants) from the source manifest and
-cached catalog, and deletes their glTF, binary and texture files. Files referenced
-by surviving items or their variants are kept. Rescanning does not restore deleted
-items. Other items keep their metadata; preview-model
+removes their rows (including variants) from `library.db` (the items, their derived
+asset rows, tags and rig links), and deletes their glTF, binary and texture files.
+Files referenced by surviving items or their variants are kept. Rescanning does not
+restore deleted items. Other items keep their metadata; preview-model
 preferences pointing at removed items are cleared.
 
-The operation stops and drains thumbnail generation first. Native persistence
-backs up both catalogs as `catalog-before-delete-<timestamp>.json`, checks for
-concurrent changes, and replaces each catalog through a temporary sibling file.
-Exclusive asset files are validated against the canonical library data directory,
-deduplicated and staged by renaming before the catalogs commit. A failed prepare
-or catalog write restores those files. On success the exact staged files are
-erased; no folder is recursively deleted. Catalog backups contain metadata only,
+The operation stops and drains thumbnail generation first. Before the rows go,
+Toybox writes `catalog-before-delete-<timestamp>.json` files holding the deleted
+entries (in `_library_config/`) and the deleted derived asset rows (beside the
+per-machine `user.db`); the newest few are kept. The rows are removed in one
+database transaction, which also records the deletion in the change log, and only
+the rows of the deleted items are read or written. Exclusive asset files are
+validated against the canonical library data directory,
+deduplicated and staged by renaming before the transaction commits. A failed prepare
+or database write restores those files. On success the exact staged files are
+erased; no folder is recursively deleted. The backups contain metadata only,
 and cannot recover erased asset data.
 ## Import provenance and tags
 
@@ -434,9 +456,10 @@ The host import screen applies these fields to the batch, including variants.
 Both directory-picker APIs fill the filesystem origin unless the user has
 entered a different value. Plugins can also supply per-entry provenance.
 Whitespace-only fields are omitted; omitted provenance on reimport retains the
-prior manifest value. Extracted animation entries inherit source provenance.
+prior stored value. Extracted animation entries inherit source provenance.
 
-Catalog records expose it as `user.provenance`, alongside generated tags
+Asset records expose it as `user.provenance` (the filesystem path is kept in the
+per-machine `user.db`; the other fields are in the entry), alongside generated tags
 `source: Space Pack`, `publisher: Example Studio`, and `license: CC0`. These
 tags support text search and exact tag filters. Changing declared provenance
 replaces its previous generated tags while retaining unrelated user tags,

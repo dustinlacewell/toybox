@@ -8,8 +8,20 @@ logic is added to the design system.
 Retargeting is for inspection. It does not perform foot-contact IK, retarget
 facial morphs, or replace the authored animation on export.
 
-The bundled `com.toybox.humanoid-rigs` adapter recognizes Synty Polygon,
-Synty Sidekick, Synty Unreal-style model rigs, and Quaternius Humanoid. Profiles
+Each rig is its own plugin, with one responsibility: to say what that rig calls
+its bones. Four are bundled, and each depends on Models (`com.toybox.model-core`,
+`^3.0.0`):
+
+| Plugin | Id | Profile id |
+| --- | --- | --- |
+| Synty Polygon rig | `com.toybox.rig-synty-polygon` | `synty-polygon` |
+| Synty Sidekick rig | `com.toybox.rig-synty-sidekick` | `synty-sidekick` |
+| Synty Unreal rig | `com.toybox.rig-synty-unreal` | `synty-unreal` |
+| Quaternius Humanoid rig | `com.toybox.rig-quaternius` | `quaternius-humanoid` |
+
+They replace the single `com.toybox.humanoid-rigs` plugin (see
+[Retired plugins](plugins.md#retired-plugins)); the profiles are unchanged, and
+turning a rig plugin off removes its profile. Profiles
 use exact aliases, required torso/head/limb bones and semantic parent rules.
 Missing or ambiguous required names and inconsistent topology prevent automatic
 matching. This version supports humanoids; it does not guess arbitrary skeletons
@@ -20,7 +32,6 @@ or retarget morph targets.
   "id": "example.humanoid-rigs",
   "name": "My humanoid rigs",
   "version": "1.0.0",
-  "kind": "rigAdapter",
   "entry": "dist/index.js",
   "permissions": {}
 }
@@ -29,7 +40,32 @@ or retarget morph targets.
 The entry default-exports `defineRigAdapter({ profiles: [...] })` from
 `@ldlework/toybox-sdk`. Each `RigProfile` declares `id`, `name`, `bones` (semantic
 role to exact aliases), `required`, `parents`, and optional `referencePoseNames`.
-See the bundled adapter for all humanoid roles and an executable example.
+
+Every humanoid has the same skeleton, so a rig plugin does not write that out.
+`humanoidRig(spec)` from the SDK takes the bone names only (torso, the left and
+right side with three joints per finger, optional `referencePoseNames`) and returns
+the `RigProfile`: the required roles, the semantic parent of every role and the
+role names (`upperArmLeft`, `index2Right`, ...). A name may be a list of aliases.
+The Sidekick plugin, in full:
+
+```ts
+import { defineRigAdapter, humanoidRig, type HumanoidFinger, type HumanoidSide } from "@ldlework/toybox-sdk";
+
+const FINGERS: HumanoidFinger[] = ["thumb", "index", "middle", "ring", "pinky"];
+const side = (s: "l" | "r"): HumanoidSide => ({
+  clavicle: `clavicle_${s}`, upperArm: `upperarm_${s}`, forearm: `lowerarm_${s}`, hand: `hand_${s}`,
+  upperLeg: `thigh_${s}`, lowerLeg: `calf_${s}`, foot: `foot_${s}`, toe: `ball_${s}`,
+  fingers: Object.fromEntries(FINGERS.map((f) => [f, [1, 2, 3].map((j) => `${f}_0${j}_${s}`)])) as HumanoidSide["fingers"],
+});
+export default defineRigAdapter({ profiles: [humanoidRig({
+  id: "synty-sidekick", name: "Synty Sidekick",
+  torso: { hips: "pelvis", spine: "spine_01", chest: "spine_03", neck: "neck_01", head: "head" },
+  left: side("l"), right: side("r"), referencePoseNames: ["A_MOD_BL_TPose_Neut"],
+})] });
+```
+
+Plugins do not import each other, so the helper lives in the SDK rather than in
+one of the rig plugins. See any bundled rig plugin for an executable example.
 Malformed adapters are isolated as plugin load errors. An adapter receives no
 filesystem or export context; the host consumes its mapping data.
 
@@ -56,7 +92,7 @@ library record or an extra exported model.
 
 Existing animation thumbnails regenerate once for the new preview renderer;
 the catalog and user metadata are preserved. Future renderer changes can bump
-the animation preview version in `commands/catalog.rs`.
+the animation preview version in `ops/catalog.rs` in `src-tauri/crates/toybox-core`.
 
 Thumbnail generation samples one retargeted pose at a quarter of the clip's
 duration, rather than baking the entire playback clip. The mannequin geometry
