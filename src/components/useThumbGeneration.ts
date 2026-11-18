@@ -1,74 +1,87 @@
 import { useCallback, useEffect, useRef, useState } from "react";
-import type { Asset, AssetKind, ThumbMeta } from "../domain/catalog";
-import { listPendingThumbs } from "../services/tauriApi";
+import type { AssetKind } from "../domain/catalog";
+import { NO_RULES, toBrowseFilter } from "../domain/browseQuery";
+import { emptyFilter } from "../domain/facets";
+import { getAssets, pendingThumbs, queryIds } from "../services/browse";
 import type { ThumbProgress } from "../services/thumbQueue";
-import { ThumbnailJobs } from "../services/thumbnailJobs";
+import { ThumbnailJobs, type ThumbnailSource } from "../services/thumbnailJobs";
+import { cacheAssets, cachedAsset, patchCachedAsset } from "../state/assetCache";
 import { useStore } from "../state/store";
 import { usePreviewPreferences } from "../state/previewPreferences";
 import { registerUpdateParticipant } from "../services/updateLifecycle";
 
-export function useThumbGeneration(assets: Asset[]) {
-  const patchAsset = useStore(state => state.patchAsset);
-  const libraryRoot = useStore(state => state.catalog?.libraryRoot);
+/** Pictures still to make, library by library, a page of ids at a time: nothing holds them all. */
+function pendingSource(): ThumbnailSource {
+  const libraries = useStore.getState().libraries.filter(library => library.available).map(library => library.id);
+  let index = 0;
+  let after = "";
+  return {
+    async next() {
+      while (index < libraries.length) {
+        const page = await pendingThumbs(libraries[index], after, 200).catch(() => ({ ids: [] as string[], next: null }));
+        // `next` is where the library goes on (a raw id), not a qualified one.
+        if (page.next === null) { index++; after = ""; } else after = page.next;
+        if (page.ids.length) return page.ids;
+      }
+      return [];
+    },
+    async resolve(ids) {
+      const assets = await getAssets(ids);
+      cacheAssets(assets);
+      return assets;
+    },
+  };
+}
+
+export function useThumbGeneration() {
+  // Jobs belong to the set of libraries; adding or removing one restarts them.
+  const libraryRoot = useStore(state => state.libraries.map(library => library.id).join(","));
+  const dataVersion = useStore(state => state.dataVersion);
   const materialStyle = usePreviewPreferences(state => state.materialStyle);
-  const assetsRef = useRef(assets); assetsRef.current = assets;
   const jobsRef = useRef<ThumbnailJobs | null>(null);
-  const attempted = useRef(new WeakSet<ThumbMeta>());
   const [progress, setProgress] = useState<ThumbProgress | null>(null);
   const [error, setError] = useState<string>();
   const previousStyle = useRef(materialStyle);
-  const assetIds = assets.map(asset => asset.id).join("\n");
 
   useEffect(() => {
     if (!libraryRoot) return;
     setProgress(null); setError(undefined);
-    attempted.current = new WeakSet();
     const jobs = new ThumbnailJobs({
       onProgress: value => { if (jobsRef.current === jobs) setProgress(value); },
       onAssetState: (id, state, failure) => {
         if (jobsRef.current !== jobs) return;
-        const current = useStore.getState().catalog?.assets.find(asset => asset.id === id);
+        const current = cachedAsset(id);
         if (!current) return;
-        patchAsset(id, { thumb: {
+        patchCachedAsset(id, { thumb: {
           state, error: failure,
           available: state === "ready" || current.thumb.state === "ready" || current.thumb.available,
           revision: state === "ready" ? (current.thumb.revision ?? 0) + 1 : current.thumb.revision,
         } });
       },
     }, failure => { if (jobsRef.current === jobs) setError(String(failure)); });
-    jobs.updateAssets(assetsRef.current);
     jobsRef.current = jobs;
+    jobs.useSource(pendingSource());
     let resumeAfterUpdate=false;
     const unregister=registerUpdateParticipant({pause:()=>{resumeAfterUpdate=!jobs.isPaused();return jobs.suspend();},resume:()=>{if(resumeAfterUpdate)jobs.enqueue([],true);}});
     return () => { unregister();jobsRef.current = null; void jobs.stop(); };
-  }, [libraryRoot, patchAsset]);
+  }, [libraryRoot]);
 
+  // Items added or replaced have no picture: look again, once the changes settle. The disk is the source of
+  // truth, so this also finds refreshes interrupted by closing Toybox.
   useEffect(() => {
-    const jobs = jobsRef.current;
-    if (!jobs) return;
-    jobs.updateAssets(assets);
-    const missing = assets.filter(asset => ["missing", "queued"].includes(asset.thumb.state) && !attempted.current.has(asset.thumb));
-    for (const asset of missing) attempted.current.add(asset.thumb);
-    jobs.enqueue(missing.map(asset => asset.id));
-  }, [assets, libraryRoot]);
+    const timer = window.setTimeout(() => jobsRef.current?.restartSource(pendingSource()), 1000);
+    return () => window.clearTimeout(timer);
+  }, [dataVersion, libraryRoot]);
 
-  // Disk also records refreshes interrupted by closing Toybox.
-  useEffect(() => {
-    const jobs = jobsRef.current;
-    if (!jobs || !assetIds) return;
-    let active = true;
-    const refreshable = new Set(assetsRef.current.filter(asset => !["missing","queued","rendering"].includes(asset.thumb.state)).map(asset => asset.id));
-    void listPendingThumbs().then(ids => {
-      if (!active) return;
-      // Missing/queued entries were already submitted by the effect above.
-      jobs.enqueue(ids.filter(id => refreshable.has(id)));
-    }).catch(failure => { if (active) setError(String(failure)); });
-    return () => { active = false; };
-  }, [assetIds, libraryRoot]);
-
-  const regenerate = useCallback(async (kind?: AssetKind) => {
+  /** Make the pictures of one type again (its look changed): every item of the type, a page of ids at a time. */
+  const regenerate = useCallback(async (kind: AssetKind) => {
     setError(undefined);
-    await jobsRef.current?.regenerate(assetsRef.current.filter(asset => !kind || asset.kind === kind).map(asset => asset.id));
+    const filter = toBrowseFilter(emptyFilter(kind), null, NO_RULES);
+    for (let offset = 0; ; offset += 5000) {
+      const page = await queryIds(filter, offset, 5000);
+      await jobsRef.current?.regenerate(page.ids);
+      if (!page.truncated) break;
+    }
   }, []);
 
   useEffect(() => {
@@ -80,9 +93,8 @@ export function useThumbGeneration(assets: Asset[]) {
   const start = useCallback(async () => {
     setError(undefined);
     try {
-      const ids=await listPendingThumbs();
-      jobsRef.current?.updateAssets(useStore.getState().catalog?.assets ?? []);
-      jobsRef.current?.enqueue(ids, true);
+      jobsRef.current?.restartSource(pendingSource());
+      jobsRef.current?.enqueue([], true);
     }
     catch (failure) { setError(String(failure)); }
   }, []);

@@ -1,0 +1,10 @@
+{
+  "id": "com.toybox.rig-synty-polygon",
+  "name": "Synty Polygon rig",
+  "version": "1.0.0",
+  "dependencies": { "com.toybox.model-core": "^3.0.0" },
+  "icon": "icons/rig.svg",
+  "entry": "dist/index.js",
+  "description": "Rig profile for Synty Polygon characters, so their animations can be previewed on other humanoids.",
+  "permissions": {}
+}

@@ -30,3 +30,6 @@
 .viewer-scene-controls > .vtoolbar { width: max-content; max-width: 100%; flex-wrap: wrap; }
 .viewer-scene-controls__right { display: flex; flex-direction: column; align-items: flex-end; gap: 8px; min-width: 0; }
 .viewer-scene-controls__right > .align { position: static; pointer-events: auto; max-width: 100%; }
+.viewer__plugin-fallback { position: absolute; inset: 0; display: grid; place-items: center; align-content: center; gap: 12px; padding: 24px; color: var(--text-2); text-align: center; }
+.viewer__plugin-fallback img { max-width: min(60%, 512px); max-height: 60%; border-radius: 8px; }
+.viewer__plugin-fallback p { margin: 0; max-width: 48ch; }

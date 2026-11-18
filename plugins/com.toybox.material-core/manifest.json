@@ -1,0 +1,17 @@
+{
+  "id": "com.toybox.material-core",
+  "name": "Materials",
+  "version": "2.0.0",
+  "assetTypes": [
+    { "id": "material", "label": "Materials", "singular": "Material", "icon": "icons/material.svg", "implementation": "native", "order": 20 }
+  ],
+  "icon": "icons/material.svg",
+  "description": "The Materials type of the library and its importer: a folder of PBR texture images becomes material sets. Generators such as Substance materials depend on it.",
+  "permissions": {
+    "fsRead": true,
+    "fsWrite": true
+  },
+  "ui": {
+    "importPanel": "dist/ui/Import.js"
+  }
+}

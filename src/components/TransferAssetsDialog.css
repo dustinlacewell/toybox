@@ -1,0 +1,13 @@
+.transfer-dialog__field { display: flex; flex-direction: column; gap: 6px; min-width: 0; }
+.transfer-dialog__field > label, .transfer-dialog__field > span { color: var(--text-2); font-size: var(--fs-sm); }
+.transfer-dialog__field .ds-select { width: 100%; }
+.transfer-dialog__summary { color: var(--text-0); font-weight: 500; }
+.transfer-dialog__progress { width: 100%; height: 8px; accent-color: var(--accent); }
+.transfer-dialog__counts { display: flex; flex-wrap: wrap; gap: 6px 16px; }
+.transfer-dialog__counts strong { font-weight: 600; }
+.transfer-dialog__lines { list-style: none; margin: 0; padding: 0; }
+.transfer-dialog__line { display: flex; flex-direction: column; gap: 2px; padding: 8px 12px; min-width: 0; }
+.transfer-dialog__line + .transfer-dialog__line { border-top: 1px solid var(--border); }
+.transfer-dialog__line span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-weight: 500; }
+.transfer-dialog__line small { color: var(--text-2); font-size: var(--fs-sm); overflow-wrap: anywhere; }
+.transfer-dialog__line--failed small { color: var(--danger); }

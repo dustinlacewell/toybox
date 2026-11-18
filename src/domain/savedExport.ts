@@ -4,7 +4,8 @@ export interface SavedExport {
   id: string;
   name: string;
   kind: AssetKind;
-  libraryRoot: string;
+  /** The library the setup belongs to. `lastAssets` is keyed by that library's raw asset ids. */
+  libraryId: string;
   exporterId: string;
   targetDir: string;
   preserveStructure: boolean;

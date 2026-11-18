@@ -33,10 +33,10 @@ export function MaterialViewer({ asset, onClose, onExport }: Props) {
     <div className="viewer-panel-section">Sizes</div><PropertyRow label="Current size" value={variantInfo(active.name, "material").label} /><PropertyRow label="Available sizes" value={variants.length} />
   </>} footer={<ThumbnailStrip label="Material maps" value={String(selected)} onChange={(value) => pick(Number(value))} options={[
     { value: "-1", label: "Material", preview: <span className="material-result-glyph">◉</span> },
-    ...maps.map((m, i) => ({ value: String(i), label: MATERIAL_ROLE_LABELS[m.role], preview: <FileThumbnail file={m.file} /> })),
+    ...maps.map((m, i) => ({ value: String(i), label: MATERIAL_ROLE_LABELS[m.role], preview: <FileThumbnail library={asset.library} file={m.file} /> })),
   ]} />}>
     <MaterialStudio state={state} active={!map} controls={variants.length > 1 && <VariantSwitch variants={variants} selected={variant} onSelect={(i) => { setVariant(i); setSelected(-1); }} />}/>
-    {map && <MapImage file={map.file} channel={channel} scale={scale} />}
+    {map && <MapImage library={asset.library} file={map.file} channel={channel} scale={scale} />}
     {map && <div className="viewer__variants">
       {map && <><Segmented value={channel} options={CHANNELS} onChange={(v) => setChannel(v as ImageChannel)} /><Segmented value={scale} options={[{ value: "fit", label: "Fit" }, { value: "actual", label: "1:1" }]} onChange={setScale} /></>}
       {variants.length > 1 && <VariantSwitch variants={variants} selected={variant} onSelect={(i) => { setVariant(i); setSelected(-1); }} />}

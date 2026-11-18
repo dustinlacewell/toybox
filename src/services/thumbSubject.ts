@@ -6,17 +6,20 @@
 import { AnimationMixer, Group, type Object3D, type WebGLRenderer } from "three";
 import { createRigGuide, hasVisibleGeometry } from "./rigGuide";
 
-import type { Asset, AssetKind } from "../domain/catalog";
+import type { Asset, BuiltinKind } from "../domain/catalog";
 import { loadAssetScene } from "./gltfLoad";
 import { loadMaterial } from "./materialLoad";
 import { buildPreviewMesh } from "./materialPreview";
 import { studioEnvironment } from "./studioEnvironment";
 import { usePreviewPreferences } from "../state/previewPreferences";
 
-type KindOf<K extends AssetKind> = Extract<Asset, { kind: K }>;
+type KindOf<K extends BuiltinKind> = Extract<Asset, { kind: K }>;
+/** The kinds whose thumbnail is a rendered 3D subject. Audio draws a waveform
+ *  and a plugin type renders its own picture. */
+type SceneKind = Exclude<BuiltinKind,"audio">;
 
 type SubjectLoaders = {
-  [K in Exclude<AssetKind,"audio">]: (asset: KindOf<K>, renderer: WebGLRenderer) => Promise<Object3D>;
+  [K in SceneKind]: (asset: KindOf<K>, renderer: WebGLRenderer) => Promise<Object3D>;
 };
 
 const MATERIAL_THUMB_TEXTURE_SIZE = 512;
@@ -40,7 +43,7 @@ const LOADERS: SubjectLoaders = {
 };
 
 /** Build the object a thumbnail shows for an asset. Caller owns disposal. */
-export function loadThumbSubject(asset: Exclude<Asset,{kind:"audio"}>, renderer: WebGLRenderer): Promise<Object3D> {
+export function loadThumbSubject(asset: KindOf<SceneKind>, renderer: WebGLRenderer): Promise<Object3D> {
   const load = LOADERS[asset.kind] as (a: Asset, r: WebGLRenderer) => Promise<Object3D>;
   return load(asset, renderer);
 }

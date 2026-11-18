@@ -1,9 +1,13 @@
-import type { AssetKind, SeedEntryInput } from "./index.js";
+import type { AssetKind, PluginSeedEntry, SeedEntryInput } from "./index.js";
+
+type FileSeedEntry = Exclude<SeedEntryInput, PluginSeedEntry>;
 
 /** Only explicit detail/size tokens identify variants. Colour names are untouched. */
 export function variantInfo(name: string, kind: AssetKind): { base: string; label: string; rank: number; explicit: boolean } {
   const stem = name.replace(/\.(gltf|glb|fbx)$/i, "");
-  if (kind === "animation" || kind === "audio") return { base: stem, label: "Original", rank: 0, explicit: false };
+  // Only models and materials have detail/size variants; every other type,
+  // including plugin-defined ones, keeps its name as written.
+  if (kind !== "model" && kind !== "material") return { base: stem, label: "Original", rank: 0, explicit: false };
   if (kind === "model") {
     const match = stem.match(/(?:[_ .-])LOD(\d+)$/i);
     const level = match ? Number(match[1]) : 0;
@@ -16,8 +20,10 @@ export function variantInfo(name: string, kind: AssetKind): { base: string; labe
 }
 
 export function groupSeedVariants(entries: SeedEntryInput[]): SeedEntryInput[] {
-  const groups = new Map<string, SeedEntryInput[]>();
+  const groups = new Map<string, FileSeedEntry[]>();
+  const passthrough: SeedEntryInput[] = [];
   for (const entry of entries) {
+    if (entry.kind === "plugin") { passthrough.push(entry); continue; }
     const kind = entry.kind ?? "model";
     const name = entry.kind === "material" ? entry.name : entry.file;
     const info = variantInfo(name, kind);
@@ -25,12 +31,12 @@ export function groupSeedVariants(entries: SeedEntryInput[]): SeedEntryInput[] {
     const group = groups.get(key) ?? [];
     group.push(entry); groups.set(key, group);
   }
-  return [...groups.values()].map((group) => {
+  return [...[...groups.values()].map((group): SeedEntryInput => {
     if (group[0].kind === "animation" || group[0].kind === "audio") return group[0];
     group.sort((a, b) => variantInfo(a.kind === "material" ? a.name : a.file, a.kind ?? "model").rank - variantInfo(b.kind === "material" ? b.name : b.file, b.kind ?? "model").rank);
     const [best, ...rest] = group;
     const info = variantInfo(best.kind === "material" ? best.name : best.file, best.kind ?? "model");
     const id = best.kind === "material" ? `uid://import_${best.pack}_material_${info.base}` : `uid://import_${best.pack}_${best.category}_${info.base}`;
     return { ...best, id, ...(rest.length ? { variants: rest } : {}) } as SeedEntryInput;
-  });
+  }), ...passthrough];
 }

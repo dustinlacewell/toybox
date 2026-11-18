@@ -29,3 +29,6 @@
 .import-provenance input { width: 100%; min-width: 0; }
 .import-provenance p { grid-column: 1 / -1; margin: 0; font-size: var(--fs-sm); color: var(--text-2); }
 @media(max-width:800px) { .import-provenance { grid-template-columns: 1fr 1fr; } }
+.import-screen__library { display: flex; align-items: center; gap: 8px; padding: 8px 20px 0; color: var(--text-1); }
+.import-screen__library .ds-select { width: auto; min-width: 0; max-width: 320px; }
+.import-screen__progress { margin: 0 20px 8px; color: var(--text-2); font-size: var(--fs-sm); }

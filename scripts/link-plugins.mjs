@@ -12,8 +12,8 @@
  * workspace adopts workmark.)
  */
 
-import { mkdirSync, readdirSync, rmSync, statSync, symlinkSync, existsSync } from "node:fs";
-import { join } from "node:path";
+import { mkdirSync, readdirSync, rmSync, statSync, lstatSync, readlinkSync, unlinkSync, rmdirSync, symlinkSync, existsSync } from "node:fs";
+import { join, resolve, relative, isAbsolute } from "node:path";
 import { platform, homedir } from "node:os";
 
 const APP_IDENTIFIER = "com.toybox.app";
@@ -49,4 +49,28 @@ for (const id of readdirSync(repoPluginsDir)) {
   linked += 1;
 }
 
-console.log(`\n${linked} plugin(s) linked into ${target}`);
+// Remove links left behind by a plugin folder that was renamed or deleted in the
+// repo. Only links (junctions or symlinks) into the repo plugins dir whose target
+// is gone are removed; a real folder, or a link to anywhere else, stays.
+let removed = 0;
+for (const name of readdirSync(target)) {
+  const dst = join(target, name);
+  let link;
+  try {
+    if (!lstatSync(dst).isSymbolicLink()) continue;
+    link = resolve(target, readlinkSync(dst));
+  } catch {
+    continue;
+  }
+  const inside = relative(repoPluginsDir, link);
+  if (inside === "" || inside.startsWith("..") || isAbsolute(inside) || existsSync(link)) continue;
+  try {
+    unlinkSync(dst);
+  } catch {
+    rmdirSync(dst);
+  }
+  console.log(`removed stale link ${name}`);
+  removed += 1;
+}
+
+console.log(`\n${linked} plugin(s) linked into ${target}${removed ? `, ${removed} stale link(s) removed` : ""}`);

@@ -3,6 +3,7 @@
 import { AnimationMixer, type AnimationClip, Group, LoadingManager, type Object3D } from "three";
 import { GLTFLoader } from "three/examples/jsm/loaders/GLTFLoader.js";
 import { TGALoader } from "three/examples/jsm/loaders/TGALoader.js";
+import { loadRigCatalog } from "../state/rigCatalog";
 import { clone as cloneSkeleton } from "three/examples/jsm/utils/SkeletonUtils.js";
 import type { SceneAsset } from "../domain/catalog";
 import { gltfResourcePath } from "../domain/gltfResource";
@@ -12,7 +13,6 @@ import { directPreviewChoices, directRigMatch } from "../domain/previewChoices";
 import { MANNEQUIN_ID, SKELETON_ID } from "./previewModel";
 import { retargetHumanoid } from "./humanoidRetarget";
 import { assetMapping, getRigProfiles, referencePose } from "./rigAdapters";
-import { useStore } from "../state/store";
 import { disposeScene, shareSceneResources } from "./disposeScene";
 
 let mannequinTemplate:Promise<Group>|undefined;
@@ -53,7 +53,8 @@ export interface SceneLoadOptions {
 export async function loadAssetScene(asset: SceneAsset, options:SceneLoadOptions={}): Promise<LoadedAsset> {
   const {preview,retarget=false,sampleTime,signal}=options;
   signal?.throwIfAborted();
-  const catalog=useStore.getState().catalog;
+  // The rigs of the asset's library and the models and animations bound to one.
+  const catalog=await loadRigCatalog(asset.library);
   if(asset.kind==="animation"&&!preview&&asset.user.previewAssetId) {
     const id=asset.user.previewAssetId;
     if(id===SKELETON_ID)return loadRawAssetScene(asset,undefined,signal);
@@ -98,11 +99,13 @@ export async function loadRawAssetScene(asset:SceneAsset,preview?:SceneAsset,sig
   if (preview && preview.kind === asset.kind) throw new Error("Choose a model for an animation, or an animation for a model.");
   const animation = asset.kind === "animation" ? asset : preview?.kind === "animation" ? preview : undefined;
   const model = asset.kind === "model" ? asset : preview?.kind === "model" ? preview : undefined;
+  if (preview && preview.library && preview.library !== asset.library) throw new Error("A preview must come from the same library as the item it is shown with.");
+  const library = asset.library;
   const resources = [asset, ...(preview ? [preview] : [])].flatMap(asset => [asset.fileset.bin, ...asset.fileset.textures]);
   const [doc, entries] = await Promise.all([
-    preview && animation && model ? readPreviewPair(animation.fileset.gltf,animation.clip.index,model.fileset.gltf) : readPreviewSource(asset.fileset.gltf,asset.kind==="animation"?asset.clip.index:null),
+    preview && animation && model ? readPreviewPair(library,animation.fileset.gltf,animation.clip.index,model.fileset.gltf) : readPreviewSource(library,asset.fileset.gltf,asset.kind==="animation"?asset.clip.index:null),
     Promise.all(resources.map(async rel =>
-      [rel.replace(/\\/g, "/"), await assetUrl(rel)] as const)),
+      [rel.replace(/\\/g, "/"), await assetUrl(library, rel)] as const)),
   ]);
   const urls = new Map(entries);
   signal?.throwIfAborted();

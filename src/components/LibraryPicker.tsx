@@ -1,18 +1,18 @@
 /**
- * First-run / re-point gate: lets the user either open an existing asset library
- * or create a new, empty one. Shown whenever no library is configured (and
- * reused by the toolbar's "Change library…" action). On success the parent
- * re-initializes the catalog; a rejected folder is surfaced inline.
+ * First-run gate: lets the user either open an existing asset library or create
+ * a new, empty one. Shown whenever no library is registered. On success the
+ * parent loads the catalog; a rejected folder is surfaced inline. More libraries
+ * are added later from Settings → Library.
  *
- * Both verbs end at the same place — a validated, scoped, persisted root — so
- * they differ only in the command they commit through: open adopts an existing
+ * Both verbs end at the same place — a validated, registered library — so they
+ * differ only in the command they commit through: open adopts an existing
  * Toybox library, create scaffolds an empty one first.
  */
 
 import { useState } from "react";
 
 import { pickDirectory } from "../services/pickDirectory";
-import { createLibrary, setLibraryRoot } from "../services/tauriApi";
+import { addLibrary, createLibrary } from "../services/tauriApi";
 import { Button, Spinner, Stack } from "@ldlework/toybox-sdk/ui";
 
 interface Props {
@@ -27,7 +27,7 @@ export function LibraryPicker({ onPicked, onCancel }: Props) {
   const [error, setError] = useState<string | null>(null);
 
   // Pick a folder, commit it through the given command, and hand off on success.
-  const run = (commit: (path: string) => Promise<void>) => async () => {
+  const run = (commit: (path: string) => Promise<unknown>) => async () => {
     const dir = await pickDirectory();
     if (!dir) return;
     setBusy(true);
@@ -67,7 +67,7 @@ export function LibraryPicker({ onPicked, onCancel }: Props) {
             Cancel
           </Button>
         )}
-        <Button variant="ghost" onClick={() => void run(setLibraryRoot)()}>
+        <Button variant="ghost" onClick={() => void run(addLibrary)()}>
           Open existing…
         </Button>
         <Button variant="primary" onClick={() => void run(createLibrary)()}>

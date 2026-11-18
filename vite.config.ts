@@ -48,6 +48,11 @@ export default defineConfig(async () => ({
     viteImportMaps({
       imports: [
         "three",
+        // Image decoders a plugin-implemented asset type may need. Shared the
+        // same way as three itself, so they build textures the host's renderer
+        // and the plugin's own both accept.
+        "three/addons/loaders/HDRLoader.js",
+        "three/addons/loaders/EXRLoader.js",
         "react-dom",
         "react-dom/client",
         "lucide-react",

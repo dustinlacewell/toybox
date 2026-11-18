@@ -1,12 +1,16 @@
 import { useCallback, useState } from "react";
 import { Button, Checkbox, Dialog, NavigationItem, Select, TextInput, Workbench } from "@ldlework/toybox-sdk/ui";
 import { Plus } from "lucide-react";
-import { ASSET_KIND_LABELS, type AssetKind } from "../domain/catalog";
+import type { AssetKind } from "../domain/catalog";
 import type { SavedExport } from "../domain/savedExport";
-import type { LoadedExporter, PluginLoadError } from "../services/pluginRegistry";
+import { needsEntry } from "../services/pluginCapabilities";
+import { resolveExporterId } from "../services/assetTypes";
+import { acceptsKind, type LoadedExporter, type PluginLoadError } from "../services/pluginRegistry";
+import { assetTypeEntry, useAssetTypes } from "../state/assetTypes";
 import { pickDirectory } from "../services/pickDirectory";
 import { useSavedExports } from "../state/savedExports";
 import { useStore } from "../state/store";
+import { scopeLibrary } from "../domain/libraryId";
 import { ExportPanelHost } from "./plugin-ui/ExportPanelHost";
 import "./ExportsModal.css";
 
@@ -25,9 +29,13 @@ export function ExportsModal(props: Props) {
 }
 
 function ExportsManager({ kind, selectedCount, exporters, pluginErrors, onClose, onExport }: Props) {
-  const libraryRoot = useStore(state => state.catalog?.libraryRoot ?? "");
+  // New setups belong to the library of the first selected item, else the default library;
+  // the list shows the setups of every library, tagged with theirs when there are several.
+  const libraries = useStore(state => state.libraries);
+  const selection = useStore(state => state.selection);
+  const libraryId = scopeLibrary([...selection], (libraries.find(l => l.isDefault) ?? libraries[0])?.id ?? null) ?? "";
   const saved = useSavedExports(state => state.exports);
-  const setups = saved.filter(setup => setup.libraryRoot === libraryRoot).sort((a,b) => a.name.localeCompare(b.name));
+  const setups = saved.filter(setup => !!setup.libraryId).sort((a,b) => a.name.localeCompare(b.name));
   const [selected, setSelected] = useState<string | undefined>(() => setups.find(setup => setup.kind === kind)?.id ?? setups[0]?.id);
   const [newVersion, setNewVersion] = useState(0);
   const [busy, setBusy] = useState(false);
@@ -36,10 +44,10 @@ function ExportsManager({ kind, selectedCount, exporters, pluginErrors, onClose,
     <Workbench className="exports-manager" navigation={<>
       <Button className="exports-manager__new" disabled={busy} onClick={() => { setSelected(undefined); setNewVersion(version => version+1); }}><Plus size={16} aria-hidden="true"/>New export</Button>
       <nav aria-label="Saved exports">{setups.map(setup => <NavigationItem key={setup.id} active={setup.id === selected} disabled={busy} onPress={() => setSelected(setup.id)}
-        label={<span className="exports-manager__setup"><span title={setup.name}>{setup.name}</span><small>{ASSET_KIND_LABELS[setup.kind]}</small></span>}/>)}</nav>
+        label={<span className="exports-manager__setup"><span title={setup.name}>{setup.name}</span><small>{assetTypeEntry(setup.kind).label}{libraries.length > 1 && ` · ${libraries.find(l => l.id === setup.libraryId)?.name ?? setup.libraryId}`}</small></span>}/>)}</nav>
       {!setups.length && <p className="exports-manager__hint">Save a plugin, folder, and settings to reuse for future exports.</p>}
     </>}>
-      <ExportSetupEditor key={current?.id ?? `new:${newVersion}`} initial={current} kind={kind} libraryRoot={libraryRoot} exporters={exporters} pluginErrors={pluginErrors}
+      <ExportSetupEditor key={current?.id ?? `new:${newVersion}`} initial={current} kind={kind} libraryId={libraryId} exporters={exporters} pluginErrors={pluginErrors}
         selectedCount={selectedCount} onBusy={setBusy} onSaved={setup => setSelected(setup.id)}
         onRemoved={id => setSelected(setups.find(setup => setup.id !== id)?.id)} onExport={onExport}/>
     </Workbench>
@@ -49,7 +57,7 @@ function ExportsManager({ kind, selectedCount, exporters, pluginErrors, onClose,
 interface EditorProps {
   initial?: SavedExport;
   kind: AssetKind;
-  libraryRoot: string;
+  libraryId: string;
   exporters: LoadedExporter[];
   pluginErrors: PluginLoadError[];
   selectedCount: number;
@@ -59,10 +67,10 @@ interface EditorProps {
   onExport: (setup: SavedExport) => void;
 }
 
-function ExportSetupEditor({ initial, kind: selectionKind, libraryRoot, exporters, pluginErrors, selectedCount, onBusy, onSaved, onRemoved, onExport }: EditorProps) {
+function ExportSetupEditor({ initial, kind: selectionKind, libraryId, exporters, pluginErrors, selectedCount, onBusy, onSaved, onRemoved, onExport }: EditorProps) {
   const [kind, setKind] = useState(initial?.kind ?? selectionKind);
   const [name, setName] = useState(initial?.name ?? "");
-  const [exporterId, setExporterId] = useState(initial?.exporterId ?? "");
+  const [exporterId, setExporterId] = useState(resolveExporterId(exporters.map(plugin => plugin.manifest), initial?.exporterId ?? ""));
   const [folder, setFolder] = useState(initial?.targetDir ?? "");
   const [preserve, setPreserve] = useState(initial?.preserveStructure ?? true);
   const [policy, setPolicy] = useState<"all" | "best">(initial?.variantPolicy ?? "all");
@@ -72,7 +80,7 @@ function ExportSetupEditor({ initial, kind: selectionKind, libraryRoot, exporter
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string>();
   const [saved, setSaved] = useState(false);
-  const available = exporters.filter(plugin => (plugin.manifest.assetKinds ?? ["model"]).includes(kind));
+  const available = exporters.filter(plugin => acceptsKind(plugin.manifest, kind));
   const active = available.find(plugin => plugin.manifest.id === exporterId);
   const valid = !!name.trim() && !!folder && !!active && ready;
   const onConfig = useCallback((values: Record<string, unknown>, valid: boolean) => {
@@ -85,8 +93,8 @@ function ExportSetupEditor({ initial, kind: selectionKind, libraryRoot, exporter
     if (!valid || busy) return;
     setBusy(true); onBusy(true); setError(undefined);
     try {
-      const reconfigured = initial && (initial.exporterId !== exporterId || initial.targetDir !== folder || initial.preserveStructure !== preserve || initial.variantPolicy !== policy || JSON.stringify(initial.config) !== JSON.stringify(config));
-      const setup: SavedExport = { ...initial, id: initial?.id ?? crypto.randomUUID(), name: name.trim(), kind, libraryRoot, exporterId, targetDir: folder, preserveStructure: preserve, variantPolicy: policy, config,
+      const reconfigured = initial && (resolveExporterId(exporters.map(plugin => plugin.manifest), initial.exporterId) !== exporterId || initial.targetDir !== folder || initial.preserveStructure !== preserve || initial.variantPolicy !== policy || JSON.stringify(initial.config) !== JSON.stringify(config));
+      const setup: SavedExport = { ...initial, id: initial?.id ?? crypto.randomUUID(), name: name.trim(), kind, libraryId: initial?.libraryId ?? libraryId, exporterId, targetDir: folder, preserveStructure: preserve, variantPolicy: policy, config,
         lastSent: reconfigured ? undefined : initial?.lastSent, lastAssets: reconfigured ? undefined : initial?.lastAssets };
       await useSavedExports.getState().save(setup);
       setSaved(true); onSaved(setup);
@@ -107,7 +115,7 @@ function ExportSetupEditor({ initial, kind: selectionKind, libraryRoot, exporter
       {initial?.lastSent && <p className="exports-manager__hint">Last sent {new Date(initial.lastSent).toLocaleString()}.</p>}
       <fieldset disabled={busy}>
         <label className="exports-manager__field">Name<TextInput placeholder="e.g. Spygame" value={name} onChange={event => setName(event.currentTarget.value)}/></label>
-        <label className="exports-manager__field">Type<Select value={kind} disabled={!!initial} options={Object.entries(ASSET_KIND_LABELS).map(([value,label]) => ({value,label}))} onChange={value => { setKind(value as AssetKind); choosePlugin(""); }}/></label>
+        <label className="exports-manager__field">Type<Select value={kind} disabled={!!initial} options={useAssetTypes.getState().types.map(({id,label}) => ({value:id,label}))} onChange={value => { setKind(value as AssetKind); choosePlugin(""); }}/></label>
         <label className="exports-manager__field">Export plugin<Select value={exporterId} options={[{value:"",label:"Choose a plugin…"},...(!active && exporterId ? [{value:exporterId,label:"Plugin unavailable"}] : []),...available.map(plugin => ({value:plugin.manifest.id,label:plugin.manifest.name}))]} onChange={choosePlugin}/></label>
         {!available.length && <p className="exports-manager__hint">No export plugins support this type.</p>}
         {active && <ExportPanelHost key={exporterId} plugin={active} initialConfig={initialConfig} shared={{targetDir:folder,preserveStructure:preserve}} onConfig={onConfig}/>}
@@ -118,7 +126,7 @@ function ExportSetupEditor({ initial, kind: selectionKind, libraryRoot, exporter
         <Checkbox checked={preserve} onChange={setPreserve} label="Use export subfolders"/>
         {(kind === "model" || kind === "material") && <label className="exports-manager__field">{kind === "model" ? "Detail levels" : "Sizes"}<Select value={policy} options={[{value:"all",label:kind === "model" ? "All levels" : "All sizes"},{value:"best",label:"Best only"}]} onChange={value => setPolicy(value as "all" | "best")}/></label>}
         {kind === "animation" && <p className="exports-manager__hint">Exports include the animation and its rig.</p>}
-        {pluginErrors.filter(failure => failure.manifest.kind === "exporter").map(failure => <p className="exports-manager__error" key={failure.manifest.id}>{failure.manifest.name}: {failure.error}</p>)}
+        {pluginErrors.filter(failure => acceptsKind(failure.manifest, kind) && needsEntry(failure.manifest)).map(failure => <p className="exports-manager__error" key={failure.manifest.id}>{failure.manifest.name}: {failure.error}</p>)}
       </fieldset>
       {error && <p role="alert" className="exports-manager__error">{error}</p>}
     </div>

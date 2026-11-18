@@ -1,16 +1,19 @@
 /**
- * Per-kind dispatch for the asset detail viewer. Each asset kind has its own
- * viewer; the lookup is keyed by AssetKind so the compiler rejects a kind
- * without one. Every viewer renders inside the shared ViewerFrame.
+ * Per-kind dispatch for the asset detail viewer. Each native kind has its own
+ * viewer; the lookup is keyed by the asset's kind tag so the compiler rejects a
+ * kind without one. A plugin-defined asset goes to the plugin viewer host,
+ * which mounts the type's own viewer. Every viewer renders inside the shared
+ * ViewerFrame.
  */
 
 import type { ComponentType } from "react";
 
-import type { Asset, AssetKind } from "../domain/catalog";
+import type { Asset } from "../domain/catalog";
 import { ModelViewer } from "./ModelViewer";
 import { MaterialViewer } from "./MaterialViewer";
 import { AnimationViewer } from "./AnimationViewer";
 import { AudioViewer } from "./AudioViewer";
+import { PluginAssetViewer } from "./PluginAssetViewer";
 
 interface DetailProps {
   onExport?: () => void;
@@ -18,19 +21,20 @@ interface DetailProps {
   onClose: () => void;
 }
 
-type ViewerProps<K extends AssetKind> = {
+type ViewerProps<K extends Asset["kind"]> = {
   onExport?: () => void;
   asset: Extract<Asset, { kind: K }>;
   onClose: () => void;
 };
 
-type ViewerLookup = { [K in AssetKind]: ComponentType<ViewerProps<K>> };
+type ViewerLookup = { [K in Asset["kind"]]: ComponentType<ViewerProps<K>> };
 
 const VIEWERS: ViewerLookup = {
   model: ModelViewer,
   material: MaterialViewer,
   animation: AnimationViewer,
   audio: AudioViewer,
+  plugin: PluginAssetViewer,
 };
 
 export function AssetDetail({ asset, onClose, onExport }: DetailProps) {

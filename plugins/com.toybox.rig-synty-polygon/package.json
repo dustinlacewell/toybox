@@ -1,0 +1,14 @@
+{
+  "name": "toybox-plugin-rig-synty-polygon",
+  "private": true,
+  "version": "1.0.0",
+  "type": "module",
+  "description": "Rig profile for Synty Polygon characters, so their animations can be previewed on other humanoids.",
+  "scripts": {
+    "build": "tsc -p tsconfig.json"
+  },
+  "devDependencies": {
+    "@ldlework/toybox-sdk": "workspace:*",
+    "typescript": "~5.8.3"
+  }
+}

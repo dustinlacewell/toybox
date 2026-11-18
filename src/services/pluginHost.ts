@@ -20,6 +20,9 @@ import {
 } from "@ldlework/toybox-sdk";
 import { isSceneAsset, type Asset, type SceneAsset } from "../domain/catalog";
 import type { PluginManifestDto } from "./tauriApi";
+import { extensionLookup } from "./pluginExtensions";
+import { buildPluginServices } from "./pluginServices";
+import { cachedAsset, ensureAssets } from "../state/assetCache";
 import { useStore } from "../state/store";
 import { assetUrl } from "./assetUrl";
 import { pickDirectory } from "./pickDirectory";
@@ -29,6 +32,7 @@ import {
   performAssetCopy,
   previewExport,
   placerMergeFile,
+  pluginCopyFile,
   pluginImageThumb,
   pluginReadBytes,
   pluginReadDir,
@@ -49,22 +53,35 @@ export function buildExportCtx(
   return {
     host: buildHostApi(manifest.id, perms),
     fs: buildFsApi(manifest.id, perms),
+    services: buildPluginServices(manifest.id, perms),
+    extensions: extensionLookup,
     config,
     report: createReportBuilder(),
     signal,
   };
 }
 
-/** Resolve this run's selection without dropping material records. */
+/** Resolve this run's selection without dropping material records. The window holds no catalog: the items are
+ *  the ones it has loaded (the run's selection is fetched first, see `loadSelectedAssets`). */
 export function selectedAssets(selectedIds: string[]): Asset[] {
-  const catalog = useStore.getState().catalog;
-  if (!catalog) return [];
-  const byId = new Map(catalog.assets.map((a) => [a.id, a]));
-  return selectedIds.map((id) => byId.get(id)).filter((a): a is Asset => !!a);
+  return selectedIds.map((id) => cachedAsset(id)).filter((a): a is Asset => !!a);
 }
 
+/** The assets with these ids, fetched by id when the window does not hold them yet. */
+export async function loadSelectedAssets(selectedIds: string[]): Promise<Asset[]> {
+  await ensureAssets(selectedIds);
+  return selectedAssets(selectedIds);
+}
+
+/** An item or variant the window has loaded (a plugin run's selection always is). */
 export function catalogAsset(id: string): Asset | undefined {
-  return useStore.getState().catalog?.assets.flatMap((a) => [a, ...(a.variants ?? [])]).find((a) => a.id === id);
+  return cachedAsset(id);
+}
+
+/** An item or variant by id, fetched when it is not loaded. */
+export async function fetchAsset(id: string): Promise<Asset | undefined> {
+  await ensureAssets([id]);
+  return cachedAsset(id);
 }
 
 /** Model-only helper for glTF-specific host calls. */
@@ -86,14 +103,17 @@ function buildHostApi(pluginId: string, perms: PluginPermissions): HostApi {
       return selectedAssets(ids);
     },
     getAsset: (id) => catalogAsset(id),
+    getSelectedAssetsAsync: () => loadSelectedAssets([...useStore.getState().selection]),
+    getAssetAsync: (id) => fetchAsset(id),
     getParsedGltf: (id) => readAssetGltf(id),
     getAssetUrls: async (id) => {
+      await fetchAsset(id);
       const asset = modelAsset(id);
       if (!asset) throw new Error(`unknown asset: ${id}`);
       const [gltf, bin, ...textures] = await Promise.all([
-        assetUrl(asset.fileset.gltf),
-        assetUrl(asset.fileset.bin),
-        ...asset.fileset.textures.map(assetUrl),
+        assetUrl(asset.library, asset.fileset.gltf),
+        assetUrl(asset.library, asset.fileset.bin),
+        ...asset.fileset.textures.map((texture) => assetUrl(asset.library, texture)),
       ]);
       return { gltf, bin, textures };
     },
@@ -132,6 +152,9 @@ export function buildFsApi(pluginId: string, perms: PluginPermissions): FsApi {
     readImageThumb: gatedRead((sourceRoot: string, path: string, maxSize: number) =>
       pluginImageThumb(sourceRoot, path, maxSize),
     ),
+    copyFile: gatedRead(gatedWrite((sourceRoot: string, path: string, root: string, target: string) =>
+      pluginCopyFile(sourceRoot, path, root, target),
+    )),
     writeBytes: gatedWrite((root: string, path: string, bytes: Uint8Array) =>
       pluginWriteBytes(root, path, bytes),
     ),

@@ -5,20 +5,21 @@ import { loadAssetScene } from "../../services/gltfLoad";
 import { disposeScene } from "../../services/disposeScene";
 import { measureExtent, type ModelExtent } from "./modelExtent";
 import { subscribeRigAdapters, getRigProfiles } from "../../services/rigAdapters";
-import { useStore } from "../../state/store";
+import { useRigCatalog } from "../../state/rigCatalog";
 import { ModelAnimationPreview } from "../../services/modelAnimationPreview";
 
 type ReadyScene={ kind: "ready"; group: Group; extent: ModelExtent; clips: AnimationClip[]; previewMethod?:string; loading?:boolean; previewError?:string };
 export type SceneState = { kind: "loading" } | ReadyScene | { kind: "error"; message: string };
 export function useScene(asset: SceneAsset, reloadNonce = 0, preview?: SceneAsset,retarget=false): SceneState {
   const adapters=useSyncExternalStore(subscribeRigAdapters,getRigProfiles);
-  const root=useStore(state=>state.catalog?.libraryRoot);
+  const root=asset.library;
   const [state, setState] = useState<SceneState>({ kind: "loading" });
   const displayed = useRef<Group | null>(null);
   const displayedBySession=useRef(false);
   const modelSession=useRef<ModelAnimationPreview|null>(null);
   const modelExtent=useRef<{group:Group;extent:ModelExtent}|null>(null);
   const revision=useRef<unknown[]>([]);
+  const catalog=useRigCatalog(asset.library);
   useEffect(() => {
     let alive = true;
     const controller=new AbortController();
@@ -28,7 +29,7 @@ export function useScene(asset: SceneAsset, reloadNonce = 0, preview?: SceneAsse
       modelSession.current?.dispose();modelSession.current=null;
       revision.current=signature;modelExtent.current=null;
     }
-    const catalog=useStore.getState().catalog;
+    // (catalog: the rigs and the rigged models and animations of the asset's library)
     if(asset.kind==="model"&&catalog&&!modelSession.current)modelSession.current=new ModelAnimationPreview(asset,catalog);
     const session=asset.kind==="model"?modelSession.current:null;
     setState(previous=>asset.kind==="model"&&same&&previous.kind==="ready"?{...previous,loading:true,previewError:undefined}:{kind:"loading"});
@@ -43,7 +44,7 @@ export function useScene(asset: SceneAsset, reloadNonce = 0, preview?: SceneAsse
       setState(next);
     }, (error) => { if (alive) setState(previous=>asset.kind==="model"&&same&&previous.kind==="ready"?{...previous,loading:false,previewError:String(error)}:{kind:"error",message:String(error)}); });
     return () => { alive = false;controller.abort(); };
-  }, [asset.id,asset.fileset,root,reloadNonce,preview?.id,retarget,adapters]);
+  }, [asset.id,asset.fileset,root,reloadNonce,preview?.id,retarget,adapters,catalog]);
   useEffect(() => () => {
     modelSession.current?.dispose();if(displayed.current&&!displayedBySession.current)disposeScene(displayed.current);
     modelSession.current=null;displayed.current=null;

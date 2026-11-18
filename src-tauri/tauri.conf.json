@@ -24,7 +24,8 @@
         "enable": true,
         "scope": {
           "allow": [
-            "$APPDATA/**"
+            "$APPDATA/**",
+            "$APPCACHE/**"
           ],
           "deny": []
         }
@@ -45,18 +46,36 @@
     "createUpdaterArtifacts": true,
     "targets": "all",
     "resources": {
-        "../plugins/com.toybox.audio-importer/icons": "plugins/com.toybox.audio-importer/icons",
-        "../plugins/com.toybox.humanoid-rigs/icons": "plugins/com.toybox.humanoid-rigs/icons",
-        "../plugins/com.toybox.gltf-importer/icons": "plugins/com.toybox.gltf-importer/icons",
-        "../plugins/com.toybox.material-importer/icons": "plugins/com.toybox.material-importer/icons",
-      "../plugins/com.toybox.audio-importer/manifest.json": "plugins/com.toybox.audio-importer/manifest.json",
-      "../plugins/com.toybox.audio-importer/dist": "plugins/com.toybox.audio-importer/dist",
-      "../plugins/com.toybox.humanoid-rigs/manifest.json": "plugins/com.toybox.humanoid-rigs/manifest.json",
-      "../plugins/com.toybox.humanoid-rigs/dist": "plugins/com.toybox.humanoid-rigs/dist",
-      "../plugins/com.toybox.gltf-importer/manifest.json": "plugins/com.toybox.gltf-importer/manifest.json",
-      "../plugins/com.toybox.gltf-importer/dist": "plugins/com.toybox.gltf-importer/dist",
-      "../plugins/com.toybox.material-importer/manifest.json": "plugins/com.toybox.material-importer/manifest.json",
-      "../plugins/com.toybox.material-importer/dist": "plugins/com.toybox.material-importer/dist"
+      "../plugins/com.toybox.model-core/icons": "plugins/com.toybox.model-core/icons",
+      "../plugins/com.toybox.model-core/manifest.json": "plugins/com.toybox.model-core/manifest.json",
+      "../plugins/com.toybox.model-core/dist": "plugins/com.toybox.model-core/dist",
+      "../plugins/com.toybox.model-gltf/icons": "plugins/com.toybox.model-gltf/icons",
+      "../plugins/com.toybox.model-gltf/manifest.json": "plugins/com.toybox.model-gltf/manifest.json",
+      "../plugins/com.toybox.model-gltf/dist": "plugins/com.toybox.model-gltf/dist",
+      "../plugins/com.toybox.animation-core/icons": "plugins/com.toybox.animation-core/icons",
+      "../plugins/com.toybox.animation-core/manifest.json": "plugins/com.toybox.animation-core/manifest.json",
+      "../plugins/com.toybox.animation-core/dist": "plugins/com.toybox.animation-core/dist",
+      "../plugins/com.toybox.material-core/icons": "plugins/com.toybox.material-core/icons",
+      "../plugins/com.toybox.material-core/manifest.json": "plugins/com.toybox.material-core/manifest.json",
+      "../plugins/com.toybox.material-core/dist": "plugins/com.toybox.material-core/dist",
+      "../plugins/com.toybox.audio-core/icons": "plugins/com.toybox.audio-core/icons",
+      "../plugins/com.toybox.audio-core/manifest.json": "plugins/com.toybox.audio-core/manifest.json",
+      "../plugins/com.toybox.audio-core/dist": "plugins/com.toybox.audio-core/dist",
+      "../plugins/com.toybox.skybox-core/icons": "plugins/com.toybox.skybox-core/icons",
+      "../plugins/com.toybox.skybox-core/manifest.json": "plugins/com.toybox.skybox-core/manifest.json",
+      "../plugins/com.toybox.skybox-core/dist": "plugins/com.toybox.skybox-core/dist",
+      "../plugins/com.toybox.rig-synty-polygon/icons": "plugins/com.toybox.rig-synty-polygon/icons",
+      "../plugins/com.toybox.rig-synty-polygon/manifest.json": "plugins/com.toybox.rig-synty-polygon/manifest.json",
+      "../plugins/com.toybox.rig-synty-polygon/dist": "plugins/com.toybox.rig-synty-polygon/dist",
+      "../plugins/com.toybox.rig-synty-sidekick/icons": "plugins/com.toybox.rig-synty-sidekick/icons",
+      "../plugins/com.toybox.rig-synty-sidekick/manifest.json": "plugins/com.toybox.rig-synty-sidekick/manifest.json",
+      "../plugins/com.toybox.rig-synty-sidekick/dist": "plugins/com.toybox.rig-synty-sidekick/dist",
+      "../plugins/com.toybox.rig-synty-unreal/icons": "plugins/com.toybox.rig-synty-unreal/icons",
+      "../plugins/com.toybox.rig-synty-unreal/manifest.json": "plugins/com.toybox.rig-synty-unreal/manifest.json",
+      "../plugins/com.toybox.rig-synty-unreal/dist": "plugins/com.toybox.rig-synty-unreal/dist",
+      "../plugins/com.toybox.rig-quaternius/icons": "plugins/com.toybox.rig-quaternius/icons",
+      "../plugins/com.toybox.rig-quaternius/manifest.json": "plugins/com.toybox.rig-quaternius/manifest.json",
+      "../plugins/com.toybox.rig-quaternius/dist": "plugins/com.toybox.rig-quaternius/dist"
     },
     "icon": [
       "icons/32x32.png",

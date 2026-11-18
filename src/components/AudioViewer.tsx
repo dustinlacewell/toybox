@@ -10,7 +10,7 @@ export function AudioViewer({asset,onClose,onExport}:{asset:AudioAsset;onClose:(
   const [src,setSrc]=useState<string>();const [error,setError]=useState<string>();
   const [playing,setPlaying]=useState(false),[position,setPosition]=useState(0),[volume,setVolume]=useState(.7),[loop,setLoop]=useState(false),[ready,setReady]=useState(false);
   useEffect(()=>{let active=true;const element=player.current;setSrc(undefined);setError(undefined);setReady(false);setPosition(0);setPlaying(false);
-    assetUrl(asset.audio.file).then(url=>{if(active)setSrc(url);},error=>{if(active)setError(String(error));});
+    assetUrl(asset.library,asset.audio.file).then(url=>{if(active)setSrc(url);},error=>{if(active)setError(String(error));});
     return()=>{active=false;if(element){element.pause();element.removeAttribute("src");element.load();}};
   },[asset.id,asset.audio.file]);
   const seek=(time:number)=>{if(player.current){player.current.currentTime=Math.max(0,Math.min(asset.audio.duration,time));setPosition(player.current.currentTime);}};

@@ -1,0 +1,16 @@
+{
+  "id": "com.toybox.animation-core",
+  "name": "Animations",
+  "version": "1.0.0",
+  "dependencies": { "com.toybox.model-core": "^3.0.0" },
+  "assetTypes": [
+    { "id": "animation", "label": "Animations", "singular": "Animation", "icon": "icons/animation.svg", "implementation": "native", "order": 30 }
+  ],
+  "icon": "icons/animation.svg",
+  "assetIcons": {"animation":"icons/animation.svg"},
+  "description": "The Animations type of the library and its importer. Clips are taken from model files through the Models plugin, so it reads the formats the format plugins add.",
+  "permissions": {},
+  "ui": {
+    "importPanel": "dist/ui/Import.js"
+  }
+}

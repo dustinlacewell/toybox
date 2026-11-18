@@ -9,7 +9,7 @@
 import { useEffect, useMemo } from "react";
 import type { FieldSpec, ExportPanelCtx } from "@ldlework/toybox-sdk";
 import type { LoadedExporter } from "../../services/pluginRegistry";
-import { buildSlotHost } from "../../services/slotHost";
+import { buildPluginBase } from "../../services/pluginCtx";
 import { PluginSlot } from "./PluginSlot";
 import { DeclarativeExportFields } from "./DeclarativeExportFields";
 
@@ -28,7 +28,7 @@ export function ExportPanelHost({ plugin, shared, onConfig, initialConfig }: Pro
   useEffect(() => {
     if (!slot && !fields.length) onConfig(initialConfig ?? {}, true);
   }, [slot, fields, initialConfig, onConfig]);
-  const ctx: ExportPanelCtx = useMemo(() => ({ host: buildSlotHost(), shared, initialConfig, setConfig: onConfig }),
+  const ctx: ExportPanelCtx = useMemo(() => ({ ...buildPluginBase(plugin.manifest.id, plugin.manifest.permissions), shared, initialConfig, setConfig: onConfig }),
     [shared.targetDir, shared.preserveStructure, initialConfig, onConfig]);
   const fallback = fields.length ? (
     <DeclarativeExportFields specs={fields} initialConfig={initialConfig} onConfig={onConfig} />

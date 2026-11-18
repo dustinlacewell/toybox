@@ -1,0 +1,11 @@
+.tag-selection { display: flex; flex-direction: column; gap: 10px; }
+.tag-selection__label { display: flex; flex-direction: column; gap: 6px; color: var(--text-2); font-size: var(--fs-sm); }
+.tag-selection__tags { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 2px; max-height: 240px; overflow: auto; }
+.tag-selection__tags li { display: flex; align-items: center; gap: 8px; }
+.tag-selection__tags li.is-removing .tag-selection__tag { text-decoration: line-through; color: var(--text-2); }
+.tag-selection__tag { flex: 1 1 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; }
+.tag-selection__count { color: var(--text-2); font-size: var(--fs-sm); }
+.tag-selection__hint { color: var(--text-2); font-size: var(--fs-sm); margin: 0; }
+.tag-selection__error { color: var(--danger); font-size: var(--fs-sm); margin: 0; }
+.tag-selection__progress { display: flex; align-items: center; gap: 8px; }
+.tag-selection__progress progress { flex: 1; }

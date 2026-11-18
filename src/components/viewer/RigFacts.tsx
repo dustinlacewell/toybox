@@ -3,7 +3,7 @@ import { useStore } from "../../state/store";
 
 /** Rig inspection belongs to the application; the design system stays generic. */
 export function RigFacts({ asset }: { asset: SceneAsset }) {
-  const registry = useStore(state => state.catalog?.rigs);
+  const registry = useStore(state => state.rigs);
   const rigs = (asset.rigs ?? []).flatMap(binding => {
     const rig = registry?.find(rig => rig.id === binding.rigId); return rig ? [rig] : [];
   });

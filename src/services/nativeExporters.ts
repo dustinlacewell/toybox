@@ -6,9 +6,10 @@ import { exportCopy, exportGlb, previewExport } from "./tauriApi";
 export const nativeExporters: LoadedExporter[] = (["glb", "copy"] as const).map((format) => ({
   manifest: {
     id: `toybox.${format}`, name: format === "glb" ? "Merged GLB files" : "Copy files",
-    version: "1.0.0", kind: "exporter", entry: "", entryAbsPath: "", fields: [],
-    assetKinds: format === "glb" ? ["model", "animation"] : ["model", "material", "animation", "audio"],
-    description: format === "glb" ? "One self-contained model or animation file, with textures embedded." : "Copy models, animation clips, audio or material maps to a folder.",
+    version: "1.0.0", entry: "", entryAbsPath: "", fields: [],
+    // Copying original files works for every type, including plugin-defined ones.
+    assetKinds: format === "glb" ? ["model", "animation"] : ["*"],
+    description: format === "glb" ? "One self-contained model or animation file, with textures embedded." : "Copy the original files of the selected items to a folder.",
     permissions: {},
   },
   plugin: {

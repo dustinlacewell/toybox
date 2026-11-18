@@ -74,7 +74,7 @@ export function loadMaterial(
   opts: MaterialLoadOptions = {},
 ): Promise<MeshStandardMaterial> {
   const { maps, flipNormalGreen } = asset.material;
-  return buildMaterial({ maps, flipNormalGreen, resolveUrl: assetUrl }, opts);
+  return buildMaterial({ maps, flipNormalGreen, resolveUrl: (file) => assetUrl(asset.library, file) }, opts);
 }
 
 /** Build a standard material from a source's maps. Caller owns disposal. */

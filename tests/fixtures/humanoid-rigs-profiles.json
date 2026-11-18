@@ -1,0 +1,943 @@
+[
+  {
+    "id": "synty-polygon",
+    "name": "Synty Polygon",
+    "bones": {
+      "hips": [
+        "Hips"
+      ],
+      "spine": [
+        "Spine_01"
+      ],
+      "chest": [
+        "Spine_03"
+      ],
+      "neck": [
+        "Neck"
+      ],
+      "head": [
+        "Head"
+      ],
+      "clavicleLeft": [
+        "Clavicle_L"
+      ],
+      "upperArmLeft": [
+        "Shoulder_L"
+      ],
+      "forearmLeft": [
+        "Elbow_L"
+      ],
+      "handLeft": [
+        "Hand_L"
+      ],
+      "upperLegLeft": [
+        "UpperLeg_L"
+      ],
+      "lowerLegLeft": [
+        "LowerLeg_L"
+      ],
+      "footLeft": [
+        "Ankle_L"
+      ],
+      "toeLeft": [
+        "Ball_L"
+      ],
+      "thumb1Left": [
+        "Thumb_01"
+      ],
+      "thumb2Left": [
+        "Thumb_02"
+      ],
+      "thumb3Left": [
+        "Thumb_03"
+      ],
+      "index1Left": [
+        "IndexFinger_01"
+      ],
+      "index2Left": [
+        "IndexFinger_02"
+      ],
+      "index3Left": [
+        "IndexFinger_03"
+      ],
+      "middle1Left": [
+        "Finger_01"
+      ],
+      "middle2Left": [
+        "Finger_02"
+      ],
+      "middle3Left": [
+        "Finger_03"
+      ],
+      "ring1Left": [
+        "Finger_01"
+      ],
+      "ring2Left": [
+        "Finger_02"
+      ],
+      "ring3Left": [
+        "Finger_03"
+      ],
+      "pinky1Left": [
+        "Finger_01"
+      ],
+      "pinky2Left": [
+        "Finger_02"
+      ],
+      "pinky3Left": [
+        "Finger_03"
+      ],
+      "clavicleRight": [
+        "Clavicle_R"
+      ],
+      "upperArmRight": [
+        "Shoulder_R"
+      ],
+      "forearmRight": [
+        "Elbow_R"
+      ],
+      "handRight": [
+        "Hand_R"
+      ],
+      "upperLegRight": [
+        "UpperLeg_R"
+      ],
+      "lowerLegRight": [
+        "LowerLeg_R"
+      ],
+      "footRight": [
+        "Ankle_R"
+      ],
+      "toeRight": [
+        "Ball_R"
+      ],
+      "thumb1Right": [
+        "Thumb_01_1",
+        "Thumb_01_R"
+      ],
+      "thumb2Right": [
+        "Thumb_02_1",
+        "Thumb_02_R"
+      ],
+      "thumb3Right": [
+        "Thumb_03_1",
+        "Thumb_03_R"
+      ],
+      "index1Right": [
+        "IndexFinger_01_1",
+        "IndexFinger_01_R"
+      ],
+      "index2Right": [
+        "IndexFinger_02_1",
+        "IndexFinger_02_R"
+      ],
+      "index3Right": [
+        "IndexFinger_03_1",
+        "IndexFinger_03_R"
+      ],
+      "middle1Right": [
+        "Finger_01_1",
+        "Finger_01_R"
+      ],
+      "middle2Right": [
+        "Finger_02_1",
+        "Finger_02_R"
+      ],
+      "middle3Right": [
+        "Finger_03_1",
+        "Finger_03_R"
+      ],
+      "ring1Right": [
+        "Finger_01_1",
+        "Finger_01_R"
+      ],
+      "ring2Right": [
+        "Finger_02_1",
+        "Finger_02_R"
+      ],
+      "ring3Right": [
+        "Finger_03_1",
+        "Finger_03_R"
+      ],
+      "pinky1Right": [
+        "Finger_01_1",
+        "Finger_01_R"
+      ],
+      "pinky2Right": [
+        "Finger_02_1",
+        "Finger_02_R"
+      ],
+      "pinky3Right": [
+        "Finger_03_1",
+        "Finger_03_R"
+      ]
+    },
+    "required": [
+      "hips",
+      "spine",
+      "chest",
+      "neck",
+      "head",
+      "upperArmLeft",
+      "forearmLeft",
+      "handLeft",
+      "upperLegLeft",
+      "lowerLegLeft",
+      "footLeft",
+      "upperArmRight",
+      "forearmRight",
+      "handRight",
+      "upperLegRight",
+      "lowerLegRight",
+      "footRight"
+    ],
+    "parents": {
+      "spine": "hips",
+      "chest": "spine",
+      "neck": "chest",
+      "head": "neck",
+      "clavicleLeft": "chest",
+      "upperArmLeft": "chest",
+      "forearmLeft": "upperArmLeft",
+      "handLeft": "forearmLeft",
+      "upperLegLeft": "hips",
+      "lowerLegLeft": "upperLegLeft",
+      "footLeft": "lowerLegLeft",
+      "toeLeft": "footLeft",
+      "clavicleRight": "chest",
+      "upperArmRight": "chest",
+      "forearmRight": "upperArmRight",
+      "handRight": "forearmRight",
+      "upperLegRight": "hips",
+      "lowerLegRight": "upperLegRight",
+      "footRight": "lowerLegRight",
+      "toeRight": "footRight",
+      "thumb1Left": "handLeft",
+      "thumb2Left": "thumb1Left",
+      "thumb3Left": "thumb2Left",
+      "index1Left": "handLeft",
+      "index2Left": "index1Left",
+      "index3Left": "index2Left",
+      "middle1Left": "handLeft",
+      "middle2Left": "middle1Left",
+      "middle3Left": "middle2Left",
+      "ring1Left": "handLeft",
+      "ring2Left": "ring1Left",
+      "ring3Left": "ring2Left",
+      "pinky1Left": "handLeft",
+      "pinky2Left": "pinky1Left",
+      "pinky3Left": "pinky2Left",
+      "thumb1Right": "handRight",
+      "thumb2Right": "thumb1Right",
+      "thumb3Right": "thumb2Right",
+      "index1Right": "handRight",
+      "index2Right": "index1Right",
+      "index3Right": "index2Right",
+      "middle1Right": "handRight",
+      "middle2Right": "middle1Right",
+      "middle3Right": "middle2Right",
+      "ring1Right": "handRight",
+      "ring2Right": "ring1Right",
+      "ring3Right": "ring2Right",
+      "pinky1Right": "handRight",
+      "pinky2Right": "pinky1Right",
+      "pinky3Right": "pinky2Right"
+    },
+    "referencePoseNames": [
+      "A_TPose_Neut"
+    ]
+  },
+  {
+    "id": "synty-sidekick",
+    "name": "Synty Sidekick",
+    "bones": {
+      "hips": [
+        "pelvis"
+      ],
+      "spine": [
+        "spine_01"
+      ],
+      "chest": [
+        "spine_03"
+      ],
+      "neck": [
+        "neck_01"
+      ],
+      "head": [
+        "head"
+      ],
+      "clavicleLeft": [
+        "clavicle_l"
+      ],
+      "upperArmLeft": [
+        "upperarm_l"
+      ],
+      "forearmLeft": [
+        "lowerarm_l"
+      ],
+      "handLeft": [
+        "hand_l"
+      ],
+      "upperLegLeft": [
+        "thigh_l"
+      ],
+      "lowerLegLeft": [
+        "calf_l"
+      ],
+      "footLeft": [
+        "foot_l"
+      ],
+      "toeLeft": [
+        "ball_l"
+      ],
+      "thumb1Left": [
+        "thumb_01_l"
+      ],
+      "thumb2Left": [
+        "thumb_02_l"
+      ],
+      "thumb3Left": [
+        "thumb_03_l"
+      ],
+      "index1Left": [
+        "index_01_l"
+      ],
+      "index2Left": [
+        "index_02_l"
+      ],
+      "index3Left": [
+        "index_03_l"
+      ],
+      "middle1Left": [
+        "middle_01_l"
+      ],
+      "middle2Left": [
+        "middle_02_l"
+      ],
+      "middle3Left": [
+        "middle_03_l"
+      ],
+      "ring1Left": [
+        "ring_01_l"
+      ],
+      "ring2Left": [
+        "ring_02_l"
+      ],
+      "ring3Left": [
+        "ring_03_l"
+      ],
+      "pinky1Left": [
+        "pinky_01_l"
+      ],
+      "pinky2Left": [
+        "pinky_02_l"
+      ],
+      "pinky3Left": [
+        "pinky_03_l"
+      ],
+      "clavicleRight": [
+        "clavicle_r"
+      ],
+      "upperArmRight": [
+        "upperarm_r"
+      ],
+      "forearmRight": [
+        "lowerarm_r"
+      ],
+      "handRight": [
+        "hand_r"
+      ],
+      "upperLegRight": [
+        "thigh_r"
+      ],
+      "lowerLegRight": [
+        "calf_r"
+      ],
+      "footRight": [
+        "foot_r"
+      ],
+      "toeRight": [
+        "ball_r"
+      ],
+      "thumb1Right": [
+        "thumb_01_r"
+      ],
+      "thumb2Right": [
+        "thumb_02_r"
+      ],
+      "thumb3Right": [
+        "thumb_03_r"
+      ],
+      "index1Right": [
+        "index_01_r"
+      ],
+      "index2Right": [
+        "index_02_r"
+      ],
+      "index3Right": [
+        "index_03_r"
+      ],
+      "middle1Right": [
+        "middle_01_r"
+      ],
+      "middle2Right": [
+        "middle_02_r"
+      ],
+      "middle3Right": [
+        "middle_03_r"
+      ],
+      "ring1Right": [
+        "ring_01_r"
+      ],
+      "ring2Right": [
+        "ring_02_r"
+      ],
+      "ring3Right": [
+        "ring_03_r"
+      ],
+      "pinky1Right": [
+        "pinky_01_r"
+      ],
+      "pinky2Right": [
+        "pinky_02_r"
+      ],
+      "pinky3Right": [
+        "pinky_03_r"
+      ]
+    },
+    "required": [
+      "hips",
+      "spine",
+      "chest",
+      "neck",
+      "head",
+      "upperArmLeft",
+      "forearmLeft",
+      "handLeft",
+      "upperLegLeft",
+      "lowerLegLeft",
+      "footLeft",
+      "upperArmRight",
+      "forearmRight",
+      "handRight",
+      "upperLegRight",
+      "lowerLegRight",
+      "footRight"
+    ],
+    "parents": {
+      "spine": "hips",
+      "chest": "spine",
+      "neck": "chest",
+      "head": "neck",
+      "clavicleLeft": "chest",
+      "upperArmLeft": "chest",
+      "forearmLeft": "upperArmLeft",
+      "handLeft": "forearmLeft",
+      "upperLegLeft": "hips",
+      "lowerLegLeft": "upperLegLeft",
+      "footLeft": "lowerLegLeft",
+      "toeLeft": "footLeft",
+      "clavicleRight": "chest",
+      "upperArmRight": "chest",
+      "forearmRight": "upperArmRight",
+      "handRight": "forearmRight",
+      "upperLegRight": "hips",
+      "lowerLegRight": "upperLegRight",
+      "footRight": "lowerLegRight",
+      "toeRight": "footRight",
+      "thumb1Left": "handLeft",
+      "thumb2Left": "thumb1Left",
+      "thumb3Left": "thumb2Left",
+      "index1Left": "handLeft",
+      "index2Left": "index1Left",
+      "index3Left": "index2Left",
+      "middle1Left": "handLeft",
+      "middle2Left": "middle1Left",
+      "middle3Left": "middle2Left",
+      "ring1Left": "handLeft",
+      "ring2Left": "ring1Left",
+      "ring3Left": "ring2Left",
+      "pinky1Left": "handLeft",
+      "pinky2Left": "pinky1Left",
+      "pinky3Left": "pinky2Left",
+      "thumb1Right": "handRight",
+      "thumb2Right": "thumb1Right",
+      "thumb3Right": "thumb2Right",
+      "index1Right": "handRight",
+      "index2Right": "index1Right",
+      "index3Right": "index2Right",
+      "middle1Right": "handRight",
+      "middle2Right": "middle1Right",
+      "middle3Right": "middle2Right",
+      "ring1Right": "handRight",
+      "ring2Right": "ring1Right",
+      "ring3Right": "ring2Right",
+      "pinky1Right": "handRight",
+      "pinky2Right": "pinky1Right",
+      "pinky3Right": "pinky2Right"
+    },
+    "referencePoseNames": [
+      "A_MOD_BL_TPose_Neut"
+    ]
+  },
+  {
+    "id": "quaternius-humanoid",
+    "name": "Quaternius Humanoid",
+    "bones": {
+      "hips": [
+        "pelvis"
+      ],
+      "spine": [
+        "spine_01"
+      ],
+      "chest": [
+        "spine_03"
+      ],
+      "neck": [
+        "neck_01"
+      ],
+      "head": [
+        "Head"
+      ],
+      "clavicleLeft": [
+        "clavicle_l"
+      ],
+      "upperArmLeft": [
+        "upperarm_l"
+      ],
+      "forearmLeft": [
+        "lowerarm_l"
+      ],
+      "handLeft": [
+        "hand_l"
+      ],
+      "upperLegLeft": [
+        "thigh_l"
+      ],
+      "lowerLegLeft": [
+        "calf_l"
+      ],
+      "footLeft": [
+        "foot_l"
+      ],
+      "toeLeft": [
+        "ball_l"
+      ],
+      "thumb1Left": [
+        "thumb_01_l"
+      ],
+      "thumb2Left": [
+        "thumb_02_l"
+      ],
+      "thumb3Left": [
+        "thumb_03_l"
+      ],
+      "index1Left": [
+        "index_01_l"
+      ],
+      "index2Left": [
+        "index_02_l"
+      ],
+      "index3Left": [
+        "index_03_l"
+      ],
+      "middle1Left": [
+        "middle_01_l"
+      ],
+      "middle2Left": [
+        "middle_02_l"
+      ],
+      "middle3Left": [
+        "middle_03_l"
+      ],
+      "ring1Left": [
+        "ring_01_l"
+      ],
+      "ring2Left": [
+        "ring_02_l"
+      ],
+      "ring3Left": [
+        "ring_03_l"
+      ],
+      "pinky1Left": [
+        "pinky_01_l"
+      ],
+      "pinky2Left": [
+        "pinky_02_l"
+      ],
+      "pinky3Left": [
+        "pinky_03_l"
+      ],
+      "clavicleRight": [
+        "clavicle_r"
+      ],
+      "upperArmRight": [
+        "upperarm_r"
+      ],
+      "forearmRight": [
+        "lowerarm_r"
+      ],
+      "handRight": [
+        "hand_r"
+      ],
+      "upperLegRight": [
+        "thigh_r"
+      ],
+      "lowerLegRight": [
+        "calf_r"
+      ],
+      "footRight": [
+        "foot_r"
+      ],
+      "toeRight": [
+        "ball_r"
+      ],
+      "thumb1Right": [
+        "thumb_01_r"
+      ],
+      "thumb2Right": [
+        "thumb_02_r"
+      ],
+      "thumb3Right": [
+        "thumb_03_r"
+      ],
+      "index1Right": [
+        "index_01_r"
+      ],
+      "index2Right": [
+        "index_02_r"
+      ],
+      "index3Right": [
+        "index_03_r"
+      ],
+      "middle1Right": [
+        "middle_01_r"
+      ],
+      "middle2Right": [
+        "middle_02_r"
+      ],
+      "middle3Right": [
+        "middle_03_r"
+      ],
+      "ring1Right": [
+        "ring_01_r"
+      ],
+      "ring2Right": [
+        "ring_02_r"
+      ],
+      "ring3Right": [
+        "ring_03_r"
+      ],
+      "pinky1Right": [
+        "pinky_01_r"
+      ],
+      "pinky2Right": [
+        "pinky_02_r"
+      ],
+      "pinky3Right": [
+        "pinky_03_r"
+      ]
+    },
+    "required": [
+      "hips",
+      "spine",
+      "chest",
+      "neck",
+      "head",
+      "upperArmLeft",
+      "forearmLeft",
+      "handLeft",
+      "upperLegLeft",
+      "lowerLegLeft",
+      "footLeft",
+      "upperArmRight",
+      "forearmRight",
+      "handRight",
+      "upperLegRight",
+      "lowerLegRight",
+      "footRight"
+    ],
+    "parents": {
+      "spine": "hips",
+      "chest": "spine",
+      "neck": "chest",
+      "head": "neck",
+      "clavicleLeft": "chest",
+      "upperArmLeft": "chest",
+      "forearmLeft": "upperArmLeft",
+      "handLeft": "forearmLeft",
+      "upperLegLeft": "hips",
+      "lowerLegLeft": "upperLegLeft",
+      "footLeft": "lowerLegLeft",
+      "toeLeft": "footLeft",
+      "clavicleRight": "chest",
+      "upperArmRight": "chest",
+      "forearmRight": "upperArmRight",
+      "handRight": "forearmRight",
+      "upperLegRight": "hips",
+      "lowerLegRight": "upperLegRight",
+      "footRight": "lowerLegRight",
+      "toeRight": "footRight",
+      "thumb1Left": "handLeft",
+      "thumb2Left": "thumb1Left",
+      "thumb3Left": "thumb2Left",
+      "index1Left": "handLeft",
+      "index2Left": "index1Left",
+      "index3Left": "index2Left",
+      "middle1Left": "handLeft",
+      "middle2Left": "middle1Left",
+      "middle3Left": "middle2Left",
+      "ring1Left": "handLeft",
+      "ring2Left": "ring1Left",
+      "ring3Left": "ring2Left",
+      "pinky1Left": "handLeft",
+      "pinky2Left": "pinky1Left",
+      "pinky3Left": "pinky2Left",
+      "thumb1Right": "handRight",
+      "thumb2Right": "thumb1Right",
+      "thumb3Right": "thumb2Right",
+      "index1Right": "handRight",
+      "index2Right": "index1Right",
+      "index3Right": "index2Right",
+      "middle1Right": "handRight",
+      "middle2Right": "middle1Right",
+      "middle3Right": "middle2Right",
+      "ring1Right": "handRight",
+      "ring2Right": "ring1Right",
+      "ring3Right": "ring2Right",
+      "pinky1Right": "handRight",
+      "pinky2Right": "pinky1Right",
+      "pinky3Right": "pinky2Right"
+    }
+  },
+  {
+    "id": "synty-unreal",
+    "name": "Synty Unreal",
+    "bones": {
+      "hips": [
+        "Pelvis"
+      ],
+      "spine": [
+        "spine_01"
+      ],
+      "chest": [
+        "spine_03"
+      ],
+      "neck": [
+        "neck_01"
+      ],
+      "head": [
+        "head"
+      ],
+      "clavicleLeft": [
+        "clavicle_l"
+      ],
+      "upperArmLeft": [
+        "UpperArm_L"
+      ],
+      "forearmLeft": [
+        "lowerarm_l"
+      ],
+      "handLeft": [
+        "Hand_L"
+      ],
+      "upperLegLeft": [
+        "Thigh_L"
+      ],
+      "lowerLegLeft": [
+        "calf_l"
+      ],
+      "footLeft": [
+        "Foot_L"
+      ],
+      "toeLeft": [
+        "ball_l"
+      ],
+      "thumb1Left": [
+        "thumb_01_l"
+      ],
+      "thumb2Left": [
+        "thumb_02_l"
+      ],
+      "thumb3Left": [
+        "thumb_03_l"
+      ],
+      "index1Left": [
+        "index_01_l"
+      ],
+      "index2Left": [
+        "index_02_l"
+      ],
+      "index3Left": [
+        "index_03_l"
+      ],
+      "middle1Left": [
+        "middle_01_l"
+      ],
+      "middle2Left": [
+        "middle_02_l"
+      ],
+      "middle3Left": [
+        "middle_03_l"
+      ],
+      "ring1Left": [
+        "ring_01_l"
+      ],
+      "ring2Left": [
+        "ring_02_l"
+      ],
+      "ring3Left": [
+        "ring_03_l"
+      ],
+      "pinky1Left": [
+        "pinky_01_l"
+      ],
+      "pinky2Left": [
+        "pinky_02_l"
+      ],
+      "pinky3Left": [
+        "pinky_03_l"
+      ],
+      "clavicleRight": [
+        "clavicle_r"
+      ],
+      "upperArmRight": [
+        "UpperArm_R"
+      ],
+      "forearmRight": [
+        "lowerarm_r"
+      ],
+      "handRight": [
+        "Hand_R"
+      ],
+      "upperLegRight": [
+        "Thigh_R"
+      ],
+      "lowerLegRight": [
+        "calf_r"
+      ],
+      "footRight": [
+        "Foot_R"
+      ],
+      "toeRight": [
+        "ball_r"
+      ],
+      "thumb1Right": [
+        "thumb_01_r"
+      ],
+      "thumb2Right": [
+        "thumb_02_r"
+      ],
+      "thumb3Right": [
+        "thumb_03_r"
+      ],
+      "index1Right": [
+        "index_01_r"
+      ],
+      "index2Right": [
+        "index_02_r"
+      ],
+      "index3Right": [
+        "index_03_r"
+      ],
+      "middle1Right": [
+        "middle_01_r"
+      ],
+      "middle2Right": [
+        "middle_02_r"
+      ],
+      "middle3Right": [
+        "middle_03_r"
+      ],
+      "ring1Right": [
+        "ring_01_r"
+      ],
+      "ring2Right": [
+        "ring_02_r"
+      ],
+      "ring3Right": [
+        "ring_03_r"
+      ],
+      "pinky1Right": [
+        "pinky_01_r"
+      ],
+      "pinky2Right": [
+        "pinky_02_r"
+      ],
+      "pinky3Right": [
+        "pinky_03_r"
+      ]
+    },
+    "required": [
+      "hips",
+      "spine",
+      "chest",
+      "neck",
+      "head",
+      "upperArmLeft",
+      "forearmLeft",
+      "handLeft",
+      "upperLegLeft",
+      "lowerLegLeft",
+      "footLeft",
+      "upperArmRight",
+      "forearmRight",
+      "handRight",
+      "upperLegRight",
+      "lowerLegRight",
+      "footRight"
+    ],
+    "parents": {
+      "spine": "hips",
+      "chest": "spine",
+      "neck": "chest",
+      "head": "neck",
+      "clavicleLeft": "chest",
+      "upperArmLeft": "chest",
+      "forearmLeft": "upperArmLeft",
+      "handLeft": "forearmLeft",
+      "upperLegLeft": "hips",
+      "lowerLegLeft": "upperLegLeft",
+      "footLeft": "lowerLegLeft",
+      "toeLeft": "footLeft",
+      "clavicleRight": "chest",
+      "upperArmRight": "chest",
+      "forearmRight": "upperArmRight",
+      "handRight": "forearmRight",
+      "upperLegRight": "hips",
+      "lowerLegRight": "upperLegRight",
+      "footRight": "lowerLegRight",
+      "toeRight": "footRight",
+      "thumb1Left": "handLeft",
+      "thumb2Left": "thumb1Left",
+      "thumb3Left": "thumb2Left",
+      "index1Left": "handLeft",
+      "index2Left": "index1Left",
+      "index3Left": "index2Left",
+      "middle1Left": "handLeft",
+      "middle2Left": "middle1Left",
+      "middle3Left": "middle2Left",
+      "ring1Left": "handLeft",
+      "ring2Left": "ring1Left",
+      "ring3Left": "ring2Left",
+      "pinky1Left": "handLeft",
+      "pinky2Left": "pinky1Left",
+      "pinky3Left": "pinky2Left",
+      "thumb1Right": "handRight",
+      "thumb2Right": "thumb1Right",
+      "thumb3Right": "thumb2Right",
+      "index1Right": "handRight",
+      "index2Right": "index1Right",
+      "index3Right": "index2Right",
+      "middle1Right": "handRight",
+      "middle2Right": "middle1Right",
+      "middle3Right": "middle2Right",
+      "ring1Right": "handRight",
+      "ring2Right": "ring1Right",
+      "ring3Right": "ring2Right",
+      "pinky1Right": "handRight",
+      "pinky2Right": "pinky1Right",
+      "pinky3Right": "pinky2Right"
+    }
+  }
+]

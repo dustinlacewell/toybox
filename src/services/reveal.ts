@@ -11,6 +11,6 @@ import { resolveAssetPath } from "./tauriApi";
 
 export async function revealAsset(asset: Asset): Promise<void> {
   const rel = asset.kind === "model" ? asset.fileset.gltf : asset.relPath;
-  const abs = await resolveAssetPath(rel);
+  const abs = await resolveAssetPath(asset.library, rel);
   await revealItemInDir(abs);
 }

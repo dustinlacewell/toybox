@@ -1,0 +1,19 @@
+{
+  "compilerOptions": {
+    "target": "ES2022",
+    "module": "ESNext",
+    "moduleResolution": "bundler",
+    "lib": ["ES2022", "DOM"],
+    "strict": true,
+    "skipLibCheck": true,
+    "isolatedModules": true,
+    "verbatimModuleSyntax": true,
+    "rootDir": ".",
+    "outDir": "dist",
+    "baseUrl": ".",
+    // The contract types of the Models plugin, type-only: plugins never import
+    // each other at run time. Build com.toybox.model-core first.
+    "paths": { "com.toybox.model-core": ["../com.toybox.model-core/dist/api.d.ts"] }
+  },
+  "include": ["index.ts", "lib/**/*.ts"]
+}

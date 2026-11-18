@@ -4,7 +4,7 @@ import {readFileSync} from 'node:fs';
 import ts from 'typescript';
 const load=async path=>{const code=ts.transpileModule(readFileSync(new URL(path,import.meta.url),'utf8'),{compilerOptions:{module:ts.ModuleKind.ESNext,target:ts.ScriptTarget.ES2022}}).outputText;return import('data:text/javascript;base64,'+Buffer.from(code).toString('base64'));};
 const {withImportProvenance}=await load('../src/domain/importProvenance.ts');
-const {applyFilter,emptyFilter,tagCounts,provenanceCounts,sourceLabel}=await load('../src/domain/facets.ts');
+const {applyFilter,emptyFilter,tagCounts,provenanceCounts,sourceLabel,assetFormat,formatCounts,formatLabel,isFilterActive}=await load('../src/domain/facets.ts');
 test('shared provenance reaches variant files without mutating plugin entries or blanking their metadata',()=>{
   const low={id:'low',pack:'p',category:'c',file:'low.gltf',provenance:{license:'CC0'}};
   const entry={id:'full',pack:'p',category:'c',file:'full.gltf',variants:[low],provenance:{filesystemPath:'original.gltf'}};
@@ -38,4 +38,33 @@ test('publisher and license filters combine with sources and custom tags; choice
   const filter={...emptyFilter('material'),sources:new Set(['Source']),publishers:new Set(['Studio A','Studio B']),licenses:new Set(['CC0']),tags:new Set(['metal'])};
   assert.deepEqual(applyFilter(assets,filter).map(a=>a.id),['a','b']);
   filter.publishers.delete('Studio B');assert.deepEqual(applyFilter(assets,filter).map(a=>a.id),['a']);
+});
+
+test('assetFormat prefers the recorded format and falls back per kind to the primary file extension',()=>{
+  const base={name:'n',pack:'p',category:'c',fileName:'n',user:{tags:[]}};
+  const model=(id,format,gltf='library/models/k/a.gltf')=>({...base,id,kind:'model',format,fileset:{gltf,bin:'',textures:[]}});
+  assert.equal(assetFormat(model('a','fbx')),'fbx');
+  assert.equal(assetFormat(model('b',' .OBJ ')),'obj');
+  assert.equal(assetFormat(model('c')),'gltf');
+  assert.equal(assetFormat({...model('d'),kind:'animation'}),'gltf');
+  assert.equal(assetFormat({...base,id:'e',kind:'audio',audio:{file:'library/audio/k/Boom.WAV'}}),'wav');
+  const maps=[{role:'albedo',file:'library/materials/k/Albedo.PNG'}];
+  assert.equal(assetFormat({...base,id:'f',kind:'material',material:{maps}}),'png');
+  assert.equal(assetFormat({...base,id:'g',kind:'material',material:{maps},origin:{plugin:'x',files:['library/materials/k/tiles.sbsar']}}),'sbsar');
+  assert.equal(assetFormat({...base,id:'h',kind:'plugin',type:'skybox',files:['library/skybox/k/sky.hdr']}),'hdr');
+  assert.equal(assetFormat({...base,id:'i',kind:'plugin',type:'skybox',files:[]}),'');
+  assert.equal(assetFormat({...base,id:'j',kind:'model',format:'  ',fileset:{gltf:'noextension'}}),'');
+});
+
+test('format filter keeps OR within the facet, ANDs with others, and counts only what it is given',()=>{
+  const make=(id,kind,format,license)=>({id,name:id,kind,category:'c',pack:'p',fileName:id,format,fileset:{gltf:id+'.gltf'},user:{tags:[],provenance:{license}}});
+  const assets=[make('a','model','fbx','CC0'),make('b','model','obj','CC0'),make('c','model','fbx','CC BY'),make('d','model',undefined,'CC0'),make('e','animation','fbx','CC0')];
+  assert.deepEqual(formatCounts(assets.filter(a=>a.kind==='model')),[{value:'fbx',count:2},{value:'gltf',count:1},{value:'obj',count:1}]);
+  assert.equal(formatLabel('fbx'),'FBX');assert.equal(formatLabel(''),'Unknown');
+  assert.deepEqual(applyFilter(assets,{...emptyFilter(),formats:new Set(['fbx'])}).map(a=>a.id),['a','c']);
+  assert.deepEqual(applyFilter(assets,{...emptyFilter(),formats:new Set(['fbx','obj'])}).map(a=>a.id),['a','b','c']);
+  assert.deepEqual(applyFilter(assets,{...emptyFilter(),formats:new Set(['fbx','gltf']),licenses:new Set(['CC0'])}).map(a=>a.id),['a','d']);
+  assert.deepEqual(applyFilter(assets,{...emptyFilter('animation'),formats:new Set(['fbx'])}).map(a=>a.id),['e']);
+  assert.equal(isFilterActive({...emptyFilter(),formats:new Set(['obj'])}),true);
+  assert.equal(isFilterActive(emptyFilter()),false);
 });

@@ -5,3 +5,80 @@
 .settings__section .ds-segmented { margin-bottom: 12px; }
 .settings__path { overflow-wrap: anywhere; padding: 10px 12px; background: var(--bg-0); border: 1px solid var(--border); border-radius: var(--radius-1); color: var(--text-1); line-height: 1.5; }
 .settings__error { color: var(--danger); overflow-wrap: anywhere; }
+.settings__panel h4 { margin: 0 0 8px; font-size: 13px; font-weight: 600; }
+
+/* Plugins: an add-on list — search bar, then one compact row per plugin that
+   opens to its details and preferences. */
+.addons__bar { display: flex; align-items: center; gap: 12px; margin-bottom: 10px; }
+.addons__search { position: relative; flex: 1; min-width: 0; color: var(--text-2); }
+.addons__search svg { position: absolute; left: 9px; top: 50%; transform: translateY(-50%); pointer-events: none; }
+.addons__search .ds-input { width: 100%; padding-left: 28px; }
+.addons__empty { margin: 16px 0; color: var(--text-2); text-align: center; }
+.addons { list-style: none; margin: 0; padding: 0; display: grid; gap: 3px; }
+.addon { border: 1px solid var(--border); border-radius: 6px; background: var(--bg-2); overflow: hidden; }
+.addon.is-open { border-color: var(--border-strong); }
+.addon__row { display: flex; align-items: center; gap: 6px; height: 30px; padding: 0 10px 0 4px; }
+.addon__row:hover { background: var(--bg-3); }
+.addon__disclosure { display: grid; place-items: center; width: 22px; height: 22px; flex: none; padding: 0; border: 0; border-radius: 4px; background: none; color: var(--text-1); cursor: pointer; }
+.addon__disclosure svg { transition: transform .1s; }
+.addon.is-open .addon__disclosure svg { transform: rotate(90deg); }
+.addon__disclosure:focus-visible, .addon__check:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
+.addon__check { flex: none; width: 15px; height: 15px; margin: 0; accent-color: var(--accent); cursor: pointer; }
+.addon__check:disabled { cursor: progress; }
+.addon__name { display: flex; align-items: center; gap: 8px; flex: 1; min-width: 0; height: 100%; padding: 0; border: 0; background: none; color: var(--text-0); font: inherit; font-size: var(--fs-md); text-align: left; cursor: pointer; }
+.addon__icon { width: 16px; height: 16px; flex: none; object-fit: contain; }
+.addon__title { flex: none; max-width: 60%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.addon__provides { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; text-align: right; color: var(--text-2); font-size: var(--fs-sm); }
+.addon__warning { flex: none; color: var(--danger); }
+.addon.is-off .addon__title, .addon.is-off .addon__icon { opacity: .5; }
+.addon__panel { padding: 12px 14px 14px 34px; border-top: 1px solid var(--border); background: var(--bg-1); }
+.addon__details { display: grid; grid-template-columns: max-content 1fr; gap: 6px 14px; margin: 0; font-size: var(--fs-md); line-height: 1.5; }
+.addon__details dt { color: var(--text-2); text-align: right; }
+.addon__details dd { margin: 0; color: var(--text-1); overflow-wrap: anywhere; }
+.addon__mono { font-family: ui-monospace, Consolas, monospace; font-size: var(--fs-sm); }
+.addon__preferences { margin-top: 14px; padding-top: 12px; border-top: 1px solid var(--border); }
+.addon__preferences > h3 { margin: 0 0 10px; color: var(--text-2); font-size: var(--fs-sm); font-weight: 600; text-transform: uppercase; letter-spacing: .04em; }
+.addon__setting + .addon__setting { margin-top: 14px; }
+.addon__setting .ds-segmented { margin-bottom: 12px; }
+.addon__setting .settings__description:last-child, .addon__preferences > .settings__description { margin-bottom: 0; }
+.addons__notice { margin: 0 0 8px; color: var(--text-1); font-size: var(--fs-sm); }
+.addon__note { flex: none; color: var(--text-2); font-size: var(--fs-sm); }
+.addon__check:disabled:checked { cursor: not-allowed; }
+.addon.is-off .addon__provides, .addon.is-off .addon__note { opacity: .7; }
+
+/* Libraries: one compact row per library; the settings button opens the rest. */
+.libraries { list-style: none; margin: 0 0 12px; padding: 0; display: grid; gap: 3px; }
+.libraries__item { border: 1px solid var(--border); border-radius: 6px; background: var(--bg-2); overflow: hidden; }
+.libraries__item.is-open { border-color: var(--border-strong); }
+.libraries__row { display: flex; align-items: center; gap: 8px; min-height: 32px; padding: 0 6px 0 10px; cursor: pointer; }
+.libraries__row:hover { background: var(--bg-3); }
+.libraries__row .remote-mark { margin: 0; }
+.libraries__kind { display: inline-flex; flex: none; color: var(--text-2); }
+.libraries__title { flex: none; max-width: 40%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--text-0); font-size: var(--fs-md); }
+.libraries__tag { flex: none; border: 1px solid var(--border); border-radius: 999px; padding: 0 7px; color: var(--text-1); font-size: var(--fs-sm); line-height: 16px; }
+.libraries__tag--warning { border-color: var(--danger); color: var(--danger); }
+.libraries__secondary { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--text-2); font-size: var(--fs-sm); }
+.libraries__count { flex: none; color: var(--text-2); font-size: var(--fs-sm); }
+.libraries__toggle { display: grid; place-items: center; width: 24px; height: 24px; flex: none; padding: 0; border: 0; border-radius: 4px; background: none; color: var(--text-1); cursor: pointer; }
+.libraries__toggle:hover, .libraries__item.is-open .libraries__toggle { background: var(--bg-3); color: var(--text-0); }
+.libraries__toggle:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
+.libraries__panel { padding: 12px 14px; border-top: 1px solid var(--border); background: var(--bg-1); }
+.libraries__details { display: grid; grid-template-columns: max-content 1fr; gap: 8px 14px; margin: 0 0 12px; font-size: var(--fs-md); line-height: 1.5; align-items: start; }
+.libraries__details dt { color: var(--text-2); text-align: right; padding-top: 2px; }
+.libraries__details dd { margin: 0; min-width: 0; color: var(--text-1); overflow-wrap: anywhere; }
+.libraries__name { width: 100%; }
+.libraries__location { user-select: text; font-family: ui-monospace, Consolas, monospace; font-size: var(--fs-sm); }
+.libraries__default { display: inline-flex; align-items: center; gap: 6px; cursor: pointer; }
+.libraries__default input { accent-color: var(--accent); }
+.libraries__default input:disabled { cursor: not-allowed; }
+.libraries__why { color: var(--text-2); font-size: var(--fs-sm); }
+.libraries__problem { color: var(--danger); }
+.libraries__inline { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 6px; }
+.libraries__panel .settings__error { margin: 0 0 10px; }
+.libraries__fingerprint { margin: 0 0 10px; color: var(--text-2); font-size: var(--fs-sm); font-variant-numeric: tabular-nums; }
+.libraries__actions { display: flex; align-items: center; gap: 8px; padding-top: 10px; border-top: 1px solid var(--border); }
+.libraries__remove { margin-left: auto; color: var(--danger); }
+.libraries__add { position: relative; display: inline-block; }
+.libraries__menu { position: absolute; left: 0; bottom: calc(100% + 4px); z-index: 5; min-width: 180px; display: flex; flex-direction: column; padding: 4px; border: 1px solid var(--border-strong); border-radius: 6px; background: var(--bg-2); box-shadow: 0 6px 20px rgba(0, 0, 0, .35); }
+.libraries__menu button { padding: 6px 10px; border: 0; border-radius: 4px; background: none; color: var(--text-0); font: inherit; font-size: var(--fs-md); text-align: left; cursor: pointer; }
+.libraries__menu button:hover, .libraries__menu button:focus-visible { background: var(--bg-3); outline: none; }

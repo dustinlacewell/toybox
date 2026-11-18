@@ -1,8 +1,10 @@
 import { useCallback, useLayoutEffect, useRef, useSyncExternalStore } from "react";
-import { Box, Layers, Clapperboard, AudioLines } from "lucide-react";
+import { Box, Layers, Clapperboard, AudioLines, Shapes, type LucideIcon } from "lucide-react";
 import type { AssetKind } from "../domain/catalog";
 
-const FALLBACK={model:Box,material:Layers,animation:Clapperboard,audio:AudioLines};
+// Plugin-defined types bring their own artwork; this glyph covers the gap
+// while it loads or when a plugin ships none.
+const FALLBACK:Record<string,LucideIcon>={model:Box,material:Layers,animation:Clapperboard,audio:AudioLines};
 type Artwork={image:HTMLImageElement;status:"loading"|"ready"|"failed";listeners:Set<()=>void>};
 // Keep decoded artwork across navigation mounts. Painting it into a canvas
 // before the browser paints avoids another asynchronous <img> load on each switch.
@@ -34,6 +36,6 @@ export function AssetKindIcon({kind,url}:{kind:AssetKind;url?:string}) {
     const width=image.naturalWidth*ratio,height=image.naturalHeight*ratio;
     element.getContext("2d")?.drawImage(image,(element.width-width)/2,(element.height-height)/2,width,height);
   },[url,status]);
-  const Icon=FALLBACK[kind];
+  const Icon=FALLBACK[kind]??Shapes;
   return status==="ready"?<canvas ref={canvas} className="asset-kind-icon" aria-hidden="true"/>:<Icon size={18} aria-hidden="true"/>;
 }

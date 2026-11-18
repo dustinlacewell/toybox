@@ -39,3 +39,10 @@ test("animation source names are not interpreted as detail or texture-size varia
   assert.deepEqual(groupSeedVariants(sources), sources);
   assert.equal(variantInfo("Walk_2K", "animation").base, "Walk_2K");
 });
+
+test("a recorded import format survives variant grouping on the group and on each variant", () => {
+  const entry = (file, format) => ({ id: `uid://import_p_props_${file}`, pack: "p", category: "props", file, format });
+  const [group] = groupSeedVariants([entry("Tree_LOD1.gltf", "obj"), entry("Tree_LOD0.gltf", "fbx")]);
+  assert.equal(group.format, "fbx");
+  assert.deepEqual(group.variants.map((v) => v.format), ["obj"]);
+});

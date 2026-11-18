@@ -18,6 +18,8 @@ interface Props {
   onAlign: (axis: Axis, align: Align) => Promise<void>;
   busy: boolean;
   error?: string;
+  /** Set when the model's library cannot be written to: why, in plain words. The tools are then off. */
+  unavailable?: string;
 }
 
 const AXES: { axis: Axis; label: string }[] = [
@@ -32,7 +34,7 @@ const ALIGNS: { align: Align; label: string }[] = [
   { align: "max", label: "Max" },
 ];
 
-export function AlignTools({ onAlign, busy, error }: Props) {
+export function AlignTools({ onAlign, busy, error, unavailable }: Props) {
   const [collapsed, setCollapsed] = useState(true);
 
   return (
@@ -49,7 +51,7 @@ export function AlignTools({ onAlign, busy, error }: Props) {
                 <Button
                   key={align}
                   className="align__btn"
-                  disabled={busy}
+                  disabled={busy || !!unavailable}
                   aria-label={`Align ${axis.toUpperCase()} ${align} to origin`}
                   onClick={() => void onAlign(axis, align)}
                   title={`Snap ${label.toLowerCase()} of ${label === "Center" ? "" : "the "}${axis.toUpperCase()} bounds to the origin`}
@@ -61,6 +63,7 @@ export function AlignTools({ onAlign, busy, error }: Props) {
           ))}
         </div>
       )}
+      {!collapsed&&unavailable&&<p className="align__error" role="note">{unavailable}</p>}
       {error&&<p className="align__error" role="alert">{error}</p>}
     </div>
   );

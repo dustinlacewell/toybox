@@ -1,25 +1,30 @@
 /**
- * Favorite toggling with persistence. Updates the in-memory asset immediately
- * for snappy UI, then writes the catalog to disk. Favorites are infrequent user
- * actions, so a full catalog save per toggle is acceptable (and keeps the
- * persisted catalog authoritative for user metadata).
+ * Favorite toggling with persistence. The asset on screen changes at once for a snappy
+ * interface, then only this computer's database is written (one row; the library is not touched).
  */
 
 import { useCallback } from "react";
 
-import { saveCatalog } from "../services/tauriApi";
+import { setFavorite } from "../services/browse";
+import { cachedAsset, patchCachedAsset } from "../state/assetCache";
 import { useStore } from "../state/store";
 
 export function useFavorites() {
   const toggleFavorite = useCallback((id: string) => {
-    const { catalog, patchAsset } = useStore.getState();
-    const asset = catalog?.assets.find((a) => a.id === id);
-    if (!catalog || !asset) return;
+    const asset = cachedAsset(id);
+    if (!asset) return;
 
-    patchAsset(id, { user: { ...asset.user, favorite: !asset.user.favorite } });
-    // Persist from the post-patch store snapshot.
-    const updated = useStore.getState().catalog;
-    if (updated) void saveCatalog(updated);
+    const favorite = !asset.user.favorite;
+    patchCachedAsset(id, { user: { ...asset.user, favorite } });
+    setFavorite([id], favorite).then(
+      // A list of favourites loses the item that was just un-starred.
+      () => { if (useStore.getState().filter.favoritesOnly) useStore.getState().bumpData(); },
+      (failure) => {
+        console.warn("Could not save the favourite", failure);
+        const current = cachedAsset(id);
+        if (current) patchCachedAsset(id, { user: { ...current.user, favorite: asset.user.favorite } });
+      },
+    );
   }, []);
 
   return { toggleFavorite };

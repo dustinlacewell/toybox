@@ -1,0 +1,19 @@
+{
+  "id": "com.toybox.model-core",
+  "name": "Models",
+  "version": "3.0.0",
+  "entry": "dist/index.js",
+  "assetTypes": [
+    { "id": "model", "label": "Models", "singular": "Model", "icon": "icons/model.svg", "implementation": "native", "order": 10 }
+  ],
+  "icon": "icons/model.svg",
+  "assetIcons": {"model":"icons/model.svg"},
+  "description": "The Models type of the library and its importer. It reads no file format itself: format plugins such as glTF models add them.",
+  "permissions": {
+    "fsRead": true,
+    "fsWrite": true
+  },
+  "ui": {
+    "importPanel": "dist/ui/Import.js"
+  }
+}

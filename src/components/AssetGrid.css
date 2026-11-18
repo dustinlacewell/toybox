@@ -19,3 +19,11 @@
   display: grid;
   gap: 14px;
 }
+.asset-card__still { display: grid; place-items: center; width: 100%; height: 100%; color: var(--text-2); }
+
+/* A row whose page has not arrived yet. */
+.grid-placeholder {
+  border-radius: 8px;
+  background: var(--surface-2, rgba(128, 128, 128, 0.12));
+  opacity: 0.6;
+}

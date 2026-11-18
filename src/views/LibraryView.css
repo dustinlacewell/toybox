@@ -23,3 +23,9 @@
 .asset-inspector__title p { margin: 2px 0 0; color: var(--text-1); }
 .library-workbench > .ds-workbench__navigation .facets, .library-navigation-drawer .facets, .export-screen .ds-workbench__navigation .facets { width: auto; border: 0; background: transparent; overflow: visible; flex-shrink: 0; padding: 0; }
 .collection-dialog { padding: 20px; width: 100%; display: flex; flex-direction: column; gap: 8px; }
+.library-notice { margin: 0; padding: 6px 16px; flex-shrink: 0; border-top: 1px solid var(--border); background: var(--bg-1); color: var(--danger); font-size: var(--fs-sm); overflow-wrap: anywhere; }
+.library-notice--offline { color: var(--text-1); display: flex; flex-direction: column; gap: 2px; }
+.library-notice__offline { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+.asset-inspector .ds-pane__footer { flex-wrap: wrap; }
+.asset-inspector__transfer { flex: 1 0 100%; display: flex; gap: 8px; }
+.asset-inspector__transfer > * { flex: 1; justify-content: center; }

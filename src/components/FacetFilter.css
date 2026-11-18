@@ -52,3 +52,19 @@
   color: var(--text-2);
   font-variant-numeric: tabular-nums;
 }
+
+.facets__tag-search {
+  width: 100%;
+  margin-bottom: 4px;
+}
+
+.ds-button.facets__more,
+.facets__empty {
+  color: var(--text-2);
+  font-size: 12px;
+}
+
+.facets__empty {
+  display: block;
+  padding: 4px 8px;
+}

@@ -1,0 +1,19 @@
+/* Remote libraries: the cloud marker and the add / access dialogs. */
+.remote-mark { display: inline-flex; align-items: center; vertical-align: middle; margin-left: 5px; color: var(--text-2); flex: none; }
+.remote-dialog { display: flex; flex-direction: column; gap: 12px; min-width: 0; }
+.remote-dialog__field { display: flex; flex-direction: column; gap: 6px; min-width: 0; }
+.remote-dialog__field > span { color: var(--text-2); font-size: var(--fs-sm); }
+.remote-dialog__ok { margin: 0; color: var(--text-0); font-weight: 500; }
+.remote-dialog__note { margin: 0; color: var(--text-2); font-size: var(--fs-sm); overflow-wrap: anywhere; }
+.remote-dialog__warning { margin: 0; color: var(--text-1); font-size: var(--fs-sm); overflow-wrap: anywhere; }
+.remote-dialog__error { margin: 0; color: var(--danger); overflow-wrap: anywhere; }
+.remote-dialog__secret { display: flex; gap: 8px; align-items: center; }
+.remote-dialog__secret .ds-input { flex: 1; min-width: 0; font-family: var(--font-mono, monospace); }
+.remote-tokens { list-style: none; margin: 0; padding: 0; border: 1px solid var(--border); border-radius: 6px; }
+.remote-tokens__item { display: flex; align-items: center; gap: 12px; padding: 8px 12px; min-width: 0; }
+.remote-tokens__item + .remote-tokens__item { border-top: 1px solid var(--border); }
+.remote-tokens__main { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 2px; }
+.remote-tokens__main strong { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-weight: 500; }
+.remote-tokens__main small { color: var(--text-2); font-size: var(--fs-sm); }
+.remote-new-token { display: flex; gap: 8px; align-items: flex-end; flex-wrap: wrap; }
+.remote-new-token .remote-dialog__field { flex: 1; min-width: 140px; }

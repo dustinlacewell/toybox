@@ -1,14 +1,35 @@
 import type { RigAdapterPlugin, RigProfile } from "@ldlework/toybox-sdk";
-import builtin from "../../plugins/com.toybox.humanoid-rigs/index";
+import polygon from "../../plugins/com.toybox.rig-synty-polygon/index";
+import sidekick from "../../plugins/com.toybox.rig-synty-sidekick/index";
+import quaternius from "../../plugins/com.toybox.rig-quaternius/index";
+import unreal from "../../plugins/com.toybox.rig-synty-unreal/index";
 import { mapRig } from "../domain/rigMapping";
 import type { SceneAsset, AnimationAsset, Catalog } from "../domain/catalog";
-let profiles: RigProfile[] = [...builtin.profiles];
+/** The profiles the host carries built in: those of the bundled rig plugins, by
+ *  plugin id, in the order they are tried. */
+const BUILTIN: [string, RigAdapterPlugin][] = [
+    ["com.toybox.rig-synty-polygon", polygon],
+    ["com.toybox.rig-synty-sidekick", sidekick],
+    ["com.toybox.rig-quaternius", quaternius],
+    ["com.toybox.rig-synty-unreal", unreal],
+];
+export const BUILTIN_RIG_PLUGINS: string[] = BUILTIN.map(([id]) => id);
+const builtinProfiles = (off: Iterable<string> = []) => { const skip = new Set(off); return BUILTIN.filter(([id]) => !skip.has(id)).flatMap(([, plugin]) => plugin.profiles); };
+let profiles: RigProfile[] = builtinProfiles();
 let adapterVersion=0;
 const mappingCache=new WeakMap<object,{registry:Catalog["rigs"];profiles:RigProfile[];value:ReturnType<typeof mapRig>}>();
 const referenceCache=new WeakMap<Catalog["assets"],Map<string,AnimationAsset|undefined>>();
 const listeners = new Set<() => void>();
 export const subscribeRigAdapters = (listener: () => void) => { listeners.add(listener); return () => { listeners.delete(listener); }; };
 export const getRigProfiles = () => profiles;
+/** Forget every registered profile before plugins are loaded again. Each
+ *  built-in profile is its rig plugin's, so it goes too when that plugin is
+ *  turned off: `off` lists the ids of the rig plugins that are. */
+export function resetRigAdapters(off: Iterable<string> = []) {
+    profiles = builtinProfiles(off);
+    adapterVersion++;
+    listeners.forEach(listener => listener());
+}
 export function registerRigAdapters(plugin: RigAdapterPlugin) {
     if (!plugin || !Array.isArray(plugin.profiles) || !plugin.profiles.length)
         throw Error("Rig adapter must supply profiles");

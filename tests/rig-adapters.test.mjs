@@ -12,9 +12,13 @@ function moduleUrl(file,replacements={}) {
 const mappingUrl=moduleUrl("../src/domain/rigMapping.ts");
 const {mapRig}=await import(mappingUrl);
 const {retargetHumanoid,sceneMapping}=await import(moduleUrl("../src/services/humanoidRetarget.ts",{"three":import.meta.resolve("three"),"../domain/rigMapping":mappingUrl}));
-const {default:plugin}=await import(moduleUrl("../plugins/com.toybox.humanoid-rigs/index.ts",{"@ldlework/toybox-sdk":import.meta.resolve("@ldlework/toybox-sdk")}));
-const pluginUrl=moduleUrl("../plugins/com.toybox.humanoid-rigs/index.ts",{"@ldlework/toybox-sdk":import.meta.resolve("@ldlework/toybox-sdk")});
-const registry=await import(moduleUrl("../src/services/rigAdapters.ts",{"../../plugins/com.toybox.humanoid-rigs/index":pluginUrl,"../domain/rigMapping":mappingUrl}));
+const polygonUrl=moduleUrl("../plugins/com.toybox.rig-synty-polygon/index.ts",{"@ldlework/toybox-sdk":import.meta.resolve("@ldlework/toybox-sdk")});
+const sidekickUrl=moduleUrl("../plugins/com.toybox.rig-synty-sidekick/index.ts",{"@ldlework/toybox-sdk":import.meta.resolve("@ldlework/toybox-sdk")});
+const quaterniusUrl=moduleUrl("../plugins/com.toybox.rig-quaternius/index.ts",{"@ldlework/toybox-sdk":import.meta.resolve("@ldlework/toybox-sdk")});
+const unrealUrl=moduleUrl("../plugins/com.toybox.rig-synty-unreal/index.ts",{"@ldlework/toybox-sdk":import.meta.resolve("@ldlework/toybox-sdk")});
+const rigPlugins=await Promise.all([polygonUrl,sidekickUrl,quaterniusUrl,unrealUrl].map(url=>import(url)));
+const plugin={profiles:rigPlugins.flatMap(module=>module.default.profiles)};
+const registry=await import(moduleUrl("../src/services/rigAdapters.ts",{"../../plugins/com.toybox.rig-synty-polygon/index":polygonUrl,"../../plugins/com.toybox.rig-synty-sidekick/index":sidekickUrl,"../../plugins/com.toybox.rig-quaternius/index":quaterniusUrl,"../../plugins/com.toybox.rig-synty-unreal/index":unrealUrl,"../domain/rigMapping":mappingUrl}));
 
 function fixture(profile,scale=1,armAngle=0) {
   const scene=new Group();scene.name="Scene";const bones={};
@@ -94,4 +98,15 @@ test("aborting playback baking restores the target pose and releases an obsolete
   setTimeout(()=>controller.abort(),0);
   await assert.rejects(retargetHumanoid(source.scene,clip,reference.scene,target.scene,plugin.profiles,undefined,controller.signal),{name:"AbortError"});
   assert.ok(target.bones.upperArmLeft.quaternion.angleTo(before)<1e-6);
+});
+test("each bundled rig plugin is a built-in that goes when its own plugin is switched off",()=>{
+  registry.resetRigAdapters();
+  assert.deepEqual(registry.getRigProfiles().map(profile=>profile.id),["synty-polygon","synty-sidekick","quaternius-humanoid","synty-unreal"]);
+  assert.deepEqual(registry.BUILTIN_RIG_PLUGINS,["com.toybox.rig-synty-polygon","com.toybox.rig-synty-sidekick","com.toybox.rig-quaternius","com.toybox.rig-synty-unreal"]);
+  registry.resetRigAdapters(["com.toybox.rig-synty-sidekick"]);
+  assert.deepEqual(registry.getRigProfiles().map(profile=>profile.id),["synty-polygon","quaternius-humanoid","synty-unreal"]);
+  registry.resetRigAdapters(registry.BUILTIN_RIG_PLUGINS);
+  assert.deepEqual(registry.getRigProfiles(),[]);
+  registry.resetRigAdapters();
+  assert.equal(registry.getRigProfiles().length,4);
 });

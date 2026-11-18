@@ -19,13 +19,10 @@ import { convertFileSrc } from "@tauri-apps/api/core";
 
 import type { ComponentType } from "react";
 
-import type { ExporterPlugin, RigAdapterPlugin, SlotComponentProps } from "@ldlework/toybox-sdk";
+import type { PluginModule, SlotComponentProps } from "@ldlework/toybox-sdk";
 import type { PluginManifestDto } from "./tauriApi";
-
-export interface LoadedPlugin {
-  manifest: PluginManifestDto;
-  plugin: ExporterPlugin | RigAdapterPlugin;
-}
+import { buildPluginCtx } from "./pluginCtx";
+import { resolvePluginModule } from "./pluginModule";
 
 /** The protocol root, e.g. `http://plugin.localhost/` (Windows) or
  *  `plugin://localhost/` (macOS/Linux). `convertFileSrc("")` yields the origin
@@ -45,15 +42,13 @@ export function pluginUrl(id: string, rel: string): string {
   return protocolRoot() + path;
 }
 
-/** Dynamically import an exporter plugin's entry module (default-exports `run`).
- *  Throws on a malformed module so the registry can mark it disabled-with-reason. */
-export async function loadPlugin(m: PluginManifestDto): Promise<LoadedPlugin> {
+/** Dynamically import a plugin's entry module and activate it: the default
+ *  export is the module, or a function of the plugin's context that returns
+ *  it. Throws when the import fails or the export is not usable, so the
+ *  registry can report it against that plugin. */
+export async function loadPlugin(m: PluginManifestDto): Promise<PluginModule> {
   const mod = await import(/* @vite-ignore */ pluginUrl(m.id, m.entry));
-  const plugin = mod.default;
-  if (!plugin || (m.kind === "rigAdapter" ? !Array.isArray(plugin.profiles) : typeof plugin.run !== "function")) {
-    throw new Error(`plugin '${m.id}' must default-export ${m.kind === "rigAdapter" ? "rig profiles" : "a run() method"}`);
-  }
-  return { manifest: m, plugin };
+  return resolvePluginModule(m.id, mod.default, buildPluginCtx(m.id, m.permissions ?? {}));
 }
 
 /** Dynamically import a slot UI module's default-exported React component. */

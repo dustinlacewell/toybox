@@ -14,6 +14,8 @@ import { Mesh, Vector3, type AnimationClip, type Group } from "three";
 
 import type { ModelAsset } from "../domain/catalog";
 import { recenterAsset, type Align, type Axis } from "../services/tauriApi";
+import { fileEditBlockers, readOnlyNotice } from "../domain/transfer";
+import { useStore } from "../state/store";
 
 import { Spinner, Checkbox, NavigationItem, PropertyRow } from "@ldlework/toybox-sdk/ui";
 import { variantInfo } from "@ldlework/toybox-sdk";
@@ -42,6 +44,7 @@ interface Props {
 const EMPTY_CLIPS: AnimationClip[] = [];
 
 export function ModelViewer({ asset, onClose, onExport }: Props) {
+  const libraries = useStore((state) => state.libraries);
   const [reloadNonce, setReloadNonce] = useState(0);
   const [variant, setVariant] = useState(0);
   const [byDistance, setByDistance] = useState(false);
@@ -81,7 +84,7 @@ export function ModelViewer({ asset, onClose, onExport }: Props) {
     </>}>
       {state.kind === "ready" && (
         <>
-          <ViewerSceneControls controls={viewControls}>{variant === 0 && <AlignTools onAlign={onAlign} busy={aligning} error={alignmentError} />}</ViewerSceneControls>
+          <ViewerSceneControls controls={viewControls}>{variant === 0 && <AlignTools onAlign={onAlign} busy={aligning} error={alignmentError} unavailable={readOnlyNotice("change this model", fileEditBlockers(libraries, [asset]))} />}</ViewerSceneControls>
           {variants.length > 1 && <div className="viewer__variants">
             <VariantSwitch variants={variants} selected={variant} onSelect={(i) => { setByDistance(false); setVariant(i); }} />
             <Checkbox checked={byDistance} onChange={setByDistance} label="By distance" />

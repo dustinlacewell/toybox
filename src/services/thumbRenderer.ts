@@ -19,6 +19,8 @@ import { disposeScene } from "./disposeScene";
 import { fitCameraToObject } from "./fitCamera";
 import { loadThumbSubject } from "./thumbSubject";
 import { audioThumbnail } from "./audioThumbnail";
+import { pluginAssetFiles } from "./pluginAssetFiles";
+import { assetTypeEntry, assetTypesLoaded } from "../state/assetTypes";
 import { createScenePreviewStage } from "./scenePreviewStage";
 type PreparedSubject=import("three").Object3D|{png:Uint8Array};
 
@@ -66,6 +68,16 @@ export class ThumbRenderer {
   /** Scene loading can overlap other thumbnails; GPU capture stays serial. */
   async prepare(asset: Asset): Promise<PreparedSubject> {
     if(asset.kind==="audio")return {png:await audioThumbnail(asset)};
+    // A plugin-defined type draws its own picture; the host only stores it.
+    if(asset.kind==="plugin") {
+      // The catalog can load before plugin discovery finishes.
+      await assetTypesLoaded();
+      const render=assetTypeEntry(asset.type).implementation?.renderThumbnail;
+      if(!render)throw new Error(`No installed plugin renders ${asset.type} previews`);
+      const png=await render(asset,pluginAssetFiles,SIZE);
+      if(!(png instanceof Uint8Array)||!png.length)throw new Error(`The ${asset.type} plugin returned no preview image`);
+      return {png};
+    }
     this.initialize();
     return loadThumbSubject(asset, this.renderer);
   }

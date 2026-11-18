@@ -10,16 +10,20 @@ import { AnimationTilePreview } from "./AnimationTilePreview";
 import { inspectorScenePreview } from "../services/hoverScenePreview";
 import { sourceLabel } from "../domain/facets";
 import { useState } from "react";
+import type { TransferMode } from "../domain/transfer";
 import type { PreviewBrightness } from "../domain/previewBrightness";
 import { ViewportBrightnessControl } from "./viewer/ViewportBrightnessControl";
 
-interface Props { asset: Asset; active?: boolean; onOpen: () => void; onFavorite: () => void; onExport: () => void; onCollect: () => void; }
-export function AssetInspector({ asset, active=true, onOpen, onFavorite, onExport, onCollect }: Props) {
+interface Props { asset: Asset; active?: boolean; onOpen: () => void; onFavorite: () => void; onExport: () => void; onCollect: () => void; onTransfer?: (mode: TransferMode) => void; }
+export function AssetInspector({ asset, active=true, onOpen, onFavorite, onExport, onCollect, onTransfer }: Props) {
   const [brightness,setBrightness]=useState<PreviewBrightness>("dim");
   const thumbnail = useThumbUrl(asset);
   const fallback=thumbnail?<img src={thumbnail} alt=""/>:<span>No preview</span>;
-  return <Pane className="asset-inspector" footer={<><Button onClick={onCollect}>Add to collection</Button><Button variant="primary" onClick={onExport}>Export</Button></>}>
-    {asset.kind === "audio" ? <AudioPreview asset={asset} onOpen={onOpen}/> : <div className="asset-inspector__preview" title="Drag to rotate · Right-drag to zoom">
+  return <Pane className="asset-inspector" footer={<>{onTransfer&&<div className="asset-inspector__transfer"><Button variant="ghost" onClick={()=>onTransfer("copy")}>Copy to library…</Button><Button variant="ghost" onClick={()=>onTransfer("move")}>Move to library…</Button></div>}<Button onClick={onCollect}>Add to collection</Button><Button variant="primary" onClick={onExport}>Export</Button></>}>
+    {asset.kind === "audio" ? <AudioPreview asset={asset} onOpen={onOpen}/> : asset.kind === "plugin" ? <div className="asset-inspector__preview" onDoubleClick={onOpen}>
+      {fallback}
+      <button className="asset-inspector__expand" onClick={onOpen} aria-label="Open preview">↗</button>
+    </div> : <div className="asset-inspector__preview" title="Drag to rotate · Right-drag to zoom">
       {asset.kind==="animation"?<AnimationTilePreview key={asset.id} asset={asset} active={active} fallback={fallback} pool={inspectorScenePreview} brightness={brightness}/>:<StaticTilePreview key={asset.id} asset={asset} active={active} fallback={fallback} pool={inspectorScenePreview} brightness={brightness}/>}
       <div className="asset-inspector__lighting"><ViewportBrightnessControl value={brightness} onChange={setBrightness}/></div>
       <button className="asset-inspector__expand" onClick={onOpen} aria-label="Open preview">↗</button>

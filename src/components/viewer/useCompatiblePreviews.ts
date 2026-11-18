@@ -1,16 +1,19 @@
 import { useState, useMemo, useSyncExternalStore } from "react";
 import { isSceneAsset, type SceneAsset } from "../../domain/catalog";
-import { saveCatalog, invalidateThumb } from "../../services/tauriApi";
+import { invalidateThumb } from "../../services/tauriApi";
+import { setPreviewChoice } from "../../services/browse";
+import { cachedAsset, patchCachedAsset } from "../../state/assetCache";
+import { useRigCatalog } from "../../state/rigCatalog";
 import { directPreviewChoices } from "../../domain/previewChoices";
 import { assetMapping, referencePose, getRigProfiles, subscribeRigAdapters } from "../../services/rigAdapters";
 import { mannequin, skeleton, SKELETON_ID, MANNEQUIN_ID } from "../../services/previewModel";
-import { useStore } from "../../state/store";
 
 export function useCompatiblePreviews(asset: SceneAsset, owner: SceneAsset = asset) {
-  const catalog = useStore(state => state.catalog);
+  // The rigs of the library and the models and animations bound to one: all the matching reads.
+  const catalog = useRigCatalog(owner.library);
   const profiles=useSyncExternalStore(subscribeRigAdapters,getRigProfiles);
   const [savingError, setSavingError] = useState<string>();
-  const remembered = catalog?.assets.find(item => item.id === owner.id)?.user.previewAssetId ?? "";
+  const remembered = owner.user.previewAssetId ?? "";
   const choices = useMemo(() => {
     if(!catalog||!asset.rigs?.length)return [];
     const byId=new Map(catalog.assets.map(candidate=>[candidate.id,candidate]));
@@ -37,17 +40,16 @@ export function useCompatiblePreviews(asset: SceneAsset, owner: SceneAsset = ass
   const selected=choices.find(choice=>choice.assetId===preferred);
   const target=selected?.asset??(asset.kind==="animation"?skeleton:undefined);
   const select = async (id: string) => {
-    const latest = useStore.getState().catalog;
-    const current = latest?.assets.find(asset => asset.id === owner.id);
-    if (!latest || !current) return;
-    useStore.getState().patchAsset(owner.id, { user: { ...current.user, previewAssetId: id || (asset.kind==="animation"?SKELETON_ID:undefined) } });
+    const current = cachedAsset(owner.id) ?? owner;
+    const choice = id || (asset.kind==="animation"?SKELETON_ID:undefined);
+    patchCachedAsset(owner.id, { user: { ...current.user, previewAssetId: choice } });
     setSavingError(undefined);
     try {
-      await saveCatalog(useStore.getState().catalog!);
+      await setPreviewChoice(owner.id, choice ?? null);
       if(owner.kind==="animation") {
         await invalidateThumb(owner.id);
-        const thumb=useStore.getState().catalog?.assets.find(asset=>asset.id===owner.id)?.thumb;
-        useStore.getState().patchAsset(owner.id,{thumb:{...thumb,state:"queued",available:thumb?.state==="ready"||thumb?.available}});
+        const thumb=cachedAsset(owner.id)?.thumb;
+        patchCachedAsset(owner.id,{thumb:{...thumb,state:"queued",available:thumb?.state==="ready"||thumb?.available}});
       }
     }
     catch (error) { setSavingError(`Could not save preview choice: ${String(error)}`); }

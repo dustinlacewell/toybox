@@ -1,0 +1,14 @@
+{
+  "id": "com.toybox.model-gltf",
+  "name": "glTF models",
+  "version": "1.0.0",
+  "dependencies": { "com.toybox.model-core": "^3.0.0" },
+  "assetKinds": ["model"],
+  "icon": "icons/gltf.svg",
+  "entry": "dist/index.js",
+  "description": "Models: import .gltf and .glb files into the library. The stored file is the original, so nothing else is kept.",
+  "permissions": {
+    "fsRead": true,
+    "fsWrite": true
+  }
+}

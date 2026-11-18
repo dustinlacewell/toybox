@@ -1,0 +1,10 @@
+{
+  "id": "com.toybox.rig-synty-unreal",
+  "name": "Synty Unreal rig",
+  "version": "1.0.0",
+  "dependencies": { "com.toybox.model-core": "^3.0.0" },
+  "icon": "icons/rig.svg",
+  "entry": "dist/index.js",
+  "description": "Rig profile for Synty characters on the Unreal mannequin skeleton, so their animations can be previewed on other humanoids.",
+  "permissions": {}
+}

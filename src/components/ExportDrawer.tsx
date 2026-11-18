@@ -5,8 +5,11 @@ import type { AssetKind } from "../domain/catalog";
 import type { SavedExport } from "../domain/savedExport";
 import { useSavedExports } from "../state/savedExports";
 import { useStore } from "../state/store";
-import { buildExportCtx, selectedAssets } from "../services/pluginHost";
-import { runExporter, type LoadedExporter, type PluginLoadError } from "../services/pluginRegistry";
+import { buildExportCtx, loadSelectedAssets } from "../services/pluginHost";
+import { useAssets } from "../state/assetCache";
+import { needsEntry } from "../services/pluginCapabilities";
+import { resolveExporterId } from "../services/assetTypes";
+import { acceptsKind, runExporter, type LoadedExporter, type PluginLoadError } from "../services/pluginRegistry";
 import { pickDirectory } from "../services/pickDirectory";
 import { assetFingerprints, type ExportReport } from "../services/tauriApi";
 import { ExportPanelHost } from "./plugin-ui/ExportPanelHost";
@@ -14,6 +17,7 @@ import "./ExportDrawer.css";
 import { useThumbUrl } from "./useThumbUrl";
 import type { Asset } from "../domain/catalog";
 import { sourceLabel } from "../domain/facets";
+import { scopeLibrary, unqualify } from "../domain/libraryId";
 import { PluginPicker } from "./PluginPicker";
 
 interface Props {
@@ -31,12 +35,15 @@ export function ExportDrawer(props: Props) {
 }
 function ExportSession({ kind, selectedIds, exporters, pluginErrors, setupId, onClose }: Props) {
   const { exports: saved, save, remove } = useSavedExports();
-  const libraryRoot = useStore((s) => s.catalog?.libraryRoot ?? "");
-  const setups = saved.filter((s) => s.kind === kind && s.libraryRoot === libraryRoot);
+  // Saved exports belong to a library: that of the first selected item (the default library when none is selected).
+  const defaultLibrary = useStore((s) => (s.libraries.find((l) => l.isDefault) ?? s.libraries[0])?.id ?? "");
+  const libraryId = scopeLibrary(selectedIds, defaultLibrary) ?? "";
+  const setups = saved.filter((s) => s.kind === kind && s.libraryId === libraryId);
   const [currentId, setCurrentId] = useState(setupId);
   const initial = setups.find((s) => s.id === setupId);
-  const available = exporters.filter((e) => (e.manifest.assetKinds ?? ["model"]).includes(kind));
-  const [exporterId, setExporterId] = useState(initial?.exporterId ?? "");
+  const available = exporters.filter((e) => acceptsKind(e.manifest, kind));
+  const exportErrors = pluginErrors.filter((e) => acceptsKind(e.manifest, kind) && needsEntry(e.manifest));
+  const [exporterId, setExporterId] = useState(resolveExporterId(exporters.map((e) => e.manifest), initial?.exporterId ?? ""));
   const [targetDir, setTargetDir] = useState(initial?.targetDir ?? "");
   const [preserve, setPreserve] = useState(initial?.preserveStructure ?? true);
   const [policy, setPolicy] = useState<"all" | "best">(initial?.variantPolicy ?? "all");
@@ -57,8 +64,9 @@ function ExportSession({ kind, selectedIds, exporters, pluginErrors, setupId, on
     setPanelReady(ready);
   }, []);
   const config: PluginConfig = useMemo(() => ({ ...panelConfig, targetDir, preserveStructure: preserve, variantPolicy: policy }), [panelConfig, targetDir, preserve, policy]);
-  const assets = useStore((s) => s.catalog?.assets);
-  const selected = useMemo(() => (assets ?? []).filter((a) => selectedIds.includes(a.id) && a.kind === kind), [assets, selectedIds.join("|"), kind]);
+  // The selection is fetched by id (the window holds no catalog).
+  const fetched = useAssets(selectedIds.length ? selectedIds : undefined).assets;
+  const selected = useMemo(() => fetched.filter((a) => a.kind === kind), [fetched, kind]);
   const ids = useMemo(() => selected.map((a) => a.id), [selected]);
   const [fingerprints, setFingerprints] = useState<Record<string, string> | null>(null);
   useEffect(() => {
@@ -69,8 +77,10 @@ function ExportSession({ kind, selectedIds, exporters, pluginErrors, setupId, on
       (e) => { if (alive) setError(String(e)); });
     return () => { alive = false; };
   }, [currentId, ids, policy]);
-  const added = selected.filter((a) => !current?.lastAssets?.[a.id]).length;
-  const changed = selected.filter((a) => fingerprints && current?.lastAssets?.[a.id] && current.lastAssets[a.id] !== fingerprints[a.id]).length;
+  // Change tracking covers the setup's own library (raw ids); items from other libraries still send, untracked.
+  const tracked = selected.filter((a) => a.library === current?.libraryId);
+  const added = tracked.filter((a) => !current?.lastAssets?.[unqualify(a.library, a.id)]).length;
+  const changed = tracked.filter((a) => fingerprints && current?.lastAssets?.[unqualify(a.library, a.id)] && current.lastAssets[unqualify(a.library, a.id)] !== fingerprints[a.id]).length;
   useEffect(() => {
     setPlan(null); setReport(null);
     if (!active || !panelReady || !targetDir || !ids.length) return;
@@ -79,7 +89,7 @@ function ExportSession({ kind, selectedIds, exporters, pluginErrors, setupId, on
       if (!active.plugin.preview) {
         setPlan({ files: [], error: "This plugin needs a file preview before it can send. Update the plugin to support preview()." }); return;
       }
-      active.plugin.preview(buildExportCtx(active.manifest, config, controller.signal), selectedAssets(ids)).then(
+      loadSelectedAssets(ids).then((assets) => active.plugin.preview!(buildExportCtx(active.manifest, config, controller.signal), assets)).then(
         (files) => { if (!controller.signal.aborted) setPlan({ files }); },
         (e) => { if (!controller.signal.aborted) setPlan({ files: [], error: String(e) }); });
     }, 150);
@@ -87,13 +97,13 @@ function ExportSession({ kind, selectedIds, exporters, pluginErrors, setupId, on
   }, [active, config, panelReady, ids]);
   const choose = (id: string) => {
     const s = setups.find((s) => s.id === id);
-    setCurrentId(s?.id); setExporterId(s?.exporterId ?? "");
+    setCurrentId(s?.id); setExporterId(resolveExporterId(exporters.map((e) => e.manifest), s?.exporterId ?? ""));
     setTargetDir(s?.targetDir ?? ""); setPreserve(s?.preserveStructure ?? true);
     setPolicy(s?.variantPolicy ?? "all"); setName(s?.name ?? "");
     setInitialConfig(s?.config); setPanelConfig(s?.config ?? {}); setPanelReady(false);
     setPanelKey((k) => k + 1); setError(null); setPlan(null); setReport(null);
   };
-  const setup = (): SavedExport => ({ ...current, id: currentId ?? crypto.randomUUID(), name: name.trim(), kind, libraryRoot, exporterId, targetDir, preserveStructure: preserve, config: panelConfig, variantPolicy: policy });
+  const setup = (): SavedExport => ({ ...current, id: currentId ?? crypto.randomUUID(), name: name.trim(), kind, libraryId, exporterId, targetDir, preserveStructure: preserve, config: panelConfig, variantPolicy: policy });
   const saveSetup = async () => {
     setSaving(true); setError(null);
     try { const next = setup(); await save(next); setCurrentId(next.id); }
@@ -105,7 +115,7 @@ function ExportSession({ kind, selectedIds, exporters, pluginErrors, setupId, on
     try {
       const result = await runExporter(active, ids, config, new AbortController().signal);
       setReport(result);
-      if (currentId && fingerprints) await save({ ...setup(), lastSent: new Date().toISOString(), lastAssets: { ...current?.lastAssets, ...fingerprints } });
+      if (currentId && fingerprints) await save({ ...setup(), lastSent: new Date().toISOString(), lastAssets: { ...current?.lastAssets, ...Object.fromEntries(tracked.filter((a) => fingerprints[a.id]).map((a) => [unqualify(a.library, a.id), fingerprints[a.id]])) } });
     } catch (e) { setError(String(e)); } finally { setRunning(false); }
   };
   const choosePlugin = (id: string) => { if(!id)return; setExporterId(id); setInitialConfig(undefined); setPanelConfig({}); setPanelReady(false); setPlan(null); setReport(null); setError(null); setPanelKey((key) => key + 1); };
@@ -130,11 +140,11 @@ function ExportSession({ kind, selectedIds, exporters, pluginErrors, setupId, on
         <h3>Save this export</h3><TextInput aria-label="Export setup name" placeholder="e.g. Spygame" value={name} onChange={(e) => setName(e.currentTarget.value)} />
         <Stack dir="row" gap={8}><Button disabled={!name.trim() || !targetDir || !active || !panelReady} onClick={() => void saveSetup()}>{saving ? "Saving…" : "Save setup"}</Button>
           {currentId && <Button onClick={async () => { try { await remove(currentId); choose(""); } catch (e) { setError(String(e)); } }}>Delete</Button>}</Stack>
-        {pluginErrors.filter((e) => e.manifest.kind === "exporter").map((e) => <p className="export__error" key={e.manifest.id}>{e.manifest.name}: {e.error}</p>)}
+        {exportErrors.map((e) => <p className="export__error" key={e.manifest.id}>{e.manifest.name}: {e.error}</p>)}
       </fieldset></Pane>}>
       {!exporterId?<><PluginPicker purpose="export" plugins={available.map(e=>({id:e.manifest.id,name:e.manifest.name,description:e.manifest.description}))} onChoose={choosePlugin}
-        setups={setups.map(s=>({id:s.id,name:s.name,description:`${available.find(e=>e.manifest.id===s.exporterId)?.manifest.name??"Plugin unavailable"} · ${s.targetDir}`}))} onSetup={choose}/>
-        {pluginErrors.filter(e=>e.manifest.kind==="exporter").map(e=><p role="alert" className="export__error" key={e.manifest.id}>{e.manifest.name}: {e.error}</p>)}</>:<div className="export-screen__files">
+        setups={setups.map(s=>({id:s.id,name:s.name,description:`${available.find(e=>e.manifest.id===resolveExporterId(exporters.map(x=>x.manifest),s.exporterId))?.manifest.name??"Plugin unavailable"} · ${s.targetDir}`}))} onSetup={choose}/>
+        {exportErrors.map(e=><p role="alert" className="export__error" key={e.manifest.id}>{e.manifest.name}: {e.error}</p>)}</>:<div className="export-screen__files">
         <h2 className="export-screen__lead">{current?.lastSent && fingerprints ? `${added} new and ${changed} changed since you last sent.` : selected.length ? `${selected.length} ${kind}${selected.length === 1 ? "" : "s"} ready to send.` : "Choose things to export."}</h2>
         <p className="export__hint">{current?.lastSent ? `Last sent ${new Date(current.lastSent).toLocaleString()}.` : "Review the selection and the files this plugin will write."}</p>
         <div className="export-screen__section-label">To send</div>

@@ -15,7 +15,7 @@ export function stopAudioAudition() {
   publish({assetId:null,status:"idle"});
 }
 
-export async function toggleAudioAudition(assetId:string,file:string) {
+export async function toggleAudioAudition(assetId:string,library:string,file:string) {
   if(state.assetId===assetId&&state.status!=="error"){stopAudioAudition();return;}
   stopAudioAudition();
   const current=new Audio();player=current;current.preload="none";current.volume=.7;
@@ -24,7 +24,7 @@ export async function toggleAudioAudition(assetId:string,file:string) {
   current.onended=()=>{if(player===current)stopAudioAudition();};
   publish({assetId,status:"loading"});
   try {
-    const url=await assetUrl(file);
+    const url=await assetUrl(library,file);
     // A different cue or a stop can supersede a pending native path lookup.
     if(player!==current)return;
     current.src=url;
