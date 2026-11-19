@@ -541,7 +541,7 @@ What it does, in order (any step failing leaves everything as it was):
    (`https://github.com/<owner>/<repo>/releases/latest/download/toybox-server.json`).
 2. Compares versions (semantic versioning): newer is offered; the same is "up to date"; an older release is not
    installed unless `--allow-downgrade`.
-3. Picks the asset for this build's target (`x86_64-unknown-linux-gnu`). No asset: it names the targets the release has
+3. Picks the asset for this build's target (releases have `x86_64-unknown-linux-gnu` and `aarch64-unknown-linux-gnu`). No asset: it names the targets the release has
    and stops.
 4. Downloads it next to the installed program and **verifies its minisign signature against the public key compiled into
    the program** (the key of `plugins.updater` in `tauri.conf.json`, the one the app's updater trusts). A release build
@@ -561,7 +561,8 @@ The manifest `toybox-server.json` (made by `scripts/build-server-release.mjs`, a
 ```json
 { "version": "0.4.2", "notes": "optional text",
   "targets": { "x86_64-unknown-linux-gnu": { "url": "toybox-server-x86_64-unknown-linux-gnu",
-                                             "signature": "<the contents of the .sig file>" } } }
+                                             "signature": "<the contents of the .sig file>" },
+               "aarch64-unknown-linux-gnu": { "url": "toybox-server-aarch64-unknown-linux-gnu", "signature": "..." } } }
 ```
 
 `url` may be relative to the manifest. The release also carries `toybox-server-<target>` + `.sig` and

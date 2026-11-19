@@ -102,9 +102,9 @@ jobs:
           BUNDLE_TARGET: ${{ matrix.bundle-target }}
         run: node scripts/check-release.mjs --bundle
 
-  # The programs that are not installers: toybox-server (Linux x86_64) and tbx (every platform), each signed
-  # with the key that signs the app's updates and attached to the same draft release, plus the manifest
-  # `toybox-server update` reads. They wait for the app job because that is what creates the draft.
+  # The programs that are not installers: toybox-server (Linux x86_64 and ARM64) and tbx (every platform), each
+  # signed with the key that signs the app's updates and attached to the same draft release. They wait for the
+  # app job because that is what creates the draft. The manifest comes after them, in the job below.
   standalone:
     needs: release
     strategy:
@@ -114,19 +114,18 @@ jobs:
           - platform: ubuntu-22.04 # the oldest runner we use: the binaries run on newer glibc too
             rust-target: x86_64-unknown-linux-gnu
             only: all
-            files: release-assets/*
+          - platform: ubuntu-22.04-arm # Linux on ARM64 (a Raspberry Pi, an ARM home server): no app, but both programs
+            rust-target: aarch64-unknown-linux-gnu
+            only: all
           - platform: macos-latest
             rust-target: aarch64-apple-darwin
             only: tbx
-            files: release-assets/tbx-*
           - platform: macos-15-intel
             rust-target: x86_64-apple-darwin
             only: tbx
-            files: release-assets/tbx-*
           - platform: windows-latest
             rust-target: x86_64-pc-windows-msvc
             only: tbx
-            files: release-assets/tbx-*
 
     runs-on: ${{ matrix.platform }}
 
@@ -169,9 +168,41 @@ jobs:
           TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
         run: node scripts/build-server-release.mjs --target ${{ matrix.rust-target }} --only ${{ matrix.only }} --out release-assets --notes "Toybox ${{ github.ref_name }}"
 
+      # Not the manifest this wrote: it only knows this job's server. The job below writes the one for all of them.
       - name: Attach them to the draft release
         uses: softprops/action-gh-release@v2
         with:
           tag_name: ${{ github.ref_name }}
           draft: true
-          files: ${{ matrix.files }}
+          files: |
+            release-assets/toybox-server-*
+            release-assets/tbx-*
+
+  # The manifest `toybox-server update` reads lists every toybox-server of the release, so it is written once
+  # all of them are attached: download them, check each signature again, describe them.
+  manifest:
+    needs: standalone
+    runs-on: ubuntu-22.04
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: Download the servers of this release
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: gh release download "${{ github.ref_name }}" --pattern "toybox-server-*" --dir release-assets
+
+      - name: Write the manifest and check it lists both Linux servers
+        run: |
+          node scripts/build-server-release.mjs --manifest-only --out release-assets --notes "Toybox ${{ github.ref_name }}"
+          node -e "const t=Object.keys(require('./release-assets/toybox-server.json').targets);for(const w of ['x86_64-unknown-linux-gnu','aarch64-unknown-linux-gnu'])if(!t.includes(w)){console.error('error: the release has no toybox-server for '+w);process.exit(1)}"
+
+      - name: Attach it to the draft release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ github.ref_name }}
+          draft: true
+          files: release-assets/toybox-server.json

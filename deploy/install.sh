@@ -33,7 +33,12 @@ UPDATE_TIMER_PATH="/etc/systemd/system/toybox-server-update.timer"
 # (plugins.updater.pubkey), which also signs the app's updates. scripts/check-release.mjs fails the release
 # if this copy ever differs from it.
 RELEASE_REPO="dustinlacewell/toybox"
-RELEASE_TARGET="x86_64-unknown-linux-gnu"
+# Which of the release's builds fits this machine; empty when there is none (then only --source works).
+case "$(uname -m)" in
+  x86_64 | amd64) RELEASE_TARGET="x86_64-unknown-linux-gnu" ;;
+  aarch64 | arm64) RELEASE_TARGET="aarch64-unknown-linux-gnu" ;;
+  *) RELEASE_TARGET="" ;;
+esac
 RELEASE_PUBKEY="dW50cnVzdGVkIGNvbW1lbnQ6IG1pbmlzaWduIHB1YmxpYyBrZXk6IEIxMjJDN0RBNkVCMDAwOEUKUldTT0FMQnUyc2Npc2REcGVhczJ4VmFGM0dSVTdKZjcxMlRRem94eExSSUd1MnpNSXdvS0lmTjAK"
 
 usage() {
@@ -150,7 +155,7 @@ apt-get install -y -qq ca-certificates curl >/dev/null
 if [[ -n "$RELEASE_GIVEN" ]]; then
   # The check has to come from something other than the program being checked (a tampered program would
   # vouch for itself), so it is minisign, installed from the distribution, against the key in this script.
-  [[ "$(uname -m)" == "x86_64" ]] || die "the releases are built for Linux x86_64; this machine is $(uname -m). Use --source to build for it."
+  [[ -n "$RELEASE_TARGET" ]] || die "the releases are built for Linux x86_64 and ARM64 (aarch64); this machine is $(uname -m). Use --source to build for it."
   apt-get install -y -qq minisign >/dev/null
   if [[ -n "$RELEASE" ]]; then
     BASE="https://github.com/$RELEASE_REPO/releases/download/v$RELEASE"
@@ -161,7 +166,7 @@ if [[ -n "$RELEASE_GIVEN" ]]; then
   FETCH_DIR="$(mktemp -d)"
   trap 'rm -rf "$FETCH_DIR"' EXIT
   say "Downloading ${RELEASE:+version $RELEASE of }the Toybox server release ($ASSET)"
-  curl -fsSL "$BASE/$ASSET" -o "$FETCH_DIR/$ASSET" || die "could not download $BASE/$ASSET (is there a release for Linux x86_64${RELEASE:+ with version $RELEASE}?)"
+  curl -fsSL "$BASE/$ASSET" -o "$FETCH_DIR/$ASSET" || die "could not download $BASE/$ASSET (is there a release for $RELEASE_TARGET${RELEASE:+ with version $RELEASE}?)"
   curl -fsSL "$BASE/$ASSET.sig" -o "$FETCH_DIR/$ASSET.sig" || die "could not download the signature $BASE/$ASSET.sig"
   # Tauri writes both the key and the signature as base64 of the minisign text files.
   printf '%s' "$RELEASE_PUBKEY" | base64 -d >"$FETCH_DIR/release.pub"

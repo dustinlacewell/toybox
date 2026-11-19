@@ -38,7 +38,7 @@ when it differs from the installed app (the app leaves its version in the data f
 "tbx 0.4.0 is older than the installed Toybox 0.4.1. Run the one that came with it ...".
 
 **Without the app** (a server, a build machine): every release has `tbx-<target>[.exe]` and a `.sig` file for Windows,
-macOS (Apple Silicon and Intel) and Linux x86-64, signed with the key that signs the app's updates
+macOS (Apple Silicon and Intel) and Linux (x86-64 and ARM64), signed with the key that signs the app's updates
 (`minisign -V -p <key> -m tbx-<target>`; the key is `plugins.updater.pubkey` in `tauri.conf.json`, base64 of the
 minisign key file). Download, make it executable, run `tbx self install`. Plugins are installed with
 `tbx plugin install <DIR>`. Such a copy does not update itself: download the new one with the new release.

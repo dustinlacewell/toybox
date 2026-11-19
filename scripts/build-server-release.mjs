@@ -4,7 +4,7 @@
 //        [--skip-build] [--bin-dir <dir>] [--notes <text>|@<file>] [--pubkey <file|base64>] [--manifest-only]
 //
 // For one target it writes, into --out (default release-assets/):
-//   toybox-server-<target>[.exe]  +  .sig      (Linux x86_64 is what the release workflow builds)
+//   toybox-server-<target>[.exe]  +  .sig      (the release workflow builds Linux x86_64 and ARM64)
 //   tbx-<target>[.exe]            +  .sig
 //   toybox-server.json            the manifest `toybox-server update` reads (version, notes, and per target
 //                                 the file name and signature of every toybox-server-<target> in --out)

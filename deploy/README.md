@@ -33,7 +33,7 @@ sudo bash install.sh --source .. --domain assets.example.com
 # or, with a program you already have
 sudo bash install.sh --binary ./toybox-server --domain assets.example.com
 
-# or the latest signed release from GitHub (Linux x86-64), updating itself every day
+# or the latest signed release from GitHub (Linux x86-64 or ARM64), updating itself every day
 sudo bash install.sh --release --auto-update --domain assets.example.com
 ```
 
