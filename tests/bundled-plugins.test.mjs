@@ -26,7 +26,7 @@ function satisfies(version, range) {
 
 test("the bundled plugins are every plugin folder except the dev-only placer", () => {
   assert.deepEqual([...bundled].sort(), [
-    "com.toybox.animation-core", "com.toybox.audio-core", "com.toybox.material-core", "com.toybox.model-core", "com.toybox.model-gltf",
+    "com.toybox.animation-core", "com.toybox.audio-core", "com.toybox.material-core", "com.toybox.material-sbsar", "com.toybox.model-core", "com.toybox.model-gltf",
     "com.toybox.rig-quaternius", "com.toybox.rig-synty-polygon", "com.toybox.rig-synty-sidekick", "com.toybox.rig-synty-unreal", "com.toybox.skybox-core",
   ]);
   assert.deepEqual(folders.sort(), [...bundled, "com.toybox.placer"].sort(), "every plugin folder is bundled, except the placer");
@@ -50,6 +50,7 @@ test("every dependency of a bundled plugin is bundled at a satisfying version", 
       assert.ok(satisfies(manifest(needed).version, range), `${id} needs ${needed} ${range}, bundled ${manifest(needed).version}`);
     }
   }
+  assert.deepEqual(manifest("com.toybox.material-sbsar").dependencies, { "com.toybox.material-core": "^2.0.0" });
   assert.deepEqual(manifest("com.toybox.model-gltf").dependencies, { "com.toybox.model-core": "^3.0.0" });
 });
 

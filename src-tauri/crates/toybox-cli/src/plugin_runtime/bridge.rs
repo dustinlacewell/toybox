@@ -181,6 +181,12 @@ pub(super) fn register(engine: &Engine, host: &Arc<Host>, events: &Rc<dyn Fn(Eve
         plugin_fs::write_text_under(Path::new(authorized), text(&a, 1, "path")?, text(&a, 2, "text")?).map(|_| Value::Null).map_err(|e| e.to_string())
     });
 
+    with_host!("fs.removeTree", |_h, a| {
+        let authorized = text(&a, 0, "authorizedRoot")?;
+        check_jail(a.get(2), authorized)?;
+        plugin_fs::remove_tree_under(Path::new(authorized), text(&a, 1, "path")?).map(|_| Value::Null).map_err(|e| e.to_string())
+    });
+
     // --- libraries and items ---
     with_host!("assets.get", |h, a| {
         let default = text(&a, 0, "library")?.to_string();

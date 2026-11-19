@@ -137,6 +137,18 @@ importers:
         specifier: ^5.1.0
         version: 5.1.0(vite@7.3.8)
 
+  plugins/com.toybox.material-sbsar:
+    devDependencies:
+      '@ldlework/toybox-sdk':
+        specifier: workspace:*
+        version: link:../../packages/toybox-sdk
+      '@types/react':
+        specifier: ^19.1.8
+        version: 19.2.16
+      typescript:
+        specifier: ~5.8.3
+        version: 5.8.3
+
   plugins/com.toybox.model-core:
     devDependencies:
       '@ldlework/toybox-sdk':

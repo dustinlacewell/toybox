@@ -37,7 +37,12 @@ impl Running {
         if self.cancel.load(Ordering::Relaxed) || error.to_string() == "Cancelled" {
             CliError::cancelled("cancelled")
         } else {
-            error.into()
+            // A plugin may end its message with a line "hint: <what to do>"; it is shown as the hint.
+            let message = error.to_string();
+            match message.split_once("\nhint: ") {
+                Some((what, hint)) => CliError::failed(what.to_string()).hint(hint.trim().to_string()),
+                None => error.into(),
+            }
         }
     }
 }
@@ -92,6 +97,16 @@ fn runtime(ctx: &Ctx) -> CliResult<Running> {
     Ok(Running { runtime, cancel })
 }
 
+/// The items an import replaced, one line each on standard error (always: existing data was overwritten).
+fn report_replaced(replaced: &[crate::plugin_runtime::ReplacedItem]) {
+    for item in replaced {
+        match &item.was {
+            Some(was) => out::stderr(&format!("replaced: {} (was {was})\n", item.name)),
+            None => out::stderr(&format!("replaced: {}\n", item.name)),
+        }
+    }
+}
+
 /// What an importer or exporter left out, one line each on standard error (always: it is data that
 /// was not handled). A leading "skipped " in the plugin's words is not said twice.
 fn report_skipped(skipped: &[String]) {
@@ -135,7 +150,7 @@ pub fn import(ctx: &Ctx, plugins: &[PluginCli], matches: &ArgMatches) -> CliResu
         url: text_arg(sub, "shared-url"),
     };
     if dry_run {
-        let doc = ImportDoc { library: library.id.clone(), dry_run: true, imported: Vec::new(), skipped: Vec::new(), warnings: Vec::new() };
+        let doc = ImportDoc { library: library.id.clone(), dry_run: true, imported: Vec::new(), replaced: Vec::new(), replaced_items: Vec::new(), skipped: Vec::new(), warnings: Vec::new() };
         let text = format!("Would import {} into '{}' with the '{name}' importer of {}:\n{}", plural(paths.len(), "path", "paths"), library.name, plugin.plugin_id, paths.iter().map(|path| format!("  {path}\n")).collect::<String>());
         return ctx.report(&doc, &text);
     }
@@ -147,11 +162,19 @@ pub fn import(ctx: &Ctx, plugins: &[PluginCli], matches: &ArgMatches) -> CliResu
         ctx.warn(warning);
     }
     report_skipped(&outcome.skipped);
-    let doc = ImportDoc { library: library.id.clone(), dry_run: false, imported: outcome.imported.clone(), skipped: outcome.skipped.clone(), warnings: outcome.warnings.clone() };
+    report_replaced(&outcome.replaced);
+    let doc = ImportDoc { library: library.id.clone(), dry_run: false, imported: outcome.imported.clone(), replaced: outcome.replaced.iter().map(|item| item.id.clone()).collect(), replaced_items: outcome.replaced.clone(), skipped: outcome.skipped.clone(), warnings: outcome.warnings.clone() };
     let text: String = outcome.imported.iter().map(|id| format!("{id}\n")).collect();
     ctx.output(&doc, &text)?;
     if !ctx.g.json {
-        ctx.log(&format!("Imported {} into '{}'. Thumbnails are drawn when the app next opens the library.", plural(outcome.imported.len(), "item", "items"), library.name));
+        if outcome.imported.is_empty() {
+            ctx.log(&format!("Nothing new was imported into '{}'.", library.name));
+        } else {
+            let replaced = outcome.replaced.len();
+            let added = outcome.imported.len().saturating_sub(replaced);
+            let what = if replaced == 0 { plural(outcome.imported.len(), "item", "items") } else { format!("{} ({added} new, {replaced} replaced)", plural(outcome.imported.len(), "item", "items")) };
+            ctx.log(&format!("Imported {what} into '{}'. Thumbnails are drawn when the app next opens the library.", library.name));
+        }
     }
     if !outcome.skipped.is_empty() {
         return Err(CliError::partial(format!("imported {}, skipped {}", plural(outcome.imported.len(), "item", "items"), outcome.skipped.len())));
@@ -275,14 +298,20 @@ pub fn plugin_command(ctx: &Ctx, plugins: &[PluginCli], top: &str, matches: &Arg
     let options = plugin_values(arguments, &declared.options);
     let runtime = runtime(ctx)?;
     let outcome = runtime.runtime.run_command(&plugin.plugin_id, CommandRequest { library: library.id.clone(), path: path.join(" "), args, options, asset_ids }).map_err(|error| runtime.error(error))?;
+    // A command whose result has a non-empty `skipped` list (strings) finished with items left out:
+    // like an importer it says so on standard error and ends with status 4.
+    let skipped: Vec<String> = outcome.result.get("skipped").and_then(Value::as_array).map(|list| list.iter().filter_map(|item| item.as_str().map(str::to_string)).collect()).unwrap_or_default();
     if ctx.g.json {
-        return out::json(&outcome.result);
-    }
-    if !outcome.printed && !outcome.result.is_null() {
+        out::json(&outcome.result)?;
+    } else if !outcome.printed && !outcome.result.is_null() {
         match &outcome.result {
             Value::String(text) => out::line(text),
             other => out::line(&serde_json::to_string_pretty(other)?),
         }
+    }
+    if !skipped.is_empty() {
+        report_skipped(&skipped);
+        return Err(CliError::partial(format!("{} skipped", plural(skipped.len(), "item was", "items were"))));
     }
     Ok(())
 }

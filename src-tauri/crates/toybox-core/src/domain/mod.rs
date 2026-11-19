@@ -23,5 +23,6 @@ pub mod pack_meta;
 pub mod paths;
 pub mod placer_library;
 pub mod seed;
+pub mod sources;
 pub mod provenance;
 pub mod tags;

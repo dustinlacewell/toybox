@@ -2,6 +2,12 @@
  * Keeping the original file of a converted model. Pure planning: which staged
  * names the original and its companions get beside the converted glTF, and the
  * `origin` record the entry commits. The file copying lives in `walk.ts`.
+ *
+ * Names are staged exactly as before. At commit the host moves each kept file into
+ * shared storage by content (`library/models/_sources/<sha256>/<name>`), so a companion
+ * that several models share (a `.mtl`, a texture next to an `.fbx`) is stored once, and
+ * `asset.origin.files` lists those library-relative paths in the order planned here
+ * (the source first). The last segment of each is the name chosen here.
  */
 
 import type { SeedOrigin } from "@ldlework/toybox-sdk";

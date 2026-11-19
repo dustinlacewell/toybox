@@ -87,6 +87,14 @@ pub fn remove_set_folder_if_empty(file: &Path) {
     let Some(set) = file.parent() else { return };
     let Some(kind) = set.parent() else { return };
     let (Some(set_name), Some(kind_name)) = (set.file_name().and_then(|n| n.to_str()), kind.file_name().and_then(|n| n.to_str())) else { return };
+    // A shared source sits in `library/<type>/_sources/<sha256>/<name>`.
+    if kind_name == crate::domain::sources::SOURCES_DIR {
+        let in_library = kind.parent().and_then(|type_folder| type_folder.parent()).and_then(|p| p.file_name()).and_then(|n| n.to_str()) == Some("library");
+        if set_name.len() == 64 && is_set_folder_name(set_name) && in_library {
+            let _ = std::fs::remove_dir(set);
+        }
+        return;
+    }
     if !is_set_folder_name(set_name) || kind_name.starts_with('_') || kind.parent().and_then(|p| p.file_name()).and_then(|n| n.to_str()) != Some("library") {
         return;
     }
@@ -110,6 +118,14 @@ pub fn sweep_empty_set_folders(root: &Path) -> usize {
         for set in sets.flatten() {
             if set.file_name().to_str().is_some_and(is_set_folder_name) && set.file_type().is_ok_and(|t| t.is_dir()) {
                 removed += usize::from(std::fs::remove_dir(set.path()).is_ok());
+            }
+        }
+        // Shared sources: `_sources/<sha256>` folders that hold nothing.
+        if let Ok(shared) = std::fs::read_dir(kind.path().join(crate::domain::sources::SOURCES_DIR)) {
+            for set in shared.flatten() {
+                if set.file_name().to_str().is_some_and(|n| n.len() == 64 && is_set_folder_name(n)) && set.file_type().is_ok_and(|t| t.is_dir()) {
+                    removed += usize::from(std::fs::remove_dir(set.path()).is_ok());
+                }
             }
         }
     }

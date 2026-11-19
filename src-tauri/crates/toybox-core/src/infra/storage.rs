@@ -7,7 +7,7 @@ use crate::{
         catalog_model::Catalog,
         gltf_uri,
         seed::{self, SeedContent},
-        tags,
+        sources, tags,
     },
     error::{AppError, AppResult},
     infra::{
@@ -65,6 +65,9 @@ struct Transaction {
 #[derive(Default)]
 struct Plan {
     files: BTreeMap<String, CopyFile>,
+    /// Further staged copies of a file in `files` (the same content staged by another item): retired
+    /// with the others once the shared copy is in place.
+    extra_sources: Vec<CopyFile>,
     replacements: HashMap<String, String>,
     documents: BTreeMap<String, Vec<u8>>,
     hashes: HashMap<String, String>,
@@ -151,6 +154,11 @@ impl Plan {
             if prior.digest != digest {
                 return Err(AppError::msg("Managed file collision"));
             }
+            if prior.source != source {
+                self.extra_sources.push(CopyFile { source: source.into(), target: target.clone(), target_digest: digest.clone(), digest });
+                self.replacements.entry(source.into()).or_insert_with(|| target.clone());
+            }
+            return Ok(target);
         }
         self.files.insert(
             target.clone(),
@@ -166,6 +174,27 @@ impl Plan {
             .or_insert_with(|| target.clone());
         Ok(target)
     }
+    /// Plan the shared storage of an entry's kept source files: each is copied to
+    /// `library/<type>/_sources/<sha256>/<name>` (once per content), and the entry's `origin.files` become
+    /// those paths. Returns `(staged path, shared path)` for each file that moves.
+    fn relocate_sources(&mut self, root: &Path, entry: &mut Value, sources: &[String], type_folder: &str) -> AppResult<Vec<(String, String)>> {
+        let mut moved = Vec::new();
+        let mut paths = Vec::new();
+        for source in sources {
+            if sources::is_shared(source) {
+                paths.push(source.clone());
+                continue;
+            }
+            let hash = self.digest(root, source)?;
+            let target = sources::shared_path(type_folder, &hash, &basename(source)?);
+            self.copy(root, source, target.clone())?;
+            moved.push((source.clone(), target.clone()));
+            paths.push(target);
+        }
+        entry["origin"]["files"] = json!(paths);
+        Ok(moved)
+    }
+
     fn entry(&mut self, root: &Path, entry: &mut Value) -> AppResult<()> {
         // Library tags are written the way they are read: normalised.
         tags::normalize_entry(entry);
@@ -177,6 +206,13 @@ impl Plan {
             }
         }
         if entry.get("storagePath").and_then(Value::as_str).is_some() {
+            // An item stored by an earlier version keeps its sources beside it: they move to shared storage.
+            if parsed.origin.as_ref().is_some_and(|origin| origin.files.iter().any(|file| !sources::is_shared(file))) {
+                let files = parsed.origin.as_ref().map(|origin| origin.files.clone()).unwrap_or_default();
+                let folder = type_folder(entry)?;
+                let moved = self.relocate_sources(root, entry, &files, &folder)?;
+                self.contexts.entry(parsed.id.clone()).or_default().extend(moved);
+            }
             if entry["pack"]
                 .as_str()
                 .is_some_and(|p| p.starts_with("_import_"))
@@ -196,15 +232,13 @@ impl Plan {
         // are not part of the set's identity: editing them never moves a file.
         // (Provenance is part of it: it is written into the entry when the item is
         // first stored, and an item that is stored already is never keyed again.)
-        key.update(serde_json::to_vec(&tags::without_tags(entry))?);
+        key.update(serde_json::to_vec(&without_source_files(tags::without_tags(entry)))?);
         let mut doc = None;
         let mut dependencies = Vec::new();
-        // Source files the importing plugin keeps with the item (a material's
-        // archive): part of its identity, stored in its folder.
+        // Source files the importing plugin keeps with the item (a material's archive) are stored once
+        // per library, by content (see `domain::sources`), so they are not part of the item's key: two
+        // presets rendered from one archive differ by their entries and maps alone.
         let sources: Vec<String> = parsed.origin.as_ref().map(|origin| origin.files.clone()).unwrap_or_default();
-        for file in &sources {
-            key.update(self.digest(root, file)?.as_bytes());
-        }
         match &parsed.content {
             SeedContent::Model { gltf_rel, .. } | SeedContent::AnimationSource { gltf_rel, .. } => {
                 let mut scene: Value =
@@ -299,13 +333,6 @@ impl Plan {
                     format!("../_resources/{}", basename(&destination)?)
                 });
             }
-            // Source files the importer kept (a model's original file) sit
-            // beside the glTF and bin; their names were checked against both.
-            for source in &sources {
-                let name = basename(source)?;
-                let kept = self.copy(root, source, format!("{folder}/{name}"))?;
-                context.insert(source.clone(), kept);
-            }
             context.insert(parsed.rel_path.clone(), target.clone());
             if let SeedContent::Model { bin_rel, .. }
             | SeedContent::AnimationSource { bin_rel, .. } = &parsed.content
@@ -350,14 +377,6 @@ impl Plan {
                     map["file"] = json!(local[&resolved.file].0);
                 }
             }
-            for source in &sources {
-                let name = basename(source)?;
-                if local.values().any(|(taken, _)| taken.eq_ignore_ascii_case(&name)) {
-                    return Err(AppError::msg(format!("Source file {name} shares a name with a map of its material")));
-                }
-                let target = self.copy(root, source, format!("{folder}/{name}"))?;
-                context.insert(source.clone(), target);
-            }
             context.insert(parsed.rel_path.clone(), folder.clone());
             self.replacements.insert(parsed.rel_path, folder.clone());
             entry["storagePath"] = json!(folder);
@@ -366,6 +385,10 @@ impl Plan {
             let target = self.copy(root, source, format!("{folder}/{}", basename(source)?))?;
             context.insert(source.clone(), target.clone());
             entry["storagePath"] = json!(target);
+        }
+        if !sources.is_empty() {
+            let moved = self.relocate_sources(root, entry, &sources, &type_folder(entry)?)?;
+            context.extend(moved);
         }
         self.contexts.insert(parsed.id, context);
         restore_transferred(entry);
@@ -379,6 +402,22 @@ impl Plan {
         }
         Ok(())
     }
+}
+
+/// The entry without the list of kept source files (of the item and its variants). Where a source is
+/// stored (staged next to the item, or already in shared storage) says nothing about the item.
+fn without_source_files(mut entry: Value) -> Value {
+    if let Some(origin) = entry.get_mut("origin").and_then(Value::as_object_mut) {
+        origin.remove("files");
+    }
+    if let Some(variants) = entry.get_mut("variants").and_then(Value::as_array_mut) {
+        for variant in variants {
+            if let Some(origin) = variant.get_mut("origin").and_then(Value::as_object_mut) {
+                origin.remove("files");
+            }
+        }
+    }
+    entry
 }
 
 /// A transferred entry is staged under a private pack and category (so equal
@@ -581,6 +620,7 @@ fn publish_inner(root: &Path, cache: &Path, before: Value, mut after: Value) -> 
         )?;
     }
     let mut files: Vec<_> = plan.files.into_values().collect();
+    files.extend(plan.extra_sources);
     // Rewritten scene files also retire their original physical documents.
     for (source, target) in plan.replacements {
         if plan.documents.contains_key(&target) && !files.iter().any(|f| f.source == source) {
@@ -848,6 +888,11 @@ impl ItemPlan {
         &self.entries
     }
 
+    /// The kept source files this plan moves into shared storage: `(where it is, where it goes)`.
+    pub fn moved_sources(&self) -> HashMap<String, String> {
+        self.plan.replacements.iter().filter(|(_, target)| sources::is_shared(target)).map(|(source, target)| (source.clone(), target.clone())).collect()
+    }
+
     /// Copy the planned files and write the rewritten scenes. Nothing is
     /// referenced yet; what this creates is removed by [`ItemPlan::discard`].
     pub fn place(&mut self) -> AppResult<()> {
@@ -938,6 +983,7 @@ impl ItemPlan {
         }
         let plan = std::mem::take(&mut self.plan);
         let mut files: Vec<_> = plan.files.into_values().collect();
+        files.extend(plan.extra_sources);
         // Rewritten scene files also retire their original physical documents.
         for (source, target) in plan.replacements {
             if plan.documents.contains_key(&target) && !files.iter().any(|f| f.source == source) {
@@ -1467,11 +1513,13 @@ mod tests {
         let value = serde_json::to_value(&catalog.assets[0]).unwrap();
         assert_eq!(value["origin"]["meta"]["source"], "tiles.sbsar");
 
-        // The source file moves into the material's own folder, next to its
-        // maps: a bare name in the manifest, a library path in the catalog.
+        // The source file moves into shared storage, by content: the manifest and the catalog
+        // both name that path, and its last segment is the original name.
         let stored = manifest["assets"][0]["storagePath"].as_str().unwrap().to_string();
-        assert_eq!(manifest["assets"][0]["origin"]["files"], json!(["tiles.sbsar"]));
-        assert_eq!(origin.files, vec![format!("{stored}/tiles.sbsar")]);
+        let shared = format!("library/materials/_sources/{}/tiles.sbsar", hash_bytes(b"archive"));
+        assert_eq!(manifest["assets"][0]["origin"]["files"], json!([shared]));
+        assert_eq!(origin.files, vec![shared.clone()]);
+        assert!(!root.join(&stored).join("tiles.sbsar").exists());
         assert_eq!(std::fs::read(root.join(&origin.files[0])).unwrap(), b"archive");
         assert_eq!(std::fs::read(root.join(format!("{stored}/albedo.png"))).unwrap(), b"albedo");
         assert!(!root.join("library/_import_test").exists());
@@ -1526,25 +1574,29 @@ mod tests {
         ],"storageVersion":1});
         publish(&root, &cache, before, after).unwrap();
 
-        // The manifest keeps bare names; the catalog gets library paths in each model's own folder.
+        // Kept originals live in shared storage, by content: the manifest and the catalog name the same
+        // paths, and the companion both models list is stored once.
         let manifest = read(&root.join(config::SEED_REL));
-        assert_eq!(manifest["assets"][0]["origin"]["files"], json!(["Crate.obj", "shared.mtl"]));
-        assert_eq!(manifest["assets"][0]["variants"][0]["origin"]["files"], json!(["Crate_LOD1.obj", "shared.mtl"]));
+        let shared = |content: &[u8], name: &str| format!("library/models/_sources/{}/{name}", hash_bytes(content));
+        let full_files = json!([shared(b"full original", "Crate.obj"), shared(b"materials", "shared.mtl")]);
+        let low_files = json!([shared(b"low original", "Crate_LOD1.obj"), shared(b"materials", "shared.mtl")]);
+        assert_eq!(manifest["assets"][0]["origin"]["files"], full_files);
+        assert_eq!(manifest["assets"][0]["variants"][0]["origin"]["files"], low_files);
         let catalog = crate::ops::catalog_build::build_catalog(&root.to_string_lossy(), seed::parse_seed_entries(&manifest).unwrap()).unwrap();
         let full = &catalog.assets[0];
         let low = &full.variants[0];
         let folder = |rel: &str| rel.rsplit_once('/').unwrap().0.to_string();
-        let full_folder = folder(&full.rel_path);
-        let low_folder = folder(&low.rel_path);
-        assert_ne!(full_folder, low_folder);
+        assert_ne!(folder(&full.rel_path), folder(&low.rel_path));
         let kept = full.origin.as_ref().unwrap();
         assert_eq!(kept.plugin, "com.example.obj");
         assert_eq!(kept.meta["source"], "models/Crate.obj");
-        assert_eq!(kept.files, vec![format!("{full_folder}/Crate.obj"), format!("{full_folder}/shared.mtl")]);
-        assert_eq!(low.origin.as_ref().unwrap().files, vec![format!("{low_folder}/Crate_LOD1.obj"), format!("{low_folder}/shared.mtl")]);
+        assert_eq!(serde_json::to_value(&kept.files).unwrap(), full_files);
+        assert_eq!(serde_json::to_value(&low.origin.as_ref().unwrap().files).unwrap(), low_files);
         assert_eq!(std::fs::read(root.join(&kept.files[0])).unwrap(), b"full original");
         assert_eq!(std::fs::read(root.join(&low.origin.as_ref().unwrap().files[0])).unwrap(), b"low original");
         assert_eq!(std::fs::read(root.join(&kept.files[1])).unwrap(), b"materials");
+        assert_eq!(kept.files[1], low.origin.as_ref().unwrap().files[1], "one stored copy of a companion two models share");
+        assert!(!root.join(folder(&full.rel_path)).join("Crate.obj").exists(), "nothing is kept in the item's own folder");
         assert!(root.join(&full.rel_path).exists());
         assert!(!root.join("library/_import_test").exists());
         // A different original is a different folder.

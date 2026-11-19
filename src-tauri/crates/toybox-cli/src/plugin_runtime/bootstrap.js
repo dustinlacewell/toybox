@@ -108,6 +108,7 @@ const buildFs = (pluginId, perms) => {
     copyFile: read(write(async (root, path, authorized, target) => call("fs.copyFile", root, path, authorized, target, jail()))),
     writeBytes: write(async (root, path, bytes) => call("fs.writeBytes", root, path, bytes, jail())),
     writeText: write(async (root, path, text) => call("fs.writeText", root, path, text, jail())),
+    removeTree: write(async (root, path) => call("fs.removeTree", root, path, jail())),
     writeJson: write(async (root, path, value) => call("fs.writeText", root, path, JSON.stringify(value, null, 2), jail())),
     pickDirectory: noDialog("pickDirectory"),
     pickSaveFile: noDialog("pickSaveFile"),
@@ -329,6 +330,7 @@ export async function runImporter(req) {
     const result = await handler(importRun);
     return {
       imported: [...run.committed],
+      replaced: (Array.isArray(result?.replaced) ? result.replaced : []).filter((item) => item && typeof item.id === "string").map((item) => ({ id: item.id, name: String(item.name ?? item.id), was: typeof item.was === "string" ? item.was : null })),
       skipped: strings(result?.skipped),
       warnings: strings(result?.warnings),
     };

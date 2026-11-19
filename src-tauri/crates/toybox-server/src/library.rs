@@ -519,6 +519,75 @@ impl Library {
     }
 }
 
+/// The stored kept source (`library/<type>/_sources/<sha256>/<name>`) with this content, if the library has one.
+pub fn stored_source(root: &Path, sha256: &str) -> Option<PathBuf> {
+    if sha256.len() != 64 || !sha256.bytes().all(|b| b.is_ascii_digit() || (b'a'..=b'f').contains(&b)) {
+        return None;
+    }
+    for folder in ["materials", "models"] {
+        let dir = root.join("library").join(folder).join(toybox_core::domain::sources::SOURCES_DIR).join(sha256);
+        if let Ok(read) = std::fs::read_dir(dir) {
+            if let Some(file) = read.flatten().find(|entry| entry.file_type().is_ok_and(|kind| kind.is_file())) {
+                return Some(file.path());
+            }
+        }
+    }
+    None
+}
+
+/// Where a linked file comes from.
+pub enum LinkSource {
+    /// The library's own stored source with this digest.
+    Library(String),
+    /// Another file of the same upload (path relative to the upload's files folder).
+    Upload(String),
+}
+
+/// Hard-link `source` to `target` (a copy where links are not possible).
+fn link_file(source: &Path, target: &Path) -> Result<(), ApiError> {
+    if let Some(parent) = target.parent() {
+        std::fs::create_dir_all(parent).map_err(ApiError::internal)?;
+    }
+    if target.exists() {
+        return Ok(());
+    }
+    if std::fs::hard_link(source, target).is_err() {
+        std::fs::copy(source, target).map_err(ApiError::internal)?;
+    }
+    Ok(())
+}
+
+impl Library {
+    /// Which of these digests the library stores as kept sources already.
+    pub async fn have_sources(&self, hashes: Vec<String>) -> Result<Vec<String>, ApiError> {
+        self.blocking(move |handle| Ok(hashes.into_iter().filter(|hash| stored_source(&handle.root, hash).is_some()).collect())).await
+    }
+
+    /// Put files into an upload without sending them: each `(path in the upload, source)`.
+    pub async fn link_into_upload(&self, base: PathBuf, links: Vec<(String, LinkSource)>) -> Result<(), ApiError> {
+        let handle = self.handle.clone();
+        tokio::task::spawn_blocking(move || -> Result<(), ApiError> {
+            for (rel, source) in links {
+                let target = files::resolve_for_write(&base, &rel).map_err(|_| ApiError::bad_request("bad_upload_path", "That path is not allowed."))?;
+                let from = match source {
+                    LinkSource::Library(hash) => stored_source(&handle.root, &hash).ok_or_else(|| ApiError::conflict("source_missing", "The server does not store that source file (any more). Upload it."))?,
+                    LinkSource::Upload(other) => {
+                        let path = files::resolve_for_write(&base, &other).map_err(|_| ApiError::bad_request("bad_upload_path", "That path is not allowed."))?;
+                        if !path.is_file() {
+                            return Err(ApiError::conflict("source_missing", "A file to link from was not uploaded."));
+                        }
+                        path
+                    }
+                };
+                link_file(&from, &target)?;
+            }
+            Ok(())
+        })
+        .await
+        .map_err(ApiError::internal)?
+    }
+}
+
 #[derive(Debug, Serialize)]
 pub struct EntryError {
     pub index: usize,

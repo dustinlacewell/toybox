@@ -336,6 +336,26 @@ impl Client {
         self.json(response)
     }
 
+    /// `POST /sources/have` (write role): which kept source files (by SHA-256) the server stores already.
+    /// `None` when the server predates shared sources and cannot say: send everything then.
+    pub fn sources_have(&self, hashes: &[String]) -> RemoteResult<Option<std::collections::HashSet<String>>> {
+        #[derive(Deserialize)]
+        struct Have {
+            have: Vec<String>,
+        }
+        match self.post_json("/sources/have", &json!({ "sha256": hashes }), &[]) {
+            Ok(response) => Ok(Some(self.json::<Have>(response)?.have.into_iter().collect())),
+            Err(RemoteError::Protocol(message)) if message.contains("HTTP 404") => Ok(None),
+            Err(error) => Err(error),
+        }
+    }
+
+    /// `POST /uploads/{id}/links` (write role): files of the upload that the server makes from a source
+    /// it stores, or from another file of the upload, instead of receiving them.
+    pub fn link_upload(&self, upload: &str, links: &[UploadLink]) -> RemoteResult<()> {
+        self.post_json(&format!("/uploads/{upload}/links"), &json!({ "files": links }), &[]).map(|_| ())
+    }
+
     /// `POST /uploads/{id}/ingest`: write an uploaded transfer package.
     pub fn ingest(&self, upload: &str, package: &TransferPackage, on_conflict: OnConflict) -> RemoteResult<IngestReply> {
         let response = self.post_json_within(&format!("/uploads/{upload}/ingest"), &json!({ "package": package, "onConflict": on_conflict }), &[], LONG_RESPONSE_TIMEOUT)?;

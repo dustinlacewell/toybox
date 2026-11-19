@@ -161,7 +161,12 @@ fn library() -> Command {
         .subcommand(Command::new("default").about("Make a library the default one").arg(library_arg("The library").required(true)))
         .subcommand(Command::new("remove").about("Forget a library (its files stay where they are)").arg(library_arg("The library").required(true)).arg(dry_run()))
         .subcommand(Command::new("scan").about("Local: rebuild the index from the manifest and the files. Remote: fetch what changed").arg(library_arg("The library (default: -L, else the default)")))
-        .subcommand(Command::new("check").about("Verify the database and that every item's files exist (exit 4 when something is wrong)").arg(library_arg("The library (default: -L, else the default)")))
+        .subcommand(
+            Command::new("check")
+                .about("Verify the database and that every item's files exist (exit 4 when something is wrong)")
+                .arg(library_arg("The library (default: -L, else the default)"))
+                .arg(Arg::new("fix").long("fix").action(ArgAction::SetTrue).help("Remove stored source files no item uses (the only thing it changes)")),
+        )
         .subcommand(
             Command::new("cache")
                 .about("The downloaded files of a remote library")

@@ -148,9 +148,10 @@ The entry is committed with:
   the contributing plugin off therefore hides what it imported, like any
   plugin's items.
 - `files[0]` is the source file, the rest are its companions, all bare names.
-  They are stored in the model's own folder (`library/models/<key>/`) next to
-  `<name>.gltf` and `<name>.bin`, travel with the model and are deleted with
-  it. They are not exported by Copy files. `asset.origin.files` gives plugins
+  They are stored once per library, by content
+  (`library/models/_sources/<sha256>/<name>`), so a companion several models share
+  is one file; they travel with the model and are deleted with the last model that
+  keeps them. They are not exported by Copy files. `asset.origin.files` gives plugins
   their library-relative paths and `asset.format` the format.
 - `meta.source` is the path under the folder that was imported;
   `meta.companions` maps each companion's stored name to where it lay relative

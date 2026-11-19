@@ -297,7 +297,7 @@ fn the_list_matches_the_rules_of_the_window() {
     let libs = fixture(&tmp);
     check(&libs, &filter("audio"), "every audio item");
     check(&libs, &filter("skybox"), "skyboxes");
-    let mut f = filter("audio");
+    let mut f;
     for (what, edit) in [
         ("category", (|f: &mut BrowseFilter| f.categories = vec!["sfx".into()]) as fn(&mut BrowseFilter)),
         ("two categories", |f| f.categories = vec!["sfx".into(), "laser".into()]),

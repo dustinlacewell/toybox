@@ -13,6 +13,7 @@ pub mod migrations;
 pub mod registry;
 pub mod retention;
 pub mod settings;
+pub mod source_migration;
 pub mod store;
 pub mod storage;
 pub(crate) mod trace;

@@ -113,6 +113,11 @@ holds ao in `r`, roughness in `g` and metallic in `b`.
 - Each `file` must be a bare file name that exists in `library/<pack>/materials/<name>/`.
 - `id` must be unique across the whole catalog and stable across re-imports.
 
+- `origin.files` (optional) lists the source files kept with the material, such as the archive it
+  was rendered from. An importer stages them as bare names next to the maps; Toybox stores each distinct
+  file once per library, in `library/materials/_sources/<sha256>/<name>`, and the stored entry lists
+  that path. They are not maps and are never exported.
+
 The scan checks that each named file exists. It does not open the files. It does not check
 that a file is a valid image or that a channel exists.
 

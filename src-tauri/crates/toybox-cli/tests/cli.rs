@@ -753,3 +753,64 @@ fn the_library_can_come_from_the_environment() {
     command.env("TOYBOX_LIBRARY", "Other");
     assert_eq!(world.run(command, None).ok().lines(), vec!["uid://solo"]);
 }
+
+// ---- kept source files ----------------------------------------------------------------
+
+fn material_with_archive(root: &std::path::Path, name: &str, archive: &[u8]) -> serde_json::Value {
+    put(root, &format!("library/_import_s/materials/{name}/color.png"), name.as_bytes());
+    put(root, &format!("library/_import_s/materials/{name}/stone.sbsar"), archive);
+    json!({"id": format!("uid://{name}"), "kind": "material", "pack": "_import_s", "category": "stone", "name": name,
+        "maps": [{"role": "albedo", "file": "color.png"}],
+        "origin": {"plugin": "com.example.sbsar", "files": ["stone.sbsar"], "meta": {"sbsar": "stone.sbsar", "preset": name}}})
+}
+
+#[test]
+fn kept_sources_are_stored_once_listed_apart_counted_and_checked() {
+    let world = World::new();
+    let (id, root) = world.library("Main");
+    let archive = vec![42u8; 50_000];
+    let entries = vec![material_with_archive(&root, "Green", &archive), material_with_archive(&root, "Red", &archive)];
+    world.host().merge_seed_entries(&id, entries).unwrap();
+
+    // `show` keeps the item's own files apart from the sources, and both items name one stored copy.
+    let green = world.tbx(&["--json", "show", "uid://Green"]).ok().json();
+    let item = &green["items"][0];
+    let sources = item["sources"].as_array().unwrap();
+    assert_eq!(sources.len(), 1);
+    let path = sources[0]["path"].as_str().unwrap();
+    assert!(path.starts_with("library/materials/_sources/") && path.ends_with("/stone.sbsar"), "{path}");
+    assert_eq!(sources[0]["size"], 50_000);
+    assert!(item["files"].as_array().unwrap().iter().all(|file| !file["path"].as_str().unwrap().contains("_sources")));
+    let red = world.tbx(&["--json", "show", "uid://Red"]).ok().json();
+    assert_eq!(red["items"][0]["sources"][0]["path"], path);
+    let text = world.tbx(&["show", "uid://Green"]).ok();
+    assert!(text.out.contains("\nsources ") && text.out.contains("stone.sbsar"), "{}", text.out);
+
+    // `library info` says how much the sharing saves.
+    let info = world.tbx(&["--json", "library", "info"]).ok().json();
+    assert_eq!(info["sources"]["files"], 1);
+    assert_eq!(info["sources"]["bytes"], 50_000);
+    assert_eq!(info["sources"]["savedBytes"], 50_000);
+    assert!(world.tbx(&["library", "info"]).ok().out.contains("1 kept source files"));
+    assert_eq!(world.tbx(&["--json", "library", "check"]).ok().json()["ok"], true);
+
+    // A source nobody keeps is reported, and `--fix` removes it.
+    let stray = root.join("library/materials/_sources").join("a".repeat(64));
+    std::fs::create_dir_all(&stray).unwrap();
+    std::fs::write(stray.join("old.sbsar"), b"left behind").unwrap();
+    let check = world.tbx(&["--json", "library", "check"]).ok().json();
+    assert_eq!(check["ok"], true);
+    assert_eq!(check["orphanSources"].as_array().unwrap().len(), 1);
+    let fixed = world.tbx(&["--json", "library", "check", "--fix"]).ok().json();
+    assert_eq!(fixed["removedSources"].as_array().unwrap().len(), 1);
+    assert!(!stray.exists());
+    assert!(root.join(path).is_file(), "a source in use stays");
+
+    // A missing source is a problem; a damaged one too.
+    std::fs::write(root.join(path), b"damaged").unwrap();
+    let damaged = world.tbx(&["--json", "library", "check"]).fails_with(4).json();
+    assert!(damaged["problems"][0]["message"].as_str().unwrap().contains("damaged"), "{damaged}");
+    std::fs::remove_file(root.join(path)).unwrap();
+    let missing = world.tbx(&["--json", "library", "check"]).fails_with(4).json();
+    assert!(missing["problems"][0]["message"].as_str().unwrap().contains("missing source file"), "{missing}");
+}

@@ -1,0 +1,289 @@
+{
+  "id": "com.toybox.material-sbsar",
+  "name": "Substance materials (.sbsar)",
+  "version": "1.0.0",
+  "dependencies": {
+    "com.toybox.material-core": "^2.0.0"
+  },
+  "assetKinds": [
+    "material"
+  ],
+  "icon": "icons/sbsar.svg",
+  "description": "Materials: render Substance archives (.sbsar) into texture sets, choosing a preset and adjusting parameters. Needs Adobe's Substance 3D Integration Tools.",
+  "permissions": {
+    "fsRead": true,
+    "fsWrite": true,
+    "runTools": true,
+    "localNetwork": true
+  },
+  "settings": [
+    {
+      "key": "engine",
+      "type": "file",
+      "label": "Substance engine",
+      "default": "{appData}/Adobe/Substance3DIntegrationTools/substance_remote_engine.exe",
+      "hint": "The substance_remote_engine program from Adobe's Substance 3D Integration Tools. It is installed with Adobe's Substance add-ons (for Blender, Unity, Unreal and others), normally in the Adobe folder of your user application data."
+    },
+    {
+      "key": "renderer",
+      "type": "select",
+      "label": "Render with",
+      "default": "auto",
+      "options": [
+        {
+          "value": "auto",
+          "label": "Automatic"
+        },
+        {
+          "value": "VK",
+          "label": "Vulkan (GPU)"
+        },
+        {
+          "value": "CPU",
+          "label": "Processor only"
+        }
+      ],
+      "hint": "Automatic uses the graphics card. Choose another only if renders fail. Takes effect the next time the engine starts."
+    },
+    {
+      "key": "size",
+      "type": "select",
+      "label": "Default texture size",
+      "default": "11",
+      "options": [
+        {
+          "value": "9",
+          "label": "512 × 512"
+        },
+        {
+          "value": "10",
+          "label": "1024 × 1024"
+        },
+        {
+          "value": "11",
+          "label": "2048 × 2048"
+        },
+        {
+          "value": "12",
+          "label": "4096 × 4096"
+        }
+      ]
+    }
+  ],
+  "ui": {
+    "importPanel": "dist/ui/Import.js",
+    "assetPanel": "dist/ui/AssetPanel.js",
+    "assetPanelLabel": "Substance"
+  },
+  "cli": {
+    "module": "dist/cli.js",
+    "importers": [
+      {
+        "name": "sbsar",
+        "summary": "Render Substance archives (.sbsar) into materials. Needs Adobe's Substance 3D Integration Tools (see: tbx sbsar engine).",
+        "options": [
+          {
+            "name": "category",
+            "type": "string",
+            "default": "substance",
+            "help": "Category of the imported materials."
+          },
+          {
+            "name": "name",
+            "type": "string",
+            "help": "Name the material (and so its identity) instead of using the archive's file name, so variants of one archive sit side by side. One archive only; with --all-presets it is the base of <name> - <preset>."
+          },
+          {
+            "name": "size",
+            "type": "choice",
+            "choices": [
+              "512",
+              "1024",
+              "2048",
+              "4096"
+            ],
+            "help": "Texture size in pixels. Default: the plugin's setting (tbx plugin settings com.toybox.material-sbsar size)."
+          },
+          {
+            "name": "preset",
+            "type": "string",
+            "help": "Start from the archive's preset of this name instead of its defaults (names are listed by: tbx sbsar inputs). Importing the same archive again replaces its material; add --name to keep the earlier one."
+          },
+          {
+            "name": "all-presets",
+            "type": "flag",
+            "help": "Import every preset of an archive as a material of its own, named <archive> - <preset>."
+          },
+          {
+            "name": "graph",
+            "type": "string",
+            "help": "Render this graph of an archive that holds several, by number or label. Default: the first."
+          },
+          {
+            "name": "set",
+            "type": "string",
+            "multiple": true,
+            "help": "Set a parameter, name=value; repeatable, laid over the defaults or --preset. Numbers, true/false, a list entry by number or label, vectors and colours as 0.2,0.4,0.1 or #rrggbb. A material of the same name is replaced: use --name to keep the earlier one."
+          },
+          {
+            "name": "values",
+            "type": "path",
+            "help": "A JSON file of parameter name -> value, applied before any --set."
+          },
+          {
+            "name": "ignore-missing",
+            "type": "flag",
+            "help": "A parameter an archive does not have is ignored with a warning, instead of skipping that archive."
+          },
+          {
+            "name": "skip-existing",
+            "type": "flag",
+            "help": "Leave alone an archive whose material the library already has, rendered from the same archive content with the same graph, preset, parameters and size."
+          },
+          {
+            "name": "renderer",
+            "type": "choice",
+            "choices": [
+              "auto",
+              "VK",
+              "CPU"
+            ],
+            "help": "Render with the graphics card (auto), Vulkan or the processor, for this run instead of the plugin's setting."
+          }
+        ]
+      }
+    ],
+    "commands": [
+      {
+        "name": "sbsar",
+        "summary": "Work with Substance archives and the materials made from them.",
+        "commands": [
+          {
+            "name": "inputs",
+            "summary": "List an archive's graphs, outputs, presets and the parameters you can set, with their types, ranges and choices.",
+            "args": [
+              {
+                "name": "file",
+                "type": "path",
+                "required": true,
+                "help": "The .sbsar file."
+              }
+            ],
+            "options": [
+              {
+                "name": "preset",
+                "type": "string",
+                "help": "Also show the value this preset gives each parameter."
+              },
+              {
+                "name": "graph",
+                "type": "string",
+                "help": "Only this graph, by number or label."
+              },
+              {
+                "name": "renderer",
+                "type": "choice",
+                "choices": [
+                  "auto",
+                  "VK",
+                  "CPU"
+                ],
+                "help": "Start the engine with this renderer (if it is not running)."
+              }
+            ]
+          },
+          {
+            "name": "render",
+            "summary": "Render Substance materials again with another preset, other parameters or size: in place, or as a new material with --save-as.",
+            "selection": true,
+            "options": [
+              {
+                "name": "set",
+                "type": "string",
+                "multiple": true,
+                "help": "Set a parameter, name=value; repeatable, laid over what the material was rendered with. See: tbx sbsar inputs."
+              },
+              {
+                "name": "values",
+                "type": "path",
+                "help": "A JSON file of parameter name -> value, applied before any --set."
+              },
+              {
+                "name": "preset",
+                "type": "string",
+                "help": "Start from this preset instead of the material's."
+              },
+              {
+                "name": "reset",
+                "type": "flag",
+                "help": "Start from the archive's defaults instead of the material's preset and parameters."
+              },
+              {
+                "name": "size",
+                "type": "choice",
+                "choices": [
+                  "512",
+                  "1024",
+                  "2048",
+                  "4096"
+                ],
+                "help": "Texture size in pixels. Default: the material's own."
+              },
+              {
+                "name": "save-as",
+                "type": "string",
+                "help": "Keep the original and add a new material of this name (one item only)."
+              },
+              {
+                "name": "ignore-missing",
+                "type": "flag",
+                "help": "A parameter a material's archive does not have is ignored with a warning, instead of skipping that material."
+              },
+              {
+                "name": "dry-run",
+                "type": "flag",
+                "help": "Print what each material would be rendered with and render nothing (the archives are opened in the engine to check the values)."
+              },
+              {
+                "name": "renderer",
+                "type": "choice",
+                "choices": [
+                  "auto",
+                  "VK",
+                  "CPU"
+                ],
+                "help": "Render with the graphics card (auto), Vulkan or the processor, for this run."
+              }
+            ]
+          },
+          {
+            "name": "show",
+            "summary": "Show how Substance materials were made: archive, graph, preset, changed parameters and size.",
+            "selection": true
+          },
+          {
+            "name": "engine",
+            "summary": "Check the Substance engine: where it is expected, whether it exists and, with --start, whether it starts and answers.",
+            "options": [
+              {
+                "name": "start",
+                "type": "flag",
+                "help": "Start the engine (stopped again when the command ends) and check that it answers."
+              },
+              {
+                "name": "renderer",
+                "type": "choice",
+                "choices": [
+                  "auto",
+                  "VK",
+                  "CPU"
+                ],
+                "help": "Try this renderer instead of the plugin's setting."
+              }
+            ]
+          }
+        ]
+      }
+    ]
+  }
+}

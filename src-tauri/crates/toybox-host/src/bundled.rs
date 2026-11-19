@@ -13,10 +13,16 @@ use crate::host::Host;
 /// entry (`plugins/<id>/manifest.json` + `plugins/<id>/dist`) in tauri.conf.json.
 const BUNDLED_PLUGINS: &[&str] = &[
     "com.toybox.model-core", "com.toybox.model-gltf", "com.toybox.animation-core",
-    "com.toybox.material-core",
+    "com.toybox.material-core", "com.toybox.material-sbsar",
     "com.toybox.audio-core", "com.toybox.skybox-core",
     "com.toybox.rig-synty-polygon", "com.toybox.rig-synty-sidekick", "com.toybox.rig-synty-unreal", "com.toybox.rig-quaternius",
 ];
+
+/// Bundled plugins that start switched off: they are installed with the app, but a
+/// new install lists them unticked until the user turns them on. The Substance
+/// plugin is one because it does nothing without Adobe's own tools. Only the
+/// first installation of the plugin sets the switch; after that it is the user's.
+pub const OFF_BY_DEFAULT: &[&str] = &["com.toybox.material-sbsar"];
 
 /// A bundled plugin that no longer ships: its old id and the bundled plugins
 /// that took over its work (none when the work was dropped).
@@ -68,8 +74,18 @@ impl Host {
         std::fs::create_dir_all(&dest_root)?;
 
         for id in BUNDLED_PLUGINS {
+            let first_install = !dest_root.join(id).exists();
             // A failed copy for one plugin shouldn't break the app; drop it.
-            let _ = seed_one(&resources.join("plugins").join(id), &dest_root.join(id));
+            let installed = seed_one(&resources.join("plugins").join(id), &dest_root.join(id)).unwrap_or(false);
+            if installed && first_install && OFF_BY_DEFAULT.contains(id) {
+                if let Ok(mut settings) = self.load_settings() {
+                    if !settings.disabled_plugins.iter().any(|off| off == id) {
+                        settings.disabled_plugins.push(id.to_string());
+                        settings.disabled_plugins.sort();
+                        let _ = self.save_settings(&settings);
+                    }
+                }
+            }
         }
         for (old, replacements) in RETIRED_PLUGINS {
             let _ = retire_one(&dest_root, old);
@@ -225,6 +241,33 @@ mod tests {
     use super::*;
 
     #[test]
+    fn a_plugin_that_is_off_by_default_starts_off_and_then_follows_the_user() {
+        use crate::paths::HostPaths;
+        let tmp = std::env::temp_dir().join(format!("toybox-bundle-default-off-{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&tmp);
+        let resources = tmp.join("resources");
+        for id in ["com.toybox.material-core", "com.toybox.material-sbsar"] {
+            let dir = resources.join("plugins").join(id);
+            std::fs::create_dir_all(&dir).unwrap();
+            std::fs::write(dir.join("manifest.json"), format!(r#"{{"id":"{id}","name":"x","version":"1.0.0","permissions":{{}}}}"#)).unwrap();
+        }
+        let host = Host::open_with_secrets(HostPaths::for_home(&tmp.join("home")), std::sync::Arc::new(toybox_remote::secrets::MemoryStore::new()), None).unwrap();
+        assert!(OFF_BY_DEFAULT.iter().all(|id| BUNDLED_PLUGINS.contains(id)));
+
+        host.seed_bundled_plugins(&resources).unwrap();
+        assert_eq!(host.load_settings().unwrap().disabled_plugins, vec!["com.toybox.material-sbsar".to_string()]);
+
+        // The user turns it on; a later start (also one that updates the plugin) leaves that alone.
+        let mut settings = host.load_settings().unwrap();
+        settings.disabled_plugins.clear();
+        host.save_settings(&settings).unwrap();
+        std::fs::write(resources.join("plugins/com.toybox.material-sbsar/manifest.json"), r#"{"id":"com.toybox.material-sbsar","name":"x","version":"1.1.0","permissions":{}}"#).unwrap();
+        host.seed_bundled_plugins(&resources).unwrap();
+        assert!(host.load_settings().unwrap().disabled_plugins.is_empty());
+        let _ = std::fs::remove_dir_all(&tmp);
+    }
+
+    #[test]
     fn bundled_ids_are_unique() {
         let mut ids: Vec<&str> = BUNDLED_PLUGINS.to_vec();
         ids.sort();
@@ -258,6 +301,7 @@ mod tests {
             assert!(BUNDLED_PLUGINS.contains(&id));
             assert_eq!(replaces(RETIRED_PLUGINS, id), vec!["com.toybox.gltf-importer"]);
         }
+        assert!(replaces(RETIRED_PLUGINS, "com.toybox.material-sbsar").is_empty());
     }
 
     #[test]

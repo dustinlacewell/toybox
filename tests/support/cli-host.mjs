@@ -4,7 +4,7 @@
 // writes under an authorized root, nothing may escape its root), the extension
 // table of the loaded modules, and `commit` that records what would be committed.
 
-import { copyFileSync, existsSync, mkdirSync, mkdtempSync, readFileSync, readdirSync, rmSync, statSync, writeFileSync } from "node:fs";
+import { cpSync, copyFileSync, existsSync, mkdirSync, mkdtempSync, readFileSync, readdirSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import { pathToFileURL } from "node:url";
@@ -77,6 +77,11 @@ export function createFs() {
     async writeBytes(root, p, bytes) { const to = jail(root, p); mkdirSync(path.dirname(to), { recursive: true }); writeFileSync(to, bytes); },
     async writeText(root, p, text) { const to = jail(root, p); mkdirSync(path.dirname(to), { recursive: true }); writeFileSync(to, text); },
     async writeJson(root, p, value) { const to = jail(root, p); mkdirSync(path.dirname(to), { recursive: true }); writeFileSync(to, JSON.stringify(value)); },
+    async removeTree(root, p) {
+      const target = jail(root, p);
+      if (target === path.resolve(root)) throw new Error("the root of a jail cannot be removed");
+      rmSync(target, { recursive: true, force: true });
+    },
     pickDirectory: refuse("pickDirectory"),
     pickSaveFile: refuse("pickSaveFile"),
   };
@@ -107,11 +112,13 @@ export async function loadPlugins(ids, env) {
   const lookup = (point) => (table.get(point) ?? []).slice().sort((a, b) => (a.pluginId < b.pluginId ? -1 : a.pluginId > b.pluginId ? 1 : 0));
   const host = {
     getLibraryRoot: async () => env.libraryRoot,
-    getSelectedAssets: () => [], getAsset: () => undefined, getSelectedAssetsAsync: async () => [], getAssetAsync: async () => undefined,
+    getSelectedAssets: () => [], getAsset: () => undefined, getSelectedAssetsAsync: async () => [], getAssetAsync: async (id) => library.get(id),
     convertToGltf: async () => { throw new Error("no converter"); },
     pickDirectory: fs.pickDirectory, pickSaveFile: fs.pickSaveFile,
   };
   const services = env.services ?? defaultServices();
+  /** The items of the pretend library, by id, when `env.store` is set (see `commit`). */
+  const library = new Map();
   const plugins = new Map();
   for (const id of ids) {
     const manifest = manifestOf(id);
@@ -129,32 +136,35 @@ export async function loadPlugins(ids, env) {
   const logs = [];
   const warnings = [];
   const printed = [];
-  const base = (extra = {}) => ({
+  const base = (pluginId, extra = {}) => ({
     library: { id: "lib-1", name: "Test library" },
     host, fs, services, extensions: lookup,
-    commit: async (entries) => { committed.push(...entries); },
+    commit: async (entries) => {
+      committed.push(...entries);
+      if (env.store) for (const entry of entries) storeEntry(env.libraryRoot, library, pluginId, entry);
+    },
     log: (message) => logs.push(message),
     warn: (message) => warnings.push(message),
     signal: new AbortController().signal,
     ...extra,
   });
   return {
-    plugins, committed, logs, warnings, printed, fs, lookup,
+    plugins, committed, logs, warnings, printed, fs, lookup, library,
     /** `tbx import <name> <paths> [--option ...]`. */
     async runImporter(pluginId, name, paths, options = {}) {
       const { manifest, module } = plugins.get(pluginId);
       const spec = manifest.cli.importers.find((item) => item.name === name);
       const handler = module.cli.importers[name];
-      return handler(base({ paths, options: withDefaults(spec.options, options) }));
+      return handler(base(pluginId, { paths, options: withDefaults(spec.options, options) }));
     },
     /** `tbx <path words> <args> [--option ...]`. */
-    async runCommand(pluginId, commandPath, args = {}, options = {}) {
+    async runCommand(pluginId, commandPath, args = {}, options = {}, ids) {
       const { manifest, module } = plugins.get(pluginId);
       let specs = manifest.cli.commands;
       let spec;
       for (const word of commandPath.split(" ")) { spec = specs.find((item) => item.name === word); specs = spec.commands ?? []; }
       const handler = module.cli.commands[commandPath];
-      const result = await handler(base({ args: withDefaults(spec.args, args), options: withDefaults(spec.options, options), print: (text) => printed.push(text) }));
+      const result = await handler(base(pluginId, { args: withDefaults(spec.args, args), options: withDefaults(spec.options, options), print: (text) => printed.push(text), ...(ids ? { assets: ids.map((id) => library.get(id)) } : {}) }));
       return result;
     },
   };
@@ -169,4 +179,26 @@ export function defaultServices(over = {}) {
     scratchDir: async () => scratch,
     ...over,
   };
+}
+
+/**
+ * What the host does with a committed material entry: move the staged folder
+ * `library/<pack>/materials/<name>/` to `library/materials/<key>/`, replace an item of the same id (its old
+ * folder goes, its tags and other user data stay) and list the files as library-relative paths in `origin.files`.
+ */
+function storeEntry(libraryRoot, library, pluginId, entry) {
+  const key = entry.id.replace(/[^a-z0-9]/gi, "");
+  const staged = path.join(libraryRoot, "library", entry.pack, "materials", entry.name);
+  const final = path.join(libraryRoot, "library", "materials", key);
+  const before = library.get(entry.id);
+  if (before) rmSync(path.join(libraryRoot, path.dirname(before.relPath)), { recursive: true, force: true });
+  mkdirSync(path.dirname(final), { recursive: true });
+  cpSync(staged, final, { recursive: true });
+  rmSync(staged, { recursive: true, force: true });
+  library.set(entry.id, {
+    kind: "material", id: entry.id, library: "lib-1", name: entry.name, category: entry.category, pack: "imported", fileName: entry.maps[0].file, relPath: `library/materials/${key}/${entry.maps[0].file}`,
+    origin: { plugin: pluginId, files: (entry.origin?.files ?? []).map((file) => `library/materials/${key}/${file}`), meta: entry.origin?.meta },
+    user: before?.user ?? { favorite: false, tags: [], provenance: entry.provenance },
+    material: { maps: entry.maps, flipNormalGreen: false },
+  });
 }

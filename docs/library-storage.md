@@ -15,6 +15,8 @@ library/
   models/<opaque-set-key>/Name.gltf + Name.bin
   models/_resources/<content-hash>.<extension>
   materials/<opaque-set-key>/<map files>
+  materials/_sources/<sha256>/<original name>   (kept source files: one copy per content)
+  models/_sources/<sha256>/<original name>
   animations/<opaque-set-key>/Name.gltf + Name.bin
   audio/<opaque-set-key>/<audio file>
 ```
@@ -25,6 +27,20 @@ IDs, names, variants, rig bindings, favorites, collections, preview-model choice
 and provenance remain attached to the same items. Favorites, personal tags,
 collections and preview-model choices are personal to a computer and live in its
 `user.db`, never in the library.
+
+Kept source files (`origin.files`) live apart from the items that keep them. Each
+distinct file is stored **once per library**, by content, in
+`library/<type>/_sources/<sha256>/<original name>` (`<type>` is `materials` or `models`,
+the types that can keep sources). An entry names that library-relative path in
+`origin.files`, in the manifest and in the catalog alike; the last segment is the
+file's original name, which is how a plugin finds "its" file (the Substance plugin
+looks for `origin.meta.sbsar`). An importer still stages a bare name next to the entry's
+own files; the host moves the staged file into this folder when the entry is
+committed, or just drops it when a file with that content is stored already. A source
+is deleted with the last item that lists it (the file-reference table says who does),
+and a replaced item gives up the ones nothing else lists. An older entry may still list
+a bare name that sits in its own folder until the library is converted
+(migration step 5, below).
 
 The `pack` field remains for compatibility with older plugins and existing
 export layouts. It does not determine a managed storage location. Native seed
@@ -54,6 +70,22 @@ the per-machine cache `libraries/<id>/catalog.json` and `content-hashes.json` in
 `library.db` and `user.db`, and moves the old files, never deleting them, into
 `_library_config/migration-backups/0004-<stamp>/`. See
 [SQLite library storage](sqlite-storage.md#migration-library-migration-step-4-sqlite-store).
+
+Migration version 5 (`shared-sources`) gives every kept source file its place in
+`_sources/` (see "Kept source files" above). The library journal is advanced to version 5
+first, so an older Toybox refuses the library from then on. Then, in batches of items
+through the same journaled publication an import uses, the step hashes each source beside
+its item, writes the first file of each content into `_sources/<sha256>/` (verified by size
+and hash), rewrites the entries and the derived rows in one database transaction, and only
+then removes the copies beside the items, each only if it still is what was hashed. A crash
+at any point leaves a valid library: before the transaction the entries still name the old
+files, after it the shared ones; an interrupted publication is finished from its journal at
+the next open, and the step itself (`meta` key `sharedSources` is `done` when finished) resumes
+at the next open. An item whose source is missing or unreadable is left as it was and listed in
+the report (`meta` key `sharedSourcesReport`: items converted, files, bytes before, bytes freed,
+items skipped), which `tbx library info` shows. The step runs wherever a library is opened:
+the app, `tbx`, and the server at start. It needs time proportional to the bytes of the sources
+(every one is hashed twice) and no space beyond the first file of each content.
 
 The app runs migrations when opening a library. For an offline migration without
 launching the UI or deriving catalog facts:

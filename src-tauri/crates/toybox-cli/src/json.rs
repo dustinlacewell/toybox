@@ -90,8 +90,32 @@ pub struct LibraryInfoDoc {
     pub files: Option<u64>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub bytes: Option<u64>,
+    /// Kept source files (each stored once per library): how many, their bytes, and the bytes sharing saves
+    /// compared with a copy for every item that keeps one. Absent for a remote library.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub sources: Option<SourcesDoc>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub remote: Option<RemoteDoc>,
+}
+
+#[derive(Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct SourcesDoc {
+    pub files: u64,
+    pub bytes: u64,
+    pub saved_bytes: u64,
+    /// What converting the library to shared sources did when it ran here.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub migration: Option<MigrationDoc>,
+}
+
+#[derive(Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct MigrationDoc {
+    pub items: usize,
+    pub bytes_freed: u64,
+    /// Items that could not be converted.
+    pub skipped: usize,
 }
 
 #[derive(Serialize)]
@@ -137,6 +161,10 @@ pub struct CheckDoc {
     pub items: i64,
     pub files_checked: u64,
     pub problems: Vec<ProblemDoc>,
+    /// Stored source files no item uses.
+    pub orphan_sources: Vec<String>,
+    /// Orphans `--fix` removed.
+    pub removed_sources: Vec<String>,
 }
 
 #[derive(Serialize)]
@@ -190,7 +218,11 @@ pub struct ShowItem {
     pub library: String,
     /// The item as the app has it.
     pub asset: toybox_core::domain::catalog_model::Asset,
+    /// The files the item is made of.
     pub files: Vec<FileDoc>,
+    /// The source files kept with it (the archive it was rendered from, the file it was converted from);
+    /// several items may keep the same one.
+    pub sources: Vec<FileDoc>,
 }
 
 #[derive(Serialize)]
@@ -288,6 +320,9 @@ pub struct ImportDoc {
     pub library: String,
     pub dry_run: bool,
     pub imported: Vec<String>,
+    /// Ids of the items that replaced items the library already had (`replacedItems` says what each was).
+    pub replaced: Vec<String>,
+    pub replaced_items: Vec<crate::plugin_runtime::ReplacedItem>,
     pub skipped: Vec<String>,
     pub warnings: Vec<String>,
 }

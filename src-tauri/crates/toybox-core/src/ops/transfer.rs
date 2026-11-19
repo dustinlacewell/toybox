@@ -486,9 +486,10 @@ pub fn ingest_package(
     for chunk in todo.chunks(CHUNK) {
         clear_staging(&target.root);
         let mut written = HashMap::new();
+        let mut sources = HashMap::new();
         let mut staged: Vec<(usize, Value)> = Vec::new();
         for &index in chunk {
-            match stage_asset(&target.root, &package.assets[index], read, &mut written) {
+            match stage_asset(&target.root, &package.assets[index], read, &mut written, &mut sources) {
                 Ok(entry) => staged.push((index, entry)),
                 Err(error) => items[index].reason = Some(error.to_string()),
             }
@@ -510,7 +511,7 @@ pub fn ingest_package(
                     // One bad item must not sink its neighbours: commit them one by one.
                     for (index, _) in &staged {
                         clear_staging(&target.root);
-                        let result = stage_asset(&target.root, &package.assets[*index], read, &mut HashMap::new())
+                        let result = stage_asset(&target.root, &package.assets[*index], read, &mut HashMap::new(), &mut HashMap::new())
                             .and_then(|entry| merge_entries(target, vec![entry]));
                         match result {
                             Ok(_) => landed.push(*index),
@@ -584,12 +585,12 @@ fn sha_hex(bytes: &[u8]) -> String {
 /// Stage one item as an importer would: its entry without a `storagePath`, under
 /// a private pack, with its files in the layout the storage layer expects. The
 /// item's own pack and category ride along in `transferOf`.
-fn stage_asset(root: &Path, asset: &PackageAsset, read: ReadFile, written: &mut HashMap<String, String>) -> AppResult<Value> {
+fn stage_asset(root: &Path, asset: &PackageAsset, read: ReadFile, written: &mut HashMap<String, String>, sources: &mut HashMap<String, String>) -> AppResult<Value> {
     let files: HashMap<&str, &PackageFile> = asset.files.iter().map(|file| (file.path.as_str(), file)).collect();
     let parsed = seed::parse_entry(&asset.entry)?;
     let pack = format!("{STAGE_PREFIX}{}", &sha_hex(asset.id.as_bytes())[..12]);
     let mut staged = asset.entry.clone();
-    let mut stager = Stager { root, files: &files, read, written, pack: &pack };
+    let mut stager = Stager { root, files: &files, read, written, pack: &pack, sources };
     stager.item(&mut staged, &parsed)?;
     if let Some(variants) = staged.get_mut("variants").and_then(Value::as_array_mut) {
         for (variant, parsed) in variants.iter_mut().zip(&parsed.variants) {
@@ -605,6 +606,8 @@ struct Stager<'a> {
     read: ReadFile<'a>,
     written: &'a mut HashMap<String, String>,
     pack: &'a str,
+    /// Where each kept source (by digest) was staged by this group already.
+    sources: &'a mut HashMap<String, String>,
 }
 
 fn basename(path: &str) -> &str {
@@ -671,11 +674,26 @@ impl<'a> Stager<'a> {
                 }
             }
         }
-        // Source files the importer kept sit in the item's own folder, by bare name.
-        if let Some(origin) = &parsed.origin {
+        // Source files the importer kept are staged beside the item by bare name, as an importer stages
+        // them; the target stores each distinct one once. A source the target holds already is not
+        // fetched at all, and one this group staged for another item is linked, not read again.
+        if let Some(origin) = parsed.origin.as_ref().filter(|origin| !origin.files.is_empty()) {
+            let type_folder = if matches!(parsed.content, SeedContent::Material { .. }) { "materials" } else { "models" };
+            let mut names = Vec::new();
             for source in &origin.files {
-                self.stage_from(&format!("{kept_in}/{}", basename(source)), source)?;
+                let name = basename(source).to_string();
+                let file = self.file(source)?;
+                let shared = crate::domain::sources::shared_path(type_folder, &file.sha256, &name);
+                if paths::abs_under_root(&self.root.to_string_lossy(), &shared).is_file() {
+                    // Already stored here: the entry points at it.
+                    names.push(shared);
+                    continue;
+                }
+                let dest = format!("{kept_in}/{name}");
+                self.stage_source(&dest, source)?;
+                names.push(name);
             }
+            item["origin"]["files"] = json!(names);
         }
         Ok(())
     }
@@ -731,6 +749,29 @@ impl<'a> Stager<'a> {
             return Err(AppError::msg(format!("{path} changed while it was being copied")));
         }
         self.written.insert(dest.to_string(), digest);
+        Ok(())
+    }
+
+    /// Stage a kept source file: a hard link (or copy) of the staged copy of the same content when this
+    /// group has one, otherwise read from the source library.
+    fn stage_source(&mut self, dest: &str, path: &str) -> AppResult<()> {
+        let digest = self.file(path)?.sha256.clone();
+        if let Some(from) = self.sources.get(&digest).cloned() {
+            if from != dest {
+                let to = paths::abs_under_root(&self.root.to_string_lossy(), dest);
+                if let Some(parent) = to.parent() {
+                    std::fs::create_dir_all(parent).map_err(|error| AppError::file("Create directory", parent, error))?;
+                }
+                let origin = paths::abs_under_root(&self.root.to_string_lossy(), &from);
+                if std::fs::hard_link(&origin, &to).is_err() {
+                    std::fs::copy(&origin, &to).map_err(|error| AppError::file("Write", &to, error))?;
+                }
+                self.written.insert(dest.to_string(), digest);
+            }
+            return Ok(());
+        }
+        self.stage_from(dest, path)?;
+        self.sources.insert(digest, dest.to_string());
         Ok(())
     }
 

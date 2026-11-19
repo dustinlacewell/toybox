@@ -322,7 +322,7 @@ one, so only the bad one fails.
 | --- | --- | --- |
 | model | the `.gltf`, its single `.bin`, every external image (stored once per content in `_resources`), the kept original files in `origin.files` | all of it: `format`, `provenance`, `origin` (plugin, meta, files), `animationsExtracted`, ... |
 | variants (detail levels, sizes) | each variant's own files, as above | each variant inside the parent's `variants` |
-| material | every map file, the kept archive and files in `origin.files` | `maps`, `flipNormalGreen`, `origin`, ... |
+| material | every map file, the kept archive and files in `origin.files` (stored once per library; a transfer carries each distinct one once, and sends none the target already stores) | `maps`, `flipNormalGreen`, `origin`, ... |
 | audio | the audio file | all |
 | animation clip | its `.gltf` and `.bin` (clips are self-contained) | all, including `standalone` |
 | plugin-defined type | every file in its `files[]` list | `type`, `files`, `meta`, ... |

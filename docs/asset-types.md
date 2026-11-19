@@ -10,7 +10,8 @@ together in general (what it ships, dependencies, extension points) is in
 [Plugins](plugins.md).
 
 The bundled [Skyboxes plugin](skyboxes.md) is the reference implementation of a
-plugin-defined type. Plugins can also add to a type another plugin declares.
+plugin-defined type. The bundled [Substance materials plugin](substance-materials.md)
+shows the other shape: a plugin that adds to a type another plugin declares.
 
 ## Two kinds of implementation
 
@@ -25,7 +26,7 @@ Materials by `com.toybox.material-core`, Audio by `com.toybox.audio-core`; the
 plugin-implemented Skyboxes by `com.toybox.skybox-core`; see [Models](models.md)
 and the table in [Plugins](plugins.md#the-bundled-plugins). Each type has one
 `<type>-core` plugin that declares it and owns its import panel; a plugin that
-adds to a type depends on that core) — the declaration supplies the label, icon,
+adds to a type, such as `com.toybox.material-sbsar`, depends on that core) — the declaration supplies the label, icon,
 navigation order and importer — but
 their viewers and indexing stay in the host, because they rest on native code:
 glTF parsing, rig matching and animation extraction, audio decoding. The host
@@ -203,13 +204,13 @@ A type has one declaring plugin, but any number of plugins can import into it.
 A plugin that ships an `ui.importPanel` is an importer. It lists the types it
 produces in `assetKinds` (the types it declares are included); the import
 screen offers every importer for the current type.
-For example, a generator plugin can import `material` assets alongside the
-texture-folder importer.
+The bundled [Substance materials](substance-materials.md) plugin imports
+`material` assets alongside the texture-folder importer.
 
 Every entry an import commits is stamped with its plugin:
 
 ```json
-"origin": { "plugin": "com.example.material-generator",
+"origin": { "plugin": "com.toybox.material-sbsar",
             "meta": { "sbsar": "tiles.sbsar", "preset": "Green", "inputs": { "joint_height": 0.3 }, "size": 11 } }
 ```
 
@@ -219,11 +220,14 @@ stored and handed back untouched as `asset.origin.meta`.
 
 A material may also keep **source files** — what it was generated from. The
 importer stages them next to the maps and lists their bare names in
-`origin.files`. The host stores them in the material's own folder, counts them
-in its identity, checks they exist when indexing, and deletes them with the
-material; they are not exported. A plugin reads them back as library-relative
-paths in `asset.origin.files`. A model keeps them the same way, beside its glTF
-and bin (names other than `<name>.gltf` and `<name>.bin`; see
+`origin.files`. At commit the host moves each into shared storage, by content
+(`library/materials/_sources/<sha256>/<name>`: one copy per distinct file in the
+library, however many materials keep it; a staged copy of a file that is stored
+already is dropped), and checks they exist when indexing. They go with the last
+material that keeps them and are not exported. A plugin reads them back as
+library-relative paths in `asset.origin.files`; the last segment is the file's
+original name, so find a file by name, not by where it sits. A model keeps them the
+same way (names other than `<name>.gltf` and `<name>.bin`; see
 [Models](models.md#keeping-the-original)); it is not an error if one goes
 missing. Other types cannot keep source files today. An importer may also name,
 in `origin.plugin`, a plugin that is on and depends on it; the host stamps its

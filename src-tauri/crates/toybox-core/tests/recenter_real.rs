@@ -32,7 +32,7 @@ fn chopshop_grounds_and_centers() {
     assert!(bb1.min[1].abs() < 1e-4, "base on origin, got {}", bb1.min[1]);
 
     // Then center X and Z on the already-grounded result.
-    let (g2, bb2) = recenter(&g1, Axis::X, Align::Center).unwrap();
+    let (g2, _bb2) = recenter(&g1, Axis::X, Align::Center).unwrap();
     let (_g3, bb3) = recenter(&g2, Axis::Z, Align::Center).unwrap();
 
     let cx = 0.5 * (bb3.min[0] + bb3.max[0]);

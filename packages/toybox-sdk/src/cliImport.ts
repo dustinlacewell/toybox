@@ -1,4 +1,4 @@
-import type { ImportResult, ImportRun, SeedEntryInput } from "./index.js";
+import type { ImportResult, ImportRun, ReplacedItem, SeedEntryInput } from "./index.js";
 
 /** Whether `value` is one safe path segment on every platform: not empty, no
  *  slashes or other reserved characters, not `.` or `..`, no trailing dot or space.
@@ -20,6 +20,10 @@ export interface ImportOutcome<E extends { id: string } = SeedEntryInput> {
   skipped: number;
   skippedNotes: string[];
   warnings: string[];
+  /** Items the import left alone because the library already has them (not an error). */
+  unchanged?: string[];
+  /** Items among `entries` that replace an item the library already had. */
+  replaced?: ReplacedItem[];
 }
 
 export function newImportOutcome<E extends { id: string } = SeedEntryInput>(): ImportOutcome<E> {
@@ -41,13 +45,16 @@ export function mergeImportOutcome<E extends { id: string }>(total: ImportOutcom
   total.skipped += part.skipped;
   total.skippedNotes.push(...part.skippedNotes);
   total.warnings.push(...part.warnings);
+  if (part.unchanged?.length) (total.unchanged ??= []).push(...part.unchanged);
+  if (part.replaced?.length) (total.replaced ??= []).push(...part.replaced);
 }
 
 /**
  * The shared body of a command-line importer handler: find the library folder,
  * run `work` (the plugin's headless import), fail with `nothingFound(outcome)`
  * when it produced no entries, commit, and report as an `ImportResult`
- * (the skip notes as `skipped`, the other warnings as `warnings`).
+ * (the skip notes as `skipped`, the other warnings as `warnings`). Items the library
+ * already had (`unchanged`) are not errors: they are mentioned and left alone.
  */
 export async function runImport<E extends SeedEntryInput>(
   run: ImportRun,
@@ -57,10 +64,13 @@ export async function runImport<E extends SeedEntryInput>(
   const libraryRoot = await run.host.getLibraryRoot();
   if (!libraryRoot) throw new Error("The library has no folder to import into.");
   const outcome = await work(libraryRoot);
-  if (!outcome.entries.length) throw new Error(nothingFound(outcome));
-  await run.commit(outcome.entries);
+  const unchanged = outcome.unchanged ?? [];
+  if (!outcome.entries.length && !unchanged.length) throw new Error(nothingFound(outcome));
+  if (unchanged.length) run.log(`Left ${unchanged.length === 1 ? "1 item" : `${unchanged.length} items`} alone, already in the library: ${unchanged.join(", ")}`);
+  if (outcome.entries.length) await run.commit(outcome.entries);
   return {
     imported: outcome.entries.map((entry) => entry.id),
+    ...(outcome.replaced?.length ? { replaced: outcome.replaced } : {}),
     skipped: outcome.skippedNotes,
     warnings: outcome.warnings.filter((warning) => !outcome.skippedNotes.includes(warning)),
   };

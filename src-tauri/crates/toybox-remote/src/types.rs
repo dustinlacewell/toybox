@@ -75,6 +75,21 @@ pub struct ThumbList {
     pub thumbs: Vec<ThumbEntry>,
 }
 
+/// One file of an upload that is not sent but made on the server (see `Client::link_upload`).
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+pub struct UploadLink {
+    /// Where it belongs in the upload.
+    pub path: String,
+    /// `files` (a staged import file) or `package` (a transfer package file).
+    pub route: String,
+    /// Made from the source the server stores with this content...
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub sha256: Option<String>,
+    /// ...or from this other file of the same upload.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub from: Option<String>,
+}
+
 /// `POST /uploads`.
 #[derive(Debug, Clone, PartialEq, Eq, Deserialize)]
 #[serde(rename_all = "camelCase")]

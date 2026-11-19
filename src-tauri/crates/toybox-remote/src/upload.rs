@@ -3,7 +3,7 @@
 //! streamed `PUT`s, then a commit or an ingest) and finish by bringing the local
 //! catalog up to date.
 
-use std::collections::{BTreeSet, HashSet, VecDeque};
+use std::collections::{BTreeMap, BTreeSet, HashSet, VecDeque};
 use std::io::Read;
 use std::path::{Path, PathBuf};
 use std::sync::atomic::{AtomicBool, AtomicU64, AtomicUsize, Ordering};
@@ -12,12 +12,13 @@ use std::time::Duration;
 
 use serde_json::Value;
 use toybox_core::domain::catalog_model::Catalog;
+use toybox_core::domain::{seed, sources};
 use toybox_core::ops::transfer::{ItemFailure, OnConflict, Outcome, ReadFile, TransferItem, TransferPackage, TransferProgress, TransferReport};
 
 use crate::error::{RemoteError, RemoteResult};
 use crate::library::RemoteLibrary;
 use crate::client::Client;
-use crate::types::{CommitReply, EntryError};
+use crate::types::{CommitReply, EntryError, UploadLink};
 
 /// What an import did.
 #[derive(Debug)]
@@ -103,6 +104,8 @@ impl RemoteLibrary {
             walk(root, &root.join("library").join(pack), &mut files);
         }
         let client = self.client();
+        // A kept source (a material's archive) is sent once, and not at all when the server stores it.
+        let links = plan_staged_source_links(&client, entries, &mut files)?;
         let upload = client.create_upload()?;
         let total_files = files.len() as u64;
         let total_bytes: u64 = files.iter().map(|f| f.size).sum();
@@ -137,6 +140,9 @@ impl RemoteLibrary {
                 });
             }
             pool.finish()?;
+            if !links.is_empty() {
+                client.link_upload(&upload.id, &links)?;
+            }
             client.commit(&upload.id, entries)
         })();
         match outcome {
@@ -180,8 +186,10 @@ impl RemoteLibrary {
                 }
             }
         }
-        let total_bytes: u64 = files.iter().map(|(_, size)| size).sum();
+        // A kept source the server stores already is not sent: the server links it into the upload.
         let client = self.client();
+        let links = plan_package_source_links(&client, &sendable, &mut files)?;
+        let total_bytes: u64 = files.iter().map(|(_, size)| size).sum();
         let upload = client.create_upload()?;
         progress(TransferProgress { done: package.failed.len(), total: total_items });
         let outcome = (|| -> RemoteResult<_> {
@@ -235,6 +243,9 @@ impl RemoteLibrary {
                 pool.wait_idle(&mut tick);
             });
             pool.finish()?;
+            if !links.is_empty() {
+                client.link_upload(&upload.id, &links)?;
+            }
             client.ingest(&upload.id, &sendable, on_conflict)
         })();
         match outcome {
@@ -256,6 +267,93 @@ impl RemoteLibrary {
             }
         }
     }
+}
+
+/// The SHA-256 of a file, streamed.
+fn hash_file(path: &Path) -> std::io::Result<String> {
+    use sha2::{Digest, Sha256};
+    let mut file = std::fs::File::open(path)?;
+    let mut hash = Sha256::new();
+    let mut buffer = vec![0u8; 256 * 1024];
+    loop {
+        let count = file.read(&mut buffer)?;
+        if count == 0 {
+            return Ok(format!("{:x}", hash.finalize()));
+        }
+        hash.update(&buffer[..count]);
+    }
+}
+
+/// Take the staged kept sources of `entries` out of `files` when they need not be sent: those the server
+/// stores (linked by content) and the copies of one content after the first (linked from it). Returns the
+/// links to ask the server for. A server that cannot say which sources it stores gets every file.
+fn plan_staged_source_links(client: &Client, entries: &[Value], files: &mut Vec<Staged>) -> RemoteResult<Vec<UploadLink>> {
+    let mut staged: HashSet<String> = HashSet::new();
+    for entry in entries {
+        if let Ok(parsed) = seed::parse_entry(entry) {
+            for item in std::iter::once(&parsed).chain(&parsed.variants) {
+                staged.extend(item.origin.iter().flat_map(|origin| origin.files.iter().cloned()).filter(|path| !sources::is_shared(path)));
+            }
+        }
+    }
+    if staged.is_empty() {
+        return Ok(Vec::new());
+    }
+    let mut by_hash: BTreeMap<String, Vec<String>> = BTreeMap::new();
+    for file in files.iter().filter(|file| staged.contains(&file.rel)) {
+        if let Ok(hash) = hash_file(&file.path) {
+            by_hash.entry(hash).or_default().push(file.rel.clone());
+        }
+    }
+    if by_hash.is_empty() {
+        return Ok(Vec::new());
+    }
+    let hashes: Vec<String> = by_hash.keys().cloned().collect();
+    let Some(have) = client.sources_have(&hashes)? else { return Ok(Vec::new()) };
+    let mut links = Vec::new();
+    for (hash, rels) in by_hash {
+        let first_sent = !have.contains(&hash);
+        for (index, rel) in rels.iter().enumerate() {
+            if first_sent && index == 0 {
+                continue;
+            }
+            links.push(if first_sent {
+                UploadLink { path: rel.clone(), route: "files".into(), sha256: None, from: Some(rels[0].clone()) }
+            } else {
+                UploadLink { path: rel.clone(), route: "files".into(), sha256: Some(hash.clone()), from: None }
+            });
+        }
+    }
+    let linked: HashSet<&str> = links.iter().map(|link| link.path.as_str()).collect();
+    files.retain(|file| !linked.contains(file.rel.as_str()));
+    Ok(links)
+}
+
+/// The same for a transfer package: its kept sources (shared paths, whose digests the package states) that
+/// the server stores are linked instead of sent.
+fn plan_package_source_links(client: &Client, package: &TransferPackage, files: &mut Vec<(String, u64)>) -> RemoteResult<Vec<UploadLink>> {
+    let mut digests: BTreeMap<String, String> = BTreeMap::new();
+    for asset in &package.assets {
+        for file in &asset.files {
+            if sources::is_shared(&file.path) {
+                digests.insert(file.path.clone(), file.sha256.clone());
+            }
+        }
+    }
+    if digests.is_empty() {
+        return Ok(Vec::new());
+    }
+    let hashes: Vec<String> = digests.values().cloned().collect::<BTreeSet<_>>().into_iter().collect();
+    let Some(have) = client.sources_have(&hashes)? else { return Ok(Vec::new()) };
+    let mut links = Vec::new();
+    for (path, hash) in &digests {
+        if have.contains(hash) {
+            links.push(UploadLink { path: path.clone(), route: "package".into(), sha256: Some(hash.clone()), from: None });
+        }
+    }
+    let linked: HashSet<&str> = links.iter().map(|link| link.path.as_str()).collect();
+    files.retain(|(path, _)| !linked.contains(path.as_str()));
+    Ok(links)
 }
 
 /// Files up to this size are read into memory so a worker thread can send them.

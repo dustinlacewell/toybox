@@ -814,6 +814,24 @@ impl Store {
             .unwrap_or_default())
     }
 
+    /// Up to `limit` manifest entries after id `after` that have an `origin`, and the id to continue after
+    /// (`None` at the end).
+    pub fn entries_page_with_origin(&self, after: &str, limit: usize) -> AppResult<(Vec<Value>, Option<String>)> {
+        let rows: Vec<(String, String)> = self
+            .read(|library| {
+                let mut statement = library.prepare("SELECT id, entry FROM items WHERE id > ?1 AND instr(entry, '\"origin\"') > 0 ORDER BY id LIMIT ?2")?;
+                let found = statement.query_map(rusqlite::params![after, limit as i64], |row| Ok((row.get::<_, String>(0)?, row.get::<_, String>(1)?)))?;
+                Ok(found.collect::<Result<Vec<_>, _>>()?)
+            })?
+            .unwrap_or_default();
+        let next = if rows.len() >= limit { rows.last().map(|(id, _)| id.clone()) } else { None };
+        let mut entries = Vec::with_capacity(rows.len());
+        for (_, text) in rows {
+            entries.push(serde_json::from_str(&text)?);
+        }
+        Ok((entries, next))
+    }
+
     /// The `meta` value `key` of the library database, if any.
     pub fn meta(&self, key: &str) -> Option<String> {
         self.read(|library| super::meta_get(library, key)).ok().flatten().flatten()

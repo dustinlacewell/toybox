@@ -1,7 +1,7 @@
 //! The real compiled bundled plugins, run through the plugin runtime in a temporary home.
 mod plugin_support;
 
-use plugin_support::plugin_runtime::{ExportRequest, ImportDefaults, ImportOutcome, ImportRequest, PluginRuntime};
+use plugin_support::plugin_runtime::{CommandRequest, ExportRequest, ImportDefaults, ImportOutcome, ImportRequest, PluginRuntime};
 use plugin_support::*;
 use serde_json::{json, Map, Value};
 
@@ -35,6 +35,7 @@ const ALL: &[&str] = &[
     "com.toybox.animation-core",
     "com.toybox.audio-core",
     "com.toybox.material-core",
+    "com.toybox.material-sbsar",
     "com.toybox.skybox-core",
     "com.toybox.placer",
 ];
@@ -49,7 +50,7 @@ fn every_bundled_plugin_module_loads() {
         assert!(cli.problems.is_empty(), "{}: {:?}", cli.plugin_id, cli.problems);
     }
     let importers: Vec<_> = clis.iter().flat_map(|c| c.importers.iter().map(|i| i.name.clone())).collect();
-    assert_eq!(importers, ["animation", "audio", "material", "model", "skybox"]);
+    assert_eq!(importers, ["animation", "audio", "material", "sbsar", "model", "skybox"]);
     assert_eq!(clis.iter().find(|c| c.plugin_id == "com.toybox.placer").unwrap().exporter.as_ref().unwrap().name, "placer");
 }
 
@@ -199,4 +200,47 @@ fn imports_a_skybox_from_a_generated_panorama() {
     for file in item["files"].as_array().unwrap() {
         assert!(env.library_root.join(file.as_str().unwrap()).is_file(), "{file}");
     }
+}
+
+#[test]
+fn the_substance_command_fails_cleanly_on_a_file_that_is_not_an_archive() {
+    let Some(env) = setup(&["com.toybox.material-core", "com.toybox.material-sbsar"]) else { return };
+    // No engine: the setting points at a program that does not exist (never start a real one in a test).
+    env.host.set_plugin_setting("com.toybox.material-sbsar", "engine", json!("C:/no/such/folder/substance_remote_engine.exe")).unwrap();
+    let archive = env.work("sbsar").join("stone.sbsar");
+    std::fs::write(&archive, b"not really an archive").unwrap();
+    let not_an_archive = env.work("sbsar").join("stone.txt");
+    std::fs::write(&not_an_archive, b"plain text").unwrap();
+    let rt = env.runtime();
+    assert!(rt.problems().is_empty(), "{:?}", rt.problems());
+    // A file that is not an archive is refused by its extension, before the engine is touched.
+    let err = rt
+        .run_command(
+            "com.toybox.material-sbsar",
+            CommandRequest { library: env.library.clone(), path: "sbsar inputs".into(), args: options(json!({ "file": path_str(&not_an_archive) })), options: Map::new(), asset_ids: None },
+        )
+        .err()
+        .expect("a text file is not an archive");
+    assert!(err.to_string().contains("stone.txt") && err.to_string().contains("is not a Substance archive"), "the message names the file: {err}");
+    // An archive with no engine to read it: the engine cannot be started.
+    let err = rt
+        .run_command(
+            "com.toybox.material-sbsar",
+            CommandRequest { library: env.library.clone(), path: "sbsar inputs".into(), args: options(json!({ "file": path_str(&archive) })), options: Map::new(), asset_ids: None },
+        )
+        .err()
+        .expect("there is no Substance engine here");
+    assert!(err.to_string().contains("engine could not be started"), "{err}");
+    // A command that does not exist.
+    let err = rt
+        .run_command("com.toybox.material-sbsar", CommandRequest { library: env.library.clone(), path: "sbsar nope".into(), args: Map::new(), options: Map::new(), asset_ids: None })
+        .err()
+        .unwrap();
+    assert!(err.to_string().contains("no command"), "{err}");
+    let err = rt
+        .run_importer("com.toybox.material-sbsar", "sbsar", ImportRequest { library: env.library.clone(), paths: vec![path_str(&archive)], options: Map::new(), defaults: ImportDefaults::default() })
+        .err()
+        .expect("nothing renders without an engine");
+    println!("import sbsar without an engine: {err}");
+    assert!(err.to_string().contains("Nothing could be rendered") && err.to_string().contains("stone"), "{err}");
 }

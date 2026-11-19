@@ -227,6 +227,19 @@ fn merge_locked(handle: &LibraryHandle, canonical: &std::path::Path, incoming: V
         }
     }
 
+    // Kept sources the replaced items listed and nothing lists any more leave with them.
+    let replaced_sources: Vec<String> = shared_sources_of(before.values()).difference(&shared_sources_of(stored_entries.iter())).cloned().collect();
+    if !replaced_sources.is_empty() {
+        if let Ok(in_use) = store.files_in_use(&replaced_sources) {
+            for path in replaced_sources.iter().filter(|path| !in_use.contains(*path)) {
+                let file = paths::abs_under_root(&root, path);
+                if std::fs::remove_file(&file).is_ok() {
+                    crate::infra::retention::remove_set_folder_if_empty(&file);
+                }
+            }
+        }
+    }
+
     let mut assets: Vec<Asset> = groups.into_iter().flatten().collect();
     super::content_hash::fill_assets(handle, &mut assets);
     let written: HashSet<&str> = stored_entries.iter().filter_map(|entry| entry["id"].as_str()).collect();
@@ -266,6 +279,21 @@ fn carry_user_data(store: &Store, groups: &mut [Vec<Asset>]) -> AppResult<()> {
         }
     }
     Ok(())
+}
+
+/// The shared source paths (`origin.files`) these entries and their variants list.
+fn shared_sources_of<'a>(entries: impl Iterator<Item = &'a Value>) -> BTreeSet<String> {
+    let mut out = BTreeSet::new();
+    for entry in entries {
+        for item in std::iter::once(entry).chain(entry["variants"].as_array().into_iter().flatten()) {
+            for file in item["origin"]["files"].as_array().into_iter().flatten().filter_map(Value::as_str) {
+                if crate::domain::sources::is_shared(file) {
+                    out.insert(file.to_string());
+                }
+            }
+        }
+    }
+    out
 }
 
 /// Managed folders of folder-stored items (materials and plugin-defined types)

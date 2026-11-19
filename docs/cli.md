@@ -131,7 +131,7 @@ so they are not selection filters there.
 | Command | Does |
 | --- | --- |
 | `tbx library list` | Registered libraries: id, name, kind, location, default, state. |
-| `tbx library info [LIBRARY]` | One library: counts by type, revision, size of its files, for a remote the server, role and cache size. |
+| `tbx library info [LIBRARY]` | One library: counts by type, revision, size of its files, how many kept source files it stores once and how many bytes that sharing saves (and what converting the library to the shared layout freed), for a remote the server, role and cache size. |
 | `tbx library create <DIR> [--name NAME] [--default]` | Make a new library folder and register it. |
 | `tbx library add <DIR> [--name NAME] [--default]` | Register an existing library folder. |
 | `tbx library connect <URL> [--name NAME] [--token-stdin]` | Register a library served by `toybox-server`. |
@@ -140,7 +140,7 @@ so they are not selection filters there.
 | `tbx library default <LIBRARY>` | |
 | `tbx library remove <LIBRARY>` | Forget a library. Its files stay where they are (for a remote library its token and downloaded files go; the server is untouched). `--dry-run` prints what would happen. |
 | `tbx library scan [LIBRARY]` | Local: rebuild the index from the manifest and the files. Remote: fetch what changed on the server. |
-| `tbx library check [LIBRARY]` | Verify the database and that every item's files exist. Exit `4` when something is wrong. |
+| `tbx library check [LIBRARY] [--fix]` | Verify the database and that every item's files exist, and that each kept source file (stored by content) still is what its name says. Exit `4` when something is wrong. Stored source files no item uses are reported (not an error); `--fix` removes them and changes nothing else. |
 | `tbx library cache size\|clear [LIBRARY]` | The downloaded files of a remote library. |
 | `tbx library token list [LIBRARY]` | Access tokens of a remote library (needs an admin token). |
 | `tbx library token create --name NAME --role read\|write\|admin [LIBRARY]` | Make a token; its secret is printed once, alone, on standard output. |
@@ -152,7 +152,7 @@ so they are not selection filters there.
 | --- | --- |
 | `tbx search [TEXT] [FILTER] [--sort name] [--desc] [--limit N] [--offset N] [--include-hidden] [--ids]` | List matching items, over every library (the same item in several is listed once, from the best-ranked library: the default first). Default limit 50. `--ids` prints only ids, one per line, for piping. Without `--type` every type is searched (the query runs per type and the pages are merged by name). Items whose plugin is off are hidden, as in the app, unless `--include-hidden`. Columns: [library, when more than one library is registered,] id, type, name, category, source, tags. When nothing matches, `No items match.` is printed on standard error. |
 | `tbx count [TEXT] [FILTER] [--include-hidden]` | How many match. |
-| `tbx show <ID>...` | Everything about items: names, type, tags, details, files with sizes, variants, where they came from. Takes a selection. |
+| `tbx show <ID>...` | Everything about items: names, type, tags, details, files with sizes, the source files kept with each (listed apart: other items may keep the same one), variants, where they came from. Takes a selection. |
 | `tbx path <ID>... [--all]` | The absolute path of each item's main file (`--all`: every file). Files of a remote library are downloaded first. Takes a selection. |
 | `tbx types` | The asset types with their counts and the plugin that declares each; `off` marks a type whose plugin is off. |
 | `tbx facets --type <TYPE> [--tags N]` | The values that can be filtered on, with counts: sources, publishers, licenses, formats, categories, tags. Default 20 tags. |
@@ -181,7 +181,7 @@ uses it. Favourites and collections are personal to this computer.
 | Command | Does |
 | --- | --- |
 | `tbx import` | List the importers the active plugins provide. |
-| `tbx import <IMPORTER> <PATH>... [IMPORTER OPTIONS] [--tag TAGS] [--source TEXT] [--publisher TEXT] [--license TEXT] [--url URL] [--dry-run]` | Import files or folders into the library. The options after the paths are the importer's own (`tbx import <IMPORTER> --help`). The shared options set tags and details on everything imported (`--tag` takes comma-separated tags). Prints the ids of the items now in the library, as `tbx show` takes them (an animation file is listed by its clips). Everything the importer skipped is printed on standard error as `skipped: <reason>` (and is in `skipped` under `--json`), and the exit status is `4` when anything was skipped. Thumbnails are drawn by the app the next time it opens the library. |
+| `tbx import <IMPORTER> <PATH>... [IMPORTER OPTIONS] [--tag TAGS] [--source TEXT] [--publisher TEXT] [--license TEXT] [--url URL] [--dry-run]` | Import files or folders into the library. The options after the paths are the importer's own (`tbx import <IMPORTER> --help`). The shared options set tags and details on everything imported (`--tag` takes comma-separated tags). Prints the ids of the items now in the library, as `tbx show` takes them (an animation file is listed by its clips). Everything the importer skipped is printed on standard error as `skipped: <reason>` (and is in `skipped` under `--json`), and the exit status is `4` when anything was skipped. An item that replaced one the library already had (an importer that can tell, such as the Substance one) is said on standard error as `replaced: <name> (was <what it was>)` and listed in `replaced` (ids) and `replacedItems` (`{id, name, was}`) under `--json`. When nothing new came in the summary says so. Thumbnails are drawn by the app the next time it opens the library. |
 | `tbx export` | List the exporters. |
 | `tbx export copy <SELECTION> --to <DIR> [--preserve-structure] [--dry-run]` | Copy the items' files out. `--dry-run` prints the paths that would be written. |
 | `tbx export glb <SELECTION> --to <DIR> [--preserve-structure] [--dry-run]` | Write each model as one self-contained `.glb`. An item that cannot be one (a sound) fails the command. |
@@ -320,11 +320,19 @@ export default definePlugin((ctx) => ({
   `commit(entries)`, `print(text)`, `log(message)`, `warn(message)` and
   `signal`. What it returns is the command's result: printed as JSON under
   `--json`, and otherwise printed only when the command printed nothing itself.
-  Throwing fails the command with the error's message.
+  Throwing fails the command with the error's message; when the message ends in a
+  line `hint: <what to do>`, that line is shown as the hint (`hint: ...` under the
+  `error:` line) instead of as part of the message. A result that is an object with
+  a non-empty `skipped` list of strings is a command that left items out: each is
+  printed on standard error as `skipped: <reason>` and the exit status is `4`, as
+  for an importer.
 
 `host`, `fs` and `services` are the same interfaces as in the app, with the
 same permissions. Dialogs do not exist here: `pickDirectory` and `pickSaveFile`
-reject. `host.getSelectedAssets()` answers with the selection of the command.
+reject. `host.getSelectedAssets()` answers with the selection of the command. One
+thing exists on the command line only: `fs.removeTree(authorizedRoot, path)`
+removes a folder below a root the run may write to (to tidy up scratch files), so
+code that also runs in the app calls it as `fs.removeTree?.(...)`.
 
 The engine provides the JavaScript language and `console`, `TextEncoder`,
 `TextDecoder`, `setTimeout`, `clearTimeout`, `AbortController`, `structuredClone`
@@ -344,18 +352,18 @@ the item as the app has it (`id`, `name`, `kind`, `category`, `tags`, `user`, `o
 | `status` | `{paths:{appData, cache, settings, plugins, exists}, libraries:[Library], plugins:{on[], off[], blocked[]}, problems[]}` |
 | `help --all` | `{commands:[{command, summary, plugin?}]}` (`command` as typed after `tbx`) |
 | `library list` | `{libraries:[Library]}` where a *Library* is `{id, name, kind: local\|remote, location, default, state: ok\|missing\|read-only\|offline\|unreachable, canWrite, items?}` |
-| `library info` | a *Library* plus `{items, revision, types:[{id, count}], files?, bytes?, remote?:{url, serverName, role, offline, cacheBytes}}` (`files` and `bytes` for a local library) |
+| `library info` | a *Library* plus `{items, revision, types:[{id, count}], files?, bytes?, sources?:{files, bytes, savedBytes, migration?:{items, bytesFreed, skipped}}, remote?:{url, serverName, role, offline, cacheBytes}}` (`files`, `bytes` and `sources` for a local library; `sources` counts the kept source files stored once, with the bytes sharing saves) |
 | `library create\|add\|connect\|login\|rename\|default` | `{library: Library}` |
 | `library remove` | `{removed: Library, dryRun}` |
 | `library scan` | `{library, items, revision}` |
-| `library check` | `{library, ok, items, filesChecked, problems:[{item?, message}]}`; exit `4` when `ok` is false |
+| `library check` | `{library, ok, items, filesChecked, problems:[{item?, message}], orphanSources[], removedSources[]}`; exit `4` when `ok` is false (an orphan source is not a problem) |
 | `library cache size` / `clear` | `{library, bytes}` / `{library, freedBytes}` |
 | `library token list` | `{tokens:[{id, name, role, createdAt, lastUsedAt?}]}` |
 | `library token create` | `{id, name, role, createdAt, token}` (the secret appears only here) |
 | `library token revoke` | `{revoked}` |
 | `search` | `{total, exact, offset, items:[{library, asset}]}` (`exact` is always true; `library` is the library id) |
 | `count` | `{count}` |
-| `show` | `{items:[{library, asset, files:[{path, size?}]}]}` (`size` is absent for a file that is not on this computer) |
+| `show` | `{items:[{library, asset, files:[{path, size?}], sources:[{path, size?}]}]}` (`size` is absent for a file that is not on this computer; `sources` are the kept source files) |
 | `path` | `{items:[{library, id, path, files?}]}` (`files` with `--all`) |
 | `types` | `{types:[{id, label, plugin?, native, count, hidden}]}` |
 | `facets` | `{type, total, categories, sources, publishers, licenses, formats, tags, tagTotal, libraries}`, each list `[{value, count}]` |
@@ -363,7 +371,7 @@ the item as the app has it (`id`, `name`, `kind`, `category`, `tags`, `user`, `o
 | `tag add\|remove\|set`, `edit`, `favorite`, `collection add\|remove` | `{library, dryRun, changed[], unchanged[]}` (ids) |
 | `collection list` | `{collections:[{name, count}]}` |
 | `import` (no importer) | `{importers:[{name, plugin, summary}]}` |
-| `import <importer>` | `{library, dryRun, imported[], skipped[], warnings[]}` (`imported`: ids of the items now in the library; exit `4` when `skipped` is not empty) |
+| `import <importer>` | `{library, dryRun, imported[], replaced[], replacedItems[], skipped[], warnings[]}` (`imported`: ids of the items now in the library; exit `4` when `skipped` is not empty) |
 | `export` (no exporter) | `{exporters:[{name, plugin?, summary}]}` |
 | `export copy\|glb\|<exporter>` | `{library, target, preview, written[], skipped[], warnings[]}`; exit `4` when `skipped` is not empty |
 | `copy`, `move` | `{from, to, mode, dryRun, copied, replaced, skipped, failed, removed, items:[{id, name, kind, outcome: copied\|replaced\|skipped\|failed, reason?, sourceRemoved}], wouldTransfer[]}` (`wouldTransfer` only for a dry run) |

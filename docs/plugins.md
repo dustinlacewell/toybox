@@ -30,6 +30,7 @@ manifests and extension points.
 | **glTF models** | `com.toybox.model-gltf` | 1.0.0 | model-core `^3.0.0` | The glTF and GLB model format. |
 | **Animations** | `com.toybox.animation-core` | 1.0.0 | model-core `^3.0.0` | The Animations type and its importer. |
 | **Materials** | `com.toybox.material-core` | 2.0.0 | | The Materials type and the texture-folder importer. |
+| **Substance materials (.sbsar)** | `com.toybox.material-sbsar` | 1.0.0 | material-core `^2.0.0` | Renders Substance archives into materials. |
 | **Audio** | `com.toybox.audio-core` | 2.0.0 | | The Audio type and the audio file importer. |
 | **Skyboxes** | `com.toybox.skybox-core` | 2.0.0 | | The Skyboxes type and its importer. |
 | **Synty Polygon rig** | `com.toybox.rig-synty-polygon` | 1.0.0 | model-core `^3.0.0` | The Synty Polygon bone names. |
@@ -38,8 +39,13 @@ manifests and extension points.
 | **Quaternius Humanoid rig** | `com.toybox.rig-quaternius` | 1.0.0 | model-core `^3.0.0` | The Quaternius humanoid bone names. |
 | **Placer** | `com.toybox.placer` | | | Exports models to a game project. A development plugin: it is not bundled with the app. |
 
+**Substance materials** is installed switched off (`OFF_BY_DEFAULT` in the same file): it does nothing without
+Adobe's Substance 3D Integration Tools, which Toybox does not ship, so a new install lists it unticked until the
+user turns it on. Only the first installation sets the switch; an install that already has the plugin keeps its
+choice.
+
 The eleven bundled plugins are listed in `BUNDLED_PLUGINS`
-(`src-tauri/src/infra/bundled.rs`), shipped by `bundle.resources` in
+(`src-tauri/crates/toybox-host/src/bundled.rs`), shipped by `bundle.resources` in
 `tauri.conf.json` and built, cores first, by `plugins:build`. A test checks that
 each manifest id is its folder name and that every dependency is bundled at a
 version that satisfies it.
@@ -205,7 +211,7 @@ their services have no permissions.
 ## Retired plugins
 
 When a bundled plugin is split, renamed or dropped, its id goes into the
-retirement table (`RETIRED_PLUGINS` in `src-tauri/src/infra/bundled.rs`): the old
+retirement table (`RETIRED_PLUGINS` in `src-tauri/crates/toybox-host/src/bundled.rs`): the old
 id and zero or more replacement ids. Adding a line is all it takes to retire
 another one.
 

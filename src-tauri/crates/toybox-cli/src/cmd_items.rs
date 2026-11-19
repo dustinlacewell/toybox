@@ -123,10 +123,21 @@ fn selected_assets(ctx: &Ctx, matches: &ArgMatches) -> CliResult<Vec<(LibraryInf
 fn files_of(ctx: &Ctx, library: &LibraryInfo, asset: &Asset) -> CliResult<Vec<FileDoc>> {
     let handle = ctx.host.resolve(&library.id)?;
     let mut paths = Vec::new();
-    asset.own_files(&mut paths);
+    asset.content_files(&mut paths);
     let mut seen = std::collections::HashSet::new();
     paths.retain(|path| seen.insert(path.clone()));
     Ok(paths.into_iter().map(|path| FileDoc { size: std::fs::metadata(abs_under_root(&handle.root_str(), &path)).ok().map(|meta| meta.len()), path }).collect())
+}
+
+/// The source files kept with an item (not its variants).
+fn sources_of(ctx: &Ctx, library: &LibraryInfo, asset: &Asset) -> CliResult<Vec<FileDoc>> {
+    let handle = ctx.host.resolve(&library.id)?;
+    Ok(asset
+        .origin
+        .iter()
+        .flat_map(|origin| origin.files.iter())
+        .map(|path| FileDoc { size: std::fs::metadata(abs_under_root(&handle.root_str(), path)).ok().map(|meta| meta.len()), path: path.clone() })
+        .collect())
 }
 
 pub fn show(ctx: &Ctx, matches: &ArgMatches) -> CliResult<()> {
@@ -135,18 +146,19 @@ pub fn show(ctx: &Ctx, matches: &ArgMatches) -> CliResult<()> {
     for (library, assets) in selected_assets(ctx, matches)? {
         for asset in assets {
             let files = files_of(ctx, &library, &asset)?;
+            let sources = sources_of(ctx, &library, &asset)?;
             if !text.is_empty() {
                 text.push('\n');
             }
-            text.push_str(&describe(&library, &asset, &files, ""));
-            items.push(ShowItem { library: library.id.clone(), asset, files });
+            text.push_str(&describe(&library, &asset, &files, &sources, ""));
+            items.push(ShowItem { library: library.id.clone(), asset, files, sources });
         }
     }
     ctx.output(&ShowDoc { items }, &text)
 }
 
 /// One item as text; a variant is shown indented under its parent.
-fn describe(library: &LibraryInfo, asset: &Asset, files: &[FileDoc], indent: &str) -> String {
+fn describe(library: &LibraryInfo, asset: &Asset, files: &[FileDoc], sources: &[FileDoc], indent: &str) -> String {
     let mut text = String::new();
     let mut field = |name: &str, value: String| {
         if !value.is_empty() {
@@ -184,10 +196,18 @@ fn describe(library: &LibraryInfo, asset: &Asset, files: &[FileDoc], indent: &st
             text.push_str(&format!("{indent}  {}  ({size})\n", file.path));
         }
     }
+    if !sources.is_empty() {
+        text.push_str(&format!("{indent}sources (kept from the import; other items may keep the same file)\n"));
+        for file in sources {
+            let size = file.size.map(human_bytes).unwrap_or_else(|| "not on this computer".into());
+            text.push_str(&format!("{indent}  {}  ({size})\n", file.path));
+        }
+    }
     if !asset.variants.is_empty() {
         text.push_str(&format!("{indent}variants\n"));
         for variant in &asset.variants {
-            text.push_str(&describe(library, variant, &[], &format!("{indent}  ")));
+            let variant_sources: Vec<FileDoc> = variant.origin.iter().flat_map(|origin| origin.files.iter()).map(|path| FileDoc { path: path.clone(), size: None }).collect();
+            text.push_str(&describe(library, variant, &[], &variant_sources, &format!("{indent}  ")));
         }
     }
     text

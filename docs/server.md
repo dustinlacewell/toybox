@@ -332,6 +332,25 @@ files; core then publishes them into content-addressed managed storage and
 removes the `_import_` folder; the server removes anything left, and the upload
 folder is untouched until the commit has succeeded.
 
+### Sources the server already stores
+
+A source file an importer keeps with an item (a material's `.sbsar`) is stored once per library
+(`library/<type>/_sources/<sha256>/<name>`), so a client need not send one that is there. Two
+write-role routes let it skip them; a client that does not know them sends every file and the
+server stores each source once all the same:
+
+- **`POST /api/v1/sources/have`**, body `{ "sha256": [ … ] }` (at most 20000): answers
+  `{ "have": [ the digests it stores ] }`.
+- **`POST /api/v1/uploads/{id}/links`**, body `{ "files": [ { "path", "route", "sha256" | "from" } ] }`:
+  puts a file into the upload without receiving it. `route` is `files` (a staged import path,
+  `library/_import_…`) or `package` (a package path); `sha256` makes it from the stored source with
+  that content (409 `source_missing` if it is not there any more), `from` from another file of the same
+  upload (the same route) that was uploaded. Send the links after the uploads, before `commit` or `ingest`.
+
+The server converts a library made before this to the layout when it starts (migration step 5,
+see [Managed library storage](library-storage.md)); the first start after an update can take as long
+as hashing the kept sources takes.
+
 ### Copying items from another library: export, package upload, ingest
 
 This is how the Toybox app copies or moves items between a server and any other

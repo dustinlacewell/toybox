@@ -81,6 +81,8 @@ pub fn router(state: AppState) -> Router {
             "/api/v1/uploads/{id}/commit",
             guarded(Role::Write, post(commit_upload).layer(DefaultBodyLimit::max(COMMIT_BODY_LIMIT))),
         )
+        .route("/api/v1/sources/have", guarded(Role::Write, post(sources_have)))
+        .route("/api/v1/uploads/{id}/links", guarded(Role::Write, post(link_upload)))
         .route("/api/v1/assets/delete", guarded(Role::Write, post(delete_assets)))
         .route(
             "/api/v1/assets/metadata",
@@ -641,6 +643,73 @@ async fn store_upload_file(state: &AppState, id: &str, rel: String, request: Req
             Err(error)
         }
     }
+}
+
+#[derive(Deserialize)]
+struct HaveBody {
+    sha256: Vec<String>,
+}
+
+/// `POST /sources/have`: which kept source files (by SHA-256) the library stores already, so a
+/// client does not send them again. A source is a file an importer keeps with an item (a material's
+/// `.sbsar`); the library stores each distinct one once.
+async fn sources_have(State(state): State<AppState>, ApiJson(body): ApiJson<HaveBody>) -> Result<Json<Value>, ApiError> {
+    if body.sha256.len() > 20_000 {
+        return Err(ApiError::too_large("Ask about at most 20000 files at a time."));
+    }
+    let have = state.library.have_sources(body.sha256).await?;
+    Ok(Json(json!({ "have": have })))
+}
+
+#[derive(Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct LinkBody {
+    files: Vec<LinkSpec>,
+}
+
+#[derive(Deserialize)]
+struct LinkSpec {
+    /// Where the file belongs in the upload.
+    path: String,
+    /// `files` (a staged import file) or `package` (a transfer package file).
+    route: String,
+    /// The content, when the library stores it.
+    #[serde(default)]
+    sha256: Option<String>,
+    /// Or another file of this upload with the same content.
+    #[serde(default)]
+    from: Option<String>,
+}
+
+/// `POST /uploads/{id}/links`: files of the upload that are not sent but made from a file the server
+/// has (a kept source it stores, or a file already uploaded here).
+async fn link_upload(State(state): State<AppState>, Path(id): Path<String>, ApiJson(body): ApiJson<LinkBody>) -> Result<Json<Value>, ApiError> {
+    if !state.uploads.exists(&id) {
+        return Err(ApiError::not_found("There is no such import in progress. It may have expired; start a new one."));
+    }
+    if body.files.len() > 20_000 {
+        return Err(ApiError::too_large("Link at most 20000 files at a time."));
+    }
+    let rel_of = |route: &str, path: &str| -> Result<String, ApiError> {
+        match route {
+            "files" => upload_rel(path),
+            "package" => package_rel(path),
+            _ => Err(ApiError::bad_request("bad_route", "A link names the files or the package route.")),
+        }
+    };
+    let mut links = Vec::with_capacity(body.files.len());
+    for spec in &body.files {
+        let rel = rel_of(&spec.route, &spec.path)?;
+        let source = match (&spec.sha256, &spec.from) {
+            (Some(hash), None) => crate::library::LinkSource::Library(hash.clone()),
+            (None, Some(from)) => crate::library::LinkSource::Upload(rel_of(&spec.route, from)?),
+            _ => return Err(ApiError::bad_request("bad_link", "A link names the content (sha256) or another uploaded file (from).")),
+        };
+        links.push((rel, source));
+    }
+    let count = links.len();
+    state.library.link_into_upload(state.uploads.files_dir(&id), links).await?;
+    Ok(Json(json!({ "linked": count })))
 }
 
 #[derive(Deserialize)]

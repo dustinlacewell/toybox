@@ -105,10 +105,32 @@ pub fn run(root: &Path, cache: &Path) -> AppResult<()> {
     store::adopt::adopt_local(root, cache)?;
     crate::infra::storage::recover(&root.canonicalize()?, cache)?;
     crate::infra::retention::on_open(root, cache);
+    if current >= 5 {
+        // Step 5 moves files and can be interrupted after its journal entry: finish it.
+        finish_shared_sources(root, cache)?;
+    }
     if current == LATEST_VERSION {
         return Ok(());
     }
     for &(next, name) in STEPS.iter().filter(|(next, _)| *next > current) {
+        if next == 5 {
+            // The journal first: from here on an older Toybox refuses the library, so it never reads the
+            // new layout. Then the files move; an interruption is finished at the next open.
+            let store = Store::local(root, cache);
+            journal["version"] = json!(next);
+            journal["applied"]
+                .as_array_mut()
+                .ok_or_else(|| AppError::msg("Invalid migration journal history"))?
+                .push(json!({"version":next,"name":name,"appVersion":env!("CARGO_PKG_VERSION")}));
+            commit(
+                root,
+                &store,
+                next,
+                Documents { manifest: (Value::Null, Value::Null), cache: None, journal_before: read_optional(&journal_path)?, journal_after: encoded(&journal)? },
+            )?;
+            finish_shared_sources(root, cache)?;
+            continue;
+        }
         if next == 3 { crate::infra::storage::migrate(root, cache)?; }
         let store = Store::local(root, cache);
         let before = store::read_manifest(root)?;
@@ -155,6 +177,27 @@ pub fn run(root: &Path, cache: &Path) -> AppResult<()> {
             next,
             Documents { manifest: (before, manifest), cache: cached.zip(cached_doc).zip(catalog_after) .map(|((b, a), c)| (b, a, c)), journal_before: read_optional(&journal_path)?, journal_after: encoded(&journal)? },
         )?;
+    }
+    Ok(())
+}
+
+/// Move the kept source files into shared storage unless that is done. Says what it did on standard error.
+fn finish_shared_sources(root: &Path, cache: &Path) -> AppResult<()> {
+    let store = Store::local(root, cache);
+    if crate::infra::source_migration::is_done(&store) {
+        return Ok(());
+    }
+    let started = std::time::Instant::now();
+    let report = crate::infra::source_migration::migrate(root, cache)?;
+    if report.items > 0 || !report.skipped.is_empty() {
+        eprintln!(
+            "toybox: kept source files are stored once per library now: {} items, {} files, {} MB freed in {:.1}s{}",
+            report.items,
+            report.shared_files,
+            report.bytes_freed / (1024 * 1024),
+            started.elapsed().as_secs_f64(),
+            if report.skipped.is_empty() { String::new() } else { format!(" ({} items could not be converted and keep their files)", report.skipped.len()) }
+        );
     }
     Ok(())
 }
@@ -350,7 +393,7 @@ mod tests {
             std::fs::read_dir(root.join("_library_config/migration-backups"))
                 .unwrap()
                 .count(),
-            5
+            6
         );
         std::fs::remove_dir_all(root).unwrap();
     }
@@ -430,8 +473,8 @@ mod tests {
             let (handle, manifest, cached) = step_three(&tmp, config::SCHEMA_VERSION);
             run(&handle.root, &handle.cache_path).unwrap();
             let journal: Value = serde_json::from_slice(&fsio::read_bytes(&handle.root.join("_library_config").join(JOURNAL)).unwrap()).unwrap();
-            assert_eq!(journal["version"], 4);
-            assert_eq!(journal["applied"].as_array().unwrap().last().unwrap()["name"], "sqlite-store");
+            assert_eq!(journal["version"], 5);
+            assert_eq!(journal["applied"].as_array().unwrap().iter().find(|step| step["version"] == 4).unwrap()["name"], "sqlite-store");
             // What the files said, the databases say.
             assert_eq!(store::read_manifest(&handle.root).unwrap(), manifest);
             let back = Store::for_handle(&handle).load_catalog().unwrap().unwrap();
@@ -462,12 +505,12 @@ mod tests {
             let journal_path = handle.root.join("_library_config").join(JOURNAL);
             let mut journal: Value = serde_json::from_slice(&fsio::read_bytes(&journal_path).unwrap()).unwrap();
             journal["version"] = json!(3);
-            journal["applied"].as_array_mut().unwrap().pop();
+            journal["applied"].as_array_mut().unwrap().truncate(3);
             fsio::write_bytes(&journal_path, &encoded(&journal).unwrap()).unwrap();
             let before = Store::for_handle(&handle).stamp().unwrap();
             run(&handle.root, &handle.cache_path).unwrap();
             let again: Value = serde_json::from_slice(&fsio::read_bytes(&journal_path).unwrap()).unwrap();
-            assert_eq!(again["version"], 4);
+            assert_eq!(again["version"], 5);
             assert_eq!(Store::for_handle(&handle).stamp().unwrap(), before, "the databases were not touched again");
             assert_eq!(store::read_manifest(&handle.root).unwrap(), manifest);
         }
@@ -508,7 +551,7 @@ mod tests {
             let cache = tmp.cache();
             run(&root, &cache).unwrap();
             let journal: Value = serde_json::from_slice(&fsio::read_bytes(&root.join("_library_config").join(JOURNAL)).unwrap()).unwrap();
-            assert_eq!(journal["version"], 4);
+            assert_eq!(journal["version"], 5);
             assert!(!root.join(config::SEED_REL).exists());
             assert_eq!(store::read_manifest(&root).unwrap()["assets"], json!([]));
             assert!(!std::fs::read_dir(root.join("_library_config/migration-backups")).map(|read| read.flatten().any(|e| e.path().join("manifest.before.json").exists())).unwrap_or(false), "there was nothing to move");

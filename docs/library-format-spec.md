@@ -90,6 +90,15 @@ Everything else — each asset's texture set, its `.bin`, its animation clips, t
 user tags — Toybox computes or owns. **Do not try to author those.** Your job ends at the
 three things above.
 
+### Source files kept with an item
+
+An importer may keep the file an item was made from (a material's `.sbsar`, a model's
+original `.fbx` and its companions) in the entry's `origin.files`: bare file names staged
+next to the entry's own files. When the entry is committed Toybox stores each distinct
+file once per library, by content, in `library/<materials|models>/_sources/<sha256>/<name>`
+and the entry then lists those paths instead (so several items made from one archive share
+one copy). Do not author the shared paths; stage bare names and let Toybox commit.
+
 ### The cardinal rule
 
 > **`catalog.json` is a manifest of files that already exist on disk.** Every model entry

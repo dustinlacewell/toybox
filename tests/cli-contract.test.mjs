@@ -17,11 +17,11 @@ const SDK = "@ldlework/toybox-sdk";
 
 test("the plugins that add to the command line are the expected ones", () => {
   assert.deepEqual(withCli, [
-    "com.toybox.animation-core", "com.toybox.audio-core", "com.toybox.material-core",
+    "com.toybox.animation-core", "com.toybox.audio-core", "com.toybox.material-core", "com.toybox.material-sbsar",
     "com.toybox.model-core", "com.toybox.model-gltf", "com.toybox.placer", "com.toybox.skybox-core",
   ]);
   const importers = withCli.flatMap((id) => (manifestOf(id).cli.importers ?? []).map((importer) => importer.name)).sort();
-  assert.deepEqual(importers, ["animation", "audio", "material", "model", "skybox"]);
+  assert.deepEqual(importers, ["animation", "audio", "material", "model", "sbsar", "skybox"]);
   assert.equal(manifestOf("com.toybox.placer").cli.exporter.name, "placer");
 });
 
@@ -38,7 +38,7 @@ test("every manifest's cli section follows the rules of docs/cli.md and agrees w
 
 test("a plugin whose entry has no user interface names it as its cli module; the others have a file of their own", () => {
   for (const id of ["com.toybox.model-core", "com.toybox.model-gltf", "com.toybox.placer"]) assert.equal(manifestOf(id).cli.module, manifestOf(id).entry, id);
-  for (const id of ["com.toybox.audio-core", "com.toybox.material-core", "com.toybox.animation-core", "com.toybox.skybox-core"]) {
+  for (const id of ["com.toybox.audio-core", "com.toybox.material-core", "com.toybox.animation-core", "com.toybox.skybox-core", "com.toybox.material-sbsar"]) {
     assert.equal(manifestOf(id).cli.module, "dist/cli.js", id);
     assert.notEqual(manifestOf(id).cli.module, manifestOf(id).entry, id);
   }

@@ -110,6 +110,21 @@ pub fn write_text_under(authorized_root: &Path, path: &str, text: &str) -> AppRe
     fsio::write_text(&abs, text)
 }
 
+/// Remove a file or folder below `authorized_root`. The root itself is never removed, and a path
+/// that does not exist is not an error (plugins use this to tidy up after themselves).
+pub fn remove_tree_under(authorized_root: &Path, path: &str) -> AppResult<()> {
+    let abs = jail(authorized_root, path)?;
+    if normalize(&abs) == normalize(authorized_root) {
+        return Err(AppError::msg("the root of a jail cannot be removed"));
+    }
+    match std::fs::symlink_metadata(&abs) {
+        Ok(meta) if meta.is_dir() => std::fs::remove_dir_all(&abs).map_err(AppError::from),
+        Ok(_) => std::fs::remove_file(&abs).map_err(AppError::from),
+        Err(error) if error.kind() == std::io::ErrorKind::NotFound => Ok(()),
+        Err(error) => Err(error.into()),
+    }
+}
+
 impl Host {
     /// Read a UTF-8 file the plugin loader needs, jailed to the plugins folder.
     pub fn plugin_read_text(&self, path: &str) -> AppResult<String> {
@@ -174,6 +189,25 @@ fn normalize(p: &Path) -> PathBuf {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn remove_tree_stays_inside_its_jail_and_ignores_what_is_not_there() {
+        let dir = std::env::temp_dir().join(format!("toybox-remove-test-{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&dir);
+        std::fs::create_dir_all(dir.join("scratch/render-1/deep")).unwrap();
+        std::fs::write(dir.join("scratch/render-1/deep/a.png"), b"x").unwrap();
+        std::fs::write(dir.join("scratch/render-2.txt"), b"y").unwrap();
+        std::fs::write(dir.join("outside.txt"), b"z").unwrap();
+        let root = dir.join("scratch");
+        remove_tree_under(&root, "render-1").unwrap();
+        remove_tree_under(&root, "render-2.txt").unwrap();
+        remove_tree_under(&root, "never-there").unwrap();
+        assert!(!root.join("render-1").exists() && !root.join("render-2.txt").exists());
+        assert!(remove_tree_under(&root, "../outside.txt").is_err());
+        assert!(remove_tree_under(&root, ".").is_err(), "the root of the jail stays");
+        assert!(dir.join("outside.txt").exists() && root.exists());
+        let _ = std::fs::remove_dir_all(&dir);
+    }
 
     #[test]
     fn copies_files_once_and_refuses_to_replace_different_content() {

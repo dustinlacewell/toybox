@@ -73,3 +73,68 @@ fn an_import_that_skips_something_says_what_and_exits_4() {
     let doc = json.json();
     assert!(doc["skipped"][0].as_str().unwrap().contains("odd.xyz3d"), "{doc}");
 }
+
+#[test]
+fn a_command_that_skips_items_exits_4_and_a_message_can_carry_a_hint() {
+    let world = World::new();
+    let dir = world.path("fixture-demo");
+    std::fs::create_dir_all(&dir).unwrap();
+    std::fs::write(
+        dir.join("manifest.json"),
+        json!({ "id": "test.demo", "name": "Demo", "version": "1.0.0", "permissions": {}, "cli": { "module": "cli.js", "commands": [
+            { "name": "demo", "summary": "s", "commands": [
+                { "name": "skips", "summary": "s" }, { "name": "hints", "summary": "s" }, { "name": "plain", "summary": "s" }
+            ] }
+        ] } })
+        .to_string(),
+    )
+    .unwrap();
+    std::fs::write(
+        dir.join("cli.js"),
+        r#"export default { cli: { commands: {
+            "demo skips": async () => ({ done: 1, skipped: ["thing one: not a thing", "thing two: also not"] }),
+            "demo hints": async () => { throw new Error("it broke\nhint: try the other way"); },
+            "demo plain": async () => ({ done: 2, skipped: [] }),
+        } } };"#,
+    )
+    .unwrap();
+    world.tbx(&["plugin", "install", dir.to_str().unwrap()]).ok();
+    let (_, _) = world.library("Main");
+    let skipped = world.tbx(&["demo", "skips"]).fails_with(4);
+    assert!(skipped.err.contains("skipped: thing one: not a thing") && skipped.err.contains("skipped: thing two: also not"), "{}", skipped.err);
+    assert!(skipped.err.contains("2 items were skipped"), "{}", skipped.err);
+    let json = world.tbx(&["--json", "demo", "skips"]).fails_with(4);
+    assert_eq!(json.json()["done"], 1);
+    let hinted = world.tbx(&["demo", "hints"]).fails_with(1);
+    assert!(hinted.err.contains("error: it broke") && hinted.err.contains("hint: try the other way"), "{}", hinted.err);
+    world.tbx(&["demo", "plain"]).ok();
+}
+
+#[test]
+fn an_import_says_what_it_replaced_and_an_empty_import_reads_sensibly() {
+    let world = World::new();
+    let dir = world.path("fixture-importer");
+    std::fs::create_dir_all(&dir).unwrap();
+    std::fs::write(
+        dir.join("manifest.json"),
+        json!({ "id": "test.importer", "name": "Importer", "version": "1.0.0", "permissions": {}, "cli": { "module": "cli.js", "importers": [{ "name": "thing", "summary": "s" }] } }).to_string(),
+    )
+    .unwrap();
+    std::fs::write(
+        dir.join("cli.js"),
+        r#"export default { cli: { importers: { thing: async () => ({ replaced: [{ id: "uid://a", name: "Thing", was: "preset Green, 512 px" }, { id: "uid://b", name: "Other" }] }) } } };"#,
+    )
+    .unwrap();
+    world.tbx(&["plugin", "install", dir.to_str().unwrap()]).ok();
+    let (_, _) = world.library("Main");
+    let src = world.path("src");
+    std::fs::create_dir_all(&src).unwrap();
+    let text = world.tbx(&["import", "thing", src.to_str().unwrap()]).ok();
+    assert!(text.err.contains("replaced: Thing (was preset Green, 512 px)\n") && text.err.contains("replaced: Other\n"), "{}", text.err);
+    assert!(text.err.contains("Nothing new was imported into 'Main'."), "{}", text.err);
+    assert!(!text.err.contains("Thumbnails"), "{}", text.err);
+    let json = world.tbx(&["--json", "import", "thing", src.to_str().unwrap()]).ok().json();
+    assert_eq!(json["replaced"], json!(["uid://a", "uid://b"]));
+    assert_eq!(json["replacedItems"][0]["was"], "preset Green, 512 px");
+    assert_eq!(json["imported"], json!([]));
+}

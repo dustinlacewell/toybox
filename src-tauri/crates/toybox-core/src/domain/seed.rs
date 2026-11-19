@@ -152,8 +152,21 @@ fn parse_single(a: &Value) -> AppResult<SeedEntry> {
             ),
             _ => return Err(AppError::msg(format!("asset {}: only a material or a model can keep source files", entry.id))),
         };
+        let type_folder = match &entry.content {
+            SeedContent::Material { .. } => "materials",
+            _ => "models",
+        };
         let mut seen: Vec<String> = Vec::new();
         for file in &mut origin.files {
+            // A source that is already in shared storage is kept as the path it has there.
+            if let Some((folder, _, name)) = crate::domain::sources::parse_shared(file) {
+                let lower = name.to_lowercase();
+                if folder != type_folder || seen.contains(&lower) {
+                    return Err(AppError::msg(format!("asset {}: source file '{file}' is not valid here", entry.id)));
+                }
+                seen.push(lower);
+                continue;
+            }
             let lower = file.to_lowercase();
             if file.is_empty() || file.contains(['/', '\\', ':']) || matches!(file.as_str(), "." | "..") {
                 return Err(AppError::msg(format!("asset {}: source file '{file}' must be a file name, not a path", entry.id)));

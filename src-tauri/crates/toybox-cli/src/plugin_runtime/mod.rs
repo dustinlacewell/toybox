@@ -63,11 +63,23 @@ pub struct ImportRequest {
     pub defaults: ImportDefaults,
 }
 
+/// An item an import replaced rather than added.
+#[derive(Default, Clone, serde::Serialize, serde::Deserialize)]
+#[serde(rename_all = "camelCase", default)]
+pub struct ReplacedItem {
+    pub id: String,
+    pub name: String,
+    /// What the replaced item was, in a few words.
+    pub was: Option<String>,
+}
+
 #[derive(Default, serde::Serialize, serde::Deserialize)]
 #[serde(rename_all = "camelCase", default)]
 pub struct ImportOutcome {
     /// Ids of the items that were committed, in order (as stored in the library: not qualified).
     pub imported: Vec<String>,
+    /// Items among them that replaced an item the library already had.
+    pub replaced: Vec<ReplacedItem>,
     pub skipped: Vec<String>,
     pub warnings: Vec<String>,
 }

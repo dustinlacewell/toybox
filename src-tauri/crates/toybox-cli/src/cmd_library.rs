@@ -70,11 +70,25 @@ fn info(ctx: &Ctx, matches: &ArgMatches) -> CliResult<()> {
         types: stats.types.iter().map(|count| TypeCount { id: count.value.clone(), count: count.count }).collect(),
         files: stats.files,
         bytes: stats.bytes,
+        sources: stats.source_files.zip(stats.source_bytes).zip(stats.source_saved_bytes).map(|((files, bytes), saved_bytes)| SourcesDoc {
+            files,
+            bytes,
+            saved_bytes,
+            migration: stats.migration.as_ref().map(|report| MigrationDoc { items: report.items, bytes_freed: report.bytes_freed, skipped: report.skipped.len() }),
+        }),
         remote,
     };
     let mut text = format!("id        {}\nname      {}\nkind      {}\nlocation  {}\nstate     {}\nitems     {}\nrevision  {}\n", doc.library.id, doc.library.name, doc.library.kind, doc.library.location, doc.library.state, doc.items, doc.revision);
     if let (Some(files), Some(bytes)) = (doc.files, doc.bytes) {
         text.push_str(&format!("files     {files} ({})\n", human_bytes(bytes)));
+    }
+    if let Some(sources) = &doc.sources {
+        if sources.files > 0 {
+            text.push_str(&format!("sources   {} kept source files, {} (sharing saves {})\n", sources.files, human_bytes(sources.bytes), human_bytes(sources.saved_bytes)));
+        }
+        if let Some(migration) = &sources.migration {
+            text.push_str(&format!("          converted to shared storage: {} items, {} freed{}\n", migration.items, human_bytes(migration.bytes_freed), if migration.skipped > 0 { format!(", {} could not be converted", migration.skipped) } else { String::new() }));
+        }
     }
     if let Some(remote) = &doc.remote {
         text.push_str(&format!("server    {} ({})\nrole      {}\ncache     {}\n", remote.server_name, if remote.offline { "offline" } else { "online" }, remote.role, human_bytes(remote.cache_bytes)));
@@ -159,17 +173,25 @@ fn check(ctx: &Ctx, matches: &ArgMatches) -> CliResult<()> {
     if !library.available {
         return Err(CliError::failed(format!("library '{}' cannot be read", library.name)));
     }
-    let report = ctx.host.check_library(&library.id)?;
+    let report = ctx.host.check_library(&library.id, matches.get_flag("fix"))?;
     let doc = CheckDoc {
         library: library.id.clone(),
         ok: report.problems.is_empty(),
         items: report.items,
         files_checked: report.files_checked,
         problems: report.problems.iter().map(|problem| ProblemDoc { item: problem.item.clone(), message: problem.message.clone() }).collect(),
+        orphan_sources: report.orphan_sources.clone(),
+        removed_sources: report.removed_sources.clone(),
     };
     let mut text = String::new();
     for problem in &doc.problems {
         text.push_str(&format!("{}\n", problem.message));
+    }
+    for orphan in &doc.orphan_sources {
+        text.push_str(&format!("unused source file {orphan} (tbx library check --fix removes it)\n"));
+    }
+    for removed in &doc.removed_sources {
+        text.push_str(&format!("removed unused source file {removed}\n"));
     }
     if doc.ok {
         text.push_str(&format!("'{}' is fine: {} items, {} files checked\n", library.name, doc.items, doc.files_checked));

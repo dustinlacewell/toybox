@@ -55,7 +55,13 @@ export interface AssetViewBase {
  *  importing plugin's id; `meta` is that plugin's own record — for a generated
  *  material, say, the parameters it was rendered with; `files` are the source
  *  files the plugin keeps with the asset, as library-relative paths. The host
- *  stores `meta` and `files` and hands them back without interpreting them. */
+ *  stores `meta` and `files` and hands them back without interpreting them.
+ *
+ *  A kept source file is stored once per library, by content, in a place shared by
+ *  every item that keeps the same file (`library/<type>/_sources/<sha256>/<name>`).
+ *  A path in `files` does not lie in the item's own folder, and its last segment is
+ *  the file's original name: find a file by that name (or by `meta`), never by where
+ *  it sits. The path is stable while any item keeps the file. */
 export interface AssetOrigin {
   plugin: string;
   meta?: Record<string, unknown>;
@@ -66,10 +72,13 @@ export interface AssetOrigin {
  *  `plugin` with the importing plugin's id; an importer supplies `meta` and
  *  `files`: bare names of source files staged next to the entry's own files (a
  *  material's maps, a model's glTF), such as the archive a material was
- *  generated from or the `.fbx` a model was converted from. They are stored in
- *  the item's own folder, travel with it and are deleted with it, but are not
- *  exported by Copy files. Materials and models can keep them. A model's list
- *  must not reuse the names `<stem>.gltf` and `<stem>.bin`.
+ *  generated from or the `.fbx` a model was converted from. At commit the host
+ *  moves each into shared, content-addressed storage (one copy per distinct file
+ *  in the library, whatever number of items keep it; a staged copy of a file that
+ *  is stored already is just dropped) and records its library-relative path in
+ *  `asset.origin.files`. A source travels with the item, is deleted with the last
+ *  item that keeps it, and is not exported by Copy files. Materials and models can
+ *  keep them. A model's list must not reuse the names `<stem>.gltf` and `<stem>.bin`.
  *
  *  An importer may name another plugin in `plugin` when that plugin is on and
  *  directly depends on the importer (a format plugin of `model-core`): the
@@ -345,9 +354,20 @@ export interface CommandRun extends CliRunBase {
   print(text: string): void;
 }
 
+/** An item an import replaced: its entry had the id of an item the library already had. */
+export interface ReplacedItem {
+  /** The id of the item, as in `ImportResult.imported`. */
+  id: string;
+  name: string;
+  /** In a few words, what the replaced item was (for a generated material: how it was rendered). */
+  was?: string;
+}
+
 /** What an importer reports. The ids are those of the committed entries. */
 export interface ImportResult {
   imported?: string[];
+  /** Items the import replaced rather than added. `tbx` says so, one line each, and lists them in its JSON. */
+  replaced?: ReplacedItem[];
   /** Why each file or item was left out. */
   skipped?: string[];
   warnings?: string[];
@@ -526,6 +546,10 @@ export interface FsApi {
   writeBytes(authorizedRoot: string, path: string, bytes: Uint8Array): Promise<void>;
   writeText(authorizedRoot: string, path: string, text: string): Promise<void>;
   writeJson(authorizedRoot: string, path: string, value: unknown): Promise<void>;
+  /** Remove a file or folder (recursively) below `authorizedRoot`, jailed like the writes; a path that is not
+   *  there is not an error and the root itself is refused. Gated by `fsWrite`. Only `tbx` provides it so far
+   *  (to tidy up a plugin's scratch files); the app's `fs` has none, so call it as `fs.removeTree?.(...)`. */
+  removeTree?(authorizedRoot: string, path: string): Promise<void>;
   pickDirectory(): Promise<string | null>;
   pickSaveFile(defaultName: string): Promise<string | null>;
 }

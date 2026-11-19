@@ -249,6 +249,23 @@ CREATE INDEX user_assets_favorite ON user_assets(asset_id) WHERE favorite = 1;
   marker `personalTagsMigrated`, a completed tag migration, a picture saved to the
   shared-thumbnail log) does not bump `revision`.
 
+## Kept source files (library migration step 5, `shared-sources`)
+
+No schema change (`user_version` stays 1): `asset_files` already lists a kept source with
+`origin = 1`, and it is the file-reference table that decides what a delete removes.
+What changed is the path. A source (a material's `.sbsar`, a model's original `.fbx`) is
+stored once per library in `library/<type>/_sources/<sha256>/<original name>`, and the
+entries of every item that keeps it, and so their `asset_files` rows, name that same path.
+"Which files only these assets own" therefore keeps a shared source until the last item
+that lists it goes (a source nobody lists is an orphan: `tbx library check` reports it and
+`--fix` removes it). The storage key of an item no longer includes the source bytes (two
+presets of one archive differ by their entries and maps); an item that is stored is never
+keyed again, so no id or folder moves.
+
+Step 5 converts a library in place: see [Managed library storage](library-storage.md). Its
+state is two `meta` rows of `library.db`: `sharedSources` (`done` when finished) and
+`sharedSourcesReport` (JSON: `items`, `sharedFiles`, `bytesBefore`, `bytesFreed`, `skipped`).
+
 ## Migration (library migration step 4, `sqlite-store`)
 
 Runs on first open by a version that knows it, inside the existing migration

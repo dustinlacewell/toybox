@@ -4,7 +4,7 @@ Local asset library for models, materials, animations, audio, and skyboxes. Buil
 
 ## Asset types
 
-Each kind of resource is an asset type owned by a plugin: the plugin declares the type and ships its importer and, for types it implements itself, its viewer, thumbnails and properties. See [Asset types](docs/asset-types.md) for the contract and [Skyboxes](docs/skyboxes.md) for the bundled example of a fully plugin-defined type. How a plugin is put together, depends on other plugins and extends them is described in [Plugins](docs/plugins.md). Models and animations are three small plugins (Models, glTF models, Animations); see [Models](docs/models.md).
+Each kind of resource is an asset type owned by a plugin: the plugin declares the type and ships its importer and, for types it implements itself, its viewer, thumbnails and properties. See [Asset types](docs/asset-types.md) for the contract and [Skyboxes](docs/skyboxes.md) for the bundled example of a fully plugin-defined type. Several plugins can add to one type: [Substance materials](docs/substance-materials.md) renders `.sbsar` archives into ordinary materials, and shows how a plugin can drive an external program on its own. How a plugin is put together, depends on other plugins and extends them is described in [Plugins](docs/plugins.md). Models and animations are three small plugins (Models, glTF models, Animations); see [Models](docs/models.md).
 
 ## Libraries
 

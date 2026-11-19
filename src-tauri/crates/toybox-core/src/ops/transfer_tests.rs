@@ -169,7 +169,9 @@ fn every_asset_kind_arrives_with_its_files_variants_and_manifest_fields() {
     assert_eq!(crate_entry["format"], "obj");
     assert_eq!(crate_entry["provenance"]["source"], "Crate Pack");
     assert_eq!(crate_entry["origin"]["plugin"], "com.example.obj");
-    assert_eq!(crate_entry["origin"]["files"], json!(["Crate.obj", "shared.mtl"]));
+    let kept: Vec<&str> = crate_entry["origin"]["files"].as_array().unwrap().iter().filter_map(Value::as_str).collect();
+    assert!(kept.len() == 2 && kept.iter().all(|path| path.starts_with("library/models/_sources/")), "{kept:?}");
+    assert!(kept[0].ends_with("/Crate.obj") && kept[1].ends_with("/shared.mtl"), "{kept:?}");
     assert_eq!(crate_entry["origin"]["meta"]["source"], "models/Crate.obj");
     assert_eq!((crate_entry["pack"].as_str(), crate_entry["category"].as_str()), (Some("synty_city"), Some("props")));
     assert_eq!(crate_entry["variants"][0]["id"], "uid://crate_lod");
@@ -178,9 +180,11 @@ fn every_asset_kind_arrives_with_its_files_variants_and_manifest_fields() {
     let stored = crate_entry["storagePath"].as_str().unwrap();
     let variant_stored = crate_entry["variants"][0]["storagePath"].as_str().unwrap();
     assert!(stored.starts_with("library/models/") && variant_stored.starts_with("library/models/") && stored != variant_stored);
-    assert_eq!(std::fs::read(target.root.join(dir_of(stored)).join("Crate.obj")).unwrap(), b"full original");
-    assert_eq!(std::fs::read(target.root.join(dir_of(stored)).join("shared.mtl")).unwrap(), b"materials");
-    assert_eq!(std::fs::read(target.root.join(dir_of(variant_stored)).join("Crate_LOD1.obj")).unwrap(), b"low original");
+    assert_eq!(std::fs::read(target.root.join(kept[0])).unwrap(), b"full original");
+    assert_eq!(std::fs::read(target.root.join(kept[1])).unwrap(), b"materials");
+    let low: Vec<&str> = crate_entry["variants"][0]["origin"]["files"].as_array().unwrap().iter().filter_map(Value::as_str).collect();
+    assert_eq!(std::fs::read(target.root.join(low[0])).unwrap(), b"low original");
+    assert_eq!(low[1], kept[1], "the companion both models keep is stored once");
     // One texture shared by three glTFs is stored once.
     let shared: Vec<_> = std::fs::read_dir(target.root.join("library/models/_resources")).unwrap().flatten().collect();
     assert_eq!(shared.len(), 1, "the shared texture is one file");
@@ -191,13 +195,15 @@ fn every_asset_kind_arrives_with_its_files_variants_and_manifest_fields() {
 
     // Material, sound and plugin type.
     let stone = entry(&target, "uid://stone").unwrap();
-    assert_eq!(stone["origin"]["files"], json!(["stone.sbsar"]));
+    let archive = stone["origin"]["files"][0].as_str().unwrap().to_string();
+    assert!(archive.starts_with("library/materials/_sources/") && archive.ends_with("/stone.sbsar"), "{archive}");
     assert_eq!(stone["origin"]["meta"]["preset"], "Green");
     assert_eq!(stone["variants"][0]["id"], "uid://stone_small");
     let folder = stone["storagePath"].as_str().unwrap();
     assert!(folder.starts_with("library/materials/"));
     assert_eq!(std::fs::read(target.root.join(folder).join("color.png")).unwrap(), b"Stone");
-    assert_eq!(std::fs::read(target.root.join(folder).join("stone.sbsar")).unwrap(), b"archive");
+    assert_eq!(std::fs::read(target.root.join(&archive)).unwrap(), b"archive");
+    assert!(!target.root.join(folder).join("stone.sbsar").exists());
     let click = entry(&target, "uid://click").unwrap();
     assert!(click["storagePath"].as_str().unwrap().starts_with("library/audio/"));
     let night = entry(&target, "uid://night").unwrap();
