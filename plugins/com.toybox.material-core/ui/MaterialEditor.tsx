@@ -4,8 +4,8 @@
  */
 
 import { Stack, TextInput } from "@ldlework/toybox-sdk/ui";
-import type { ChannelRole, FileUse } from "./draft.js";
-import type { ReviewItem } from "./edit.js";
+import type { ChannelRole, FileUse } from "../lib/draft.js";
+import type { ReviewItem } from "../lib/edit.js";
 import type { Channel } from "./handlers.js";
 import { TextureRow } from "./TextureRow.js";
 import type { ThumbLoader } from "./thumbs.js";

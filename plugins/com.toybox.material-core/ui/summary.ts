@@ -3,8 +3,8 @@
  * the roles its files supply, and which included items need attention. Pure.
  */
 
-import type { ChannelRole, DraftFile, MaterialDraft } from "./draft.js";
-import { problemsFor, type ReviewItem } from "./edit.js";
+import type { ChannelRole, DraftFile, MaterialDraft } from "../lib/draft.js";
+import { problemsFor, type ReviewItem } from "../lib/edit.js";
 import { ROLE_OPTIONS, USE_OPTIONS } from "./uses.js";
 
 type Role = "albedo" | "normal" | "roughness" | "metallic" | "ao" | "height" | "emissive" | "opacity";

@@ -157,7 +157,7 @@ test("each model plugin has one responsibility, shown by what its manifest ships
   assert.deepEqual(pluginKinds(animations), ["animation"]);
   assert.equal(acceptsKind(animations, "model"), false);
   assert.equal(acceptsKind(core, "animation"), false);
-  assert.deepEqual(animations.permissions, {}, "it reads and writes files only through the Models plugin");
+  assert.deepEqual(animations.permissions, { fsRead: true }, "it writes files only through the Models plugin; fsRead is for its command-line importer, which names files by path");
 
   // The dependency ranges accept the version of Models that ships.
   for (const dependent of [gltf, animations]) assert.equal(dependent.dependencies["com.toybox.model-core"].replace("^", "").split(".")[0], core.version.split(".")[0]);

@@ -3,7 +3,7 @@
  * finds that file in the draft and loads it. Pure: the load itself is injected.
  */
 
-import type { MaterialDraft } from "./draft.js";
+import type { MaterialDraft } from "../lib/draft.js";
 
 export function previewUrlResolver(
   draft: MaterialDraft,

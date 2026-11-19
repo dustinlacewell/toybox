@@ -212,6 +212,145 @@ export interface PluginManifest {
   /** Plugin-shipped React UI modules for host slots (the rich path). When a slot
    *  module is present the host mounts it instead of rendering `fields`. */
   ui?: PluginUi;
+  /** What the plugin adds to the `tbx` command line: importers, an exporter
+   *  and commands, declared here so help and validation work without running
+   *  plugin code, and implemented in `cli.module`. */
+  cli?: CliSpec;
+}
+
+// --- the command line (`tbx`) --------------------------------------------------
+
+/** The value types of a command-line argument or option. A relative `path` is
+ *  made absolute against the current folder before the plugin sees it. */
+export type CliValueType = "string" | "number" | "flag" | "choice" | "path";
+
+/** The `cli` section of a manifest. */
+export interface CliSpec {
+  /** Plugin-relative ES module with **no user interface** (it must not import
+   *  React, three.js or anything that needs a window). Its default export is a
+   *  `PluginModule`, or a function of `PluginCtx` returning one, and carries
+   *  the handlers under `cli`. A plugin whose `entry` is already like that
+   *  names the same file here. `tbx` loads this module of every active plugin
+   *  and never `entry` or the panels. */
+  module: string;
+  /** Becomes `tbx import <name>`; handled by `PluginModule.cli.importers[name]`. */
+  importers?: CliImporterSpec[];
+  /** Becomes `tbx export <name>`; handled by the module's `run` and `preview`,
+   *  exactly as in the app. */
+  exporter?: CliExporterSpec;
+  /** Top-level commands, `tbx <name>`; handled by `PluginModule.cli.commands`. */
+  commands?: CliCommandSpec[];
+}
+
+/** One option of an importer, exporter or command, given as `--name`. */
+export interface CliOptionSpec {
+  /** `kebab-case`. The plugin receives the value under the camelCase of it (`flip-green` → `flipGreen`). */
+  name: string;
+  type: CliValueType;
+  /** The allowed values of a `choice`. */
+  choices?: string[];
+  /** Used when the option is not given. */
+  default?: string | number | boolean;
+  /** The command is refused without it. */
+  required?: boolean;
+  /** May be given several times; the plugin receives an array. */
+  multiple?: boolean;
+  /** One line. */
+  help?: string;
+}
+
+/** One positional argument of a command. Same fields as an option, but a
+ *  positional argument is never a `flag`. With `multiple` it takes the rest of
+ *  the line. */
+export interface CliArgSpec extends Omit<CliOptionSpec, "type"> {
+  type: Exclude<CliValueType, "flag">;
+}
+
+/** An importer: `tbx import <name> <PATH>... [options]`. The paths and the
+ *  shared options (`--tag`, `--source`, ...) are not declared here. */
+export interface CliImporterSpec {
+  /** `[a-z][a-z0-9-]*`. */
+  name: string;
+  summary: string;
+  options?: CliOptionSpec[];
+}
+
+/** An exporter: `tbx export <name> <SELECTION> --to <DIR> [options]`. Besides the
+ *  options, `config` carries `targetDir` (`--to`), `preserveStructure` and
+ *  `variantPolicy` (`"all"` or `"best"`, from `--variants`), exactly as the app's
+ *  export drawer supplies them. With no
+ *  `options` they are taken from the manifest's `fields` (`text` → string,
+ *  `checkbox` → flag, `select` → choice, `directory` and `saveFile` → path). */
+export interface CliExporterSpec {
+  /** `[a-z][a-z0-9-]*`. */
+  name: string;
+  summary: string;
+  options?: CliOptionSpec[];
+}
+
+/** A command, either a group (`commands`) or runnable (`args`/`options`), never
+ *  both. Groups nest; a command is handled under the names of its path joined
+ *  with spaces (`"sbsar inputs"`). */
+export interface CliCommandSpec {
+  /** `[a-z][a-z0-9-]*`. */
+  name: string;
+  summary: string;
+  /** Present: this is a group, and has no `args`, `options` or `selection`. */
+  commands?: CliCommandSpec[];
+  args?: CliArgSpec[];
+  options?: CliOptionSpec[];
+  /** The command accepts the standard item selection (ids or a filter) and
+   *  receives the selected items as `CommandRun.assets`. */
+  selection?: boolean;
+}
+
+/** A parsed option or argument value: a string or `path` (absolute), a number,
+ *  a flag, or a list of these for `multiple`. */
+export type CliValue = string | number | boolean | string[] | number[];
+
+/** What both kinds of run have in common. `host`, `fs` and `services` are the
+ *  app's own interfaces with the plugin's permissions; there are no dialogs
+ *  (`pickDirectory` and `pickSaveFile` reject). */
+export interface CliRunBase {
+  /** The library the command acts on. */
+  library: { id: string; name: string };
+  host: SlotHost;
+  fs: FsApi;
+  services: PluginServices;
+  extensions: ExtensionLookup;
+  /** Stage-then-commit exactly as an import panel does. */
+  commit(entries: SeedEntryInput[]): Promise<void>;
+  /** Progress, on standard error. */
+  log(message: string): void;
+  /** A warning, on standard error. */
+  warn(message: string): void;
+  signal: AbortSignal;
+}
+
+/** What an importer's handler receives. */
+export interface ImportRun extends CliRunBase {
+  /** The files and folders given on the command line, absolute. */
+  paths: string[];
+  /** The importer's options by camelCase name; defaults applied. */
+  options: Record<string, CliValue | undefined>;
+}
+
+/** What a command's handler receives. */
+export interface CommandRun extends CliRunBase {
+  args: Record<string, CliValue | undefined>;
+  options: Record<string, CliValue | undefined>;
+  /** The selected items, for a command declared with `selection`. */
+  assets?: AssetView[];
+  /** Standard output. A command that prints nothing has its return value printed instead. */
+  print(text: string): void;
+}
+
+/** What an importer reports. The ids are those of the committed entries. */
+export interface ImportResult {
+  imported?: string[];
+  /** Why each file or item was left out. */
+  skipped?: string[];
+  warnings?: string[];
 }
 
 /** Relative paths (under the plugin dir) to the plugin's slot UI modules. Each
@@ -408,8 +547,7 @@ export interface ExporterPlugin {
   run(ctx: ExportCtx, assets: AssetView[]): Promise<ExportReport>;
 }
 
-/** Importer plugins are panel-only — their work lives in the `importPanel` slot
- *  component, which builds `SeedEntryInput[]` and calls `ctx.commit`. */
+/** @deprecated Importers have no object of their own. An importer is a plugin with `ui.importPanel` (the panel builds `SeedEntryInput[]` and calls `ctx.commit`) and, for the command line, `cli.importers` in its manifest answered by `PluginModule.cli.importers`. Both should call the same UI-free code. */
 export interface ImporterPlugin {
   readonly kind?: "importer";
 }
@@ -440,6 +578,8 @@ export interface MaterialMapInput {
 }
 
 export { importNamespace } from "./storage.js";
+export { resolveSources, type ImportSource } from "./sources.js";
+export { validSegment, assertCategory, newImportOutcome, noteSkip, mergeImportOutcome, runImport, type ImportOutcome } from "./cliImport.js";
 
 export interface ModelSeedEntry {
   /** Host-managed file location; source/category never define storage. */
@@ -711,6 +851,13 @@ export interface PluginModule {
    *  contribution; plugins that depend on it contribute here; the core plugin
    *  reads them with `ctx.extensions(point)`. The host only carries them. */
   extensions?: Record<string, unknown[]>;
+  /** What this module answers on the command line, matching the manifest's
+   *  `cli` section: an importer per `cli.importers[].name`, a command per
+   *  runnable `cli.commands` path joined with spaces. Both sides must agree. */
+  cli?: {
+    importers?: Record<string, (run: ImportRun) => Promise<ImportResult | void>>;
+    commands?: Record<string, (run: CommandRun) => Promise<unknown>>;
+  };
 }
 
 /** Declare a plugin's entry module: either the module itself, or a function of

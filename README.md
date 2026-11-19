@@ -10,6 +10,8 @@ Each kind of resource is an asset type owned by a plugin: the plugin declares th
 
 Toybox can show several libraries at once, in one merged view: a library is a folder, and you add or create more of them in Settings → Library. See [Libraries](docs/libraries.md) for how they are registered, where each keeps its databases and thumbnails, how items are identified across libraries, and what remote libraries and transfer will plug into.
 
+Everything the app does with libraries, items, tags, import, export and plugins can also be done from a terminal with `tbx`, which plugins extend with importers, exporters and commands of their own; see [The command line](docs/cli.md).
+
 To keep a library on a server of your own and open it from anywhere with access tokens, see [Toybox server](docs/server.md) and the Ubuntu walkthrough in [deploy/README.md](deploy/README.md).
 
 ## Library migrations

@@ -6,10 +6,10 @@
 
 import { useMemo } from "react";
 import { Button, Stack } from "@ldlework/toybox-sdk/ui";
-import { canImport, importable, problemsFor, type ReviewItem } from "./edit.js";
+import { canImport, importable, problemsFor, type ReviewItem } from "../lib/edit.js";
 import { MaterialList } from "./MaterialList.js";
 import type { ThumbLoader } from "./thumbs.js";
-import { materialGroups } from "./variants.js";
+import { materialGroups } from "../lib/variants.js";
 
 interface Props {
   items: ReviewItem[];

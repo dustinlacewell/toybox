@@ -1,10 +1,10 @@
 import { useEffect, useMemo, useState, type ReactNode } from "react";
 import { variantInfo, MATERIAL_ROLE_LABELS, type PanelWidgets } from "@ldlework/toybox-sdk";
 import { Button, Checkbox, ImageViewport, NavigationItem, Pane, PropertyRow, Segmented, Select, TextInput, ThumbnailStrip, Workbench, type ImageChannel, type ImageScale } from "@ldlework/toybox-sdk/ui";
-import { materialGroups } from "./variants.js";
+import { materialGroups } from "../lib/variants.js";
 import { DraftPreview } from "./DraftPreview.js";
-import { canImport, problemsFor, type ReviewItem } from "./edit.js";
-import { draftMaps } from "./entry.js";
+import { canImport, problemsFor, type ReviewItem } from "../lib/edit.js";
+import { draftMaps } from "../lib/entry.js";
 import type { ReviewHandlers } from "./handlers.js";
 import { MaterialList } from "./MaterialList.js";
 import { Thumb } from "./Thumb.js";

@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
-import type { DraftFile, FileUse, MaterialDraft } from "./draft.js";
-import type { ReviewItem } from "./edit.js";
+import type { DraftFile, FileUse, MaterialDraft } from "../lib/draft.js";
+import type { ReviewItem } from "../lib/edit.js";
 import { attentionIndexes, previewFile, roleLabels } from "./summary.js";
 
 const file = (fileName: string, use: FileUse): DraftFile => ({

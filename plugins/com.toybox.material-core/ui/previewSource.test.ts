@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from "vitest";
-import type { MaterialDraft } from "./draft.js";
+import type { MaterialDraft } from "../lib/draft.js";
 import { previewUrlResolver } from "./previewSource.js";
 
 const draft: MaterialDraft = {

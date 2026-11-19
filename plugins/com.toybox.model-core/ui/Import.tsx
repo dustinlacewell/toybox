@@ -16,16 +16,15 @@ import { Stack, Button, Select, Checkbox } from "@ldlework/toybox-sdk/ui";
 import {
   defineImportPanel,
   importNamespace,
-  groupSeedVariants,
   variantInfo,
   type ImportPanelCtx,
-  type SeedEntryInput,
 } from "@ldlework/toybox-sdk";
 
 import { MODEL_FORMATS, type ModelFormat } from "../api.js";
 import { collectFormats, hasFormats, lookingFor } from "../lib/formats.js";
-import { newStagedNames } from "../lib/originals.js";
-import { findModels, keepOriginal, materialize, type Found } from "../lib/walk.js";
+import { chooseModels, groupModels } from "../lib/choose.js";
+import { importModelFiles } from "../lib/import.js";
+import { findModels, type Found } from "../lib/walk.js";
 
 const CATEGORIES = [
   "props", "buildings", "characters", "environment", "vehicles",
@@ -69,47 +68,9 @@ export default defineImportPanel(function ImportPanel({ ctx }: { ctx: ImportPane
         sourceRoot: source,
         libraryRoot,
       };
-      const entries: SeedEntryInput[] = [];
-      const warnings: string[] = [];
-      const seenStems = new Set<string>();
-      const stagedNames = newStagedNames();
-      let skipped = 0;
-
-      for (const f of found) {
-        // Two sources with the same basename collide on both the on-disk
-        // `<stem>.gltf` and the catalog id, so the second would silently
-        // overwrite/duplicate. Keep the first, skip the rest.
-        if (seenStems.has(f.stem)) {
-          skipped += 1;
-          warnings.push(`skipped duplicate name: ${f.relPath}`);
-          continue;
-        }
-
-        const result = await materialize(io, f, pack, category);
-        if ("rejected" in result) {
-          skipped += 1;
-          warnings.push(`skipped ${f.relPath}: ${result.rejected}`);
-          continue;
-        }
-        seenStems.add(f.stem);
-        warnings.push(...result.warnings);
-        // A converted model keeps its original beside the glTF; a format whose
-        // output is the original (glTF) only records which plugin imported it.
-        const kept = await keepOriginal(io, f, result, pack, category, stagedNames);
-        warnings.push(...kept.warnings);
-        entries.push({
-          id: `uid://import_${pack}_${category}_${f.stem}`,
-          pack,
-          category,
-          file: result.file,
-          format: f.ext,
-          ...(kept.origin ? { origin: kept.origin } : {}),
-        });
-      }
-
-      const grouped = groupSeedVariants(entries);
-      if (grouped.length) await ctx.commit(grouped);
-      setPhase({ step: "done", imported: grouped.length, skipped, warnings });
+      const result = await importModelFiles(io, found, pack, category);
+      if (result.entries.length) await ctx.commit(result.entries);
+      setPhase({ step: "done", imported: result.entries.length, skipped: result.skipped, warnings: result.warnings });
     } catch (e) {
       setPhase({ step: "error", message: String(e) });
     }
@@ -196,14 +157,8 @@ function PhaseView({
   }
 
   if (phase.step === "scanned") {
-    const groups = new Map<string, Found[]>();
-    for (const file of phase.found) {
-      const info = variantInfo(file.stem, "model");
-      const group = groups.get(info.base) ?? [];
-      group.push(file); groups.set(info.base, group);
-    }
-    for (const group of groups.values()) group.sort((a, b) => variantInfo(a.stem, "model").rank - variantInfo(b.stem, "model").rank);
-    const chosen = [...groups.values()].flatMap((group) => (policy === "best" ? group.slice(0, 1) : group).filter((f) => !excluded.has(f.relPath)));
+    const groups = groupModels(phase.found);
+    const chosen = chooseModels(groups, policy === "best" ? "best" : "all", excluded);
     const count = [...groups.values()].filter((group) => group.some((f) => chosen.includes(f))).length;
     return (
       <section className="export__section">

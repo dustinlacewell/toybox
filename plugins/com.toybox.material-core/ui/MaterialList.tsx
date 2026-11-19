@@ -4,10 +4,10 @@
  * parent; give `maxHeight` to size it to its rows instead.
  */
 
-import type { ReviewItem } from "./edit.js";
+import type { ReviewItem } from "../lib/edit.js";
 import { MaterialRow } from "./MaterialRow.js";
 import type { ThumbLoader } from "./thumbs.js";
-import { materialGroups } from "./variants.js";
+import { materialGroups } from "../lib/variants.js";
 import { variantInfo } from "@ldlework/toybox-sdk";
 
 interface Props {

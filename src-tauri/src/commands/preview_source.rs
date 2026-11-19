@@ -1,12 +1,11 @@
 //! Preview source reads avoid deserializing the entire catalog per thumbnail.
-//! The reads and the containment check are `toybox_core::ops::preview_source`.
-use crate::{
-    error::{AppError, AppResult},
-    infra::library,
-};
+//! The work is `toybox_host::Host::read_preview_source` / `read_preview_pair`.
 use serde_json::Value;
 use tauri::AppHandle;
-use toybox_core::ops::preview_source::{read_pair, read_source};
+
+use crate::app_host::host;
+use crate::commands::remote::blocking;
+use crate::error::AppResult;
 
 #[tauri::command]
 pub async fn read_preview_source(
@@ -15,13 +14,8 @@ pub async fn read_preview_source(
     relative_path: String,
     clip_index: Option<usize>,
 ) -> AppResult<Value> {
-    let handle = library::resolve(&app, &library)?;
-    tauri::async_runtime::spawn_blocking(move || {
-        handle.ensure_gltf(&relative_path)?;
-        read_source(&handle.root, &relative_path, clip_index)
-    })
-        .await
-        .map_err(|error| AppError::msg(format!("Preview worker failed: {error}")))?
+    let host = host(&app);
+    blocking(move || host.read_preview_source(&library, &relative_path, clip_index)).await
 }
 
 #[tauri::command]
@@ -32,12 +26,6 @@ pub async fn read_preview_pair(
     clip_index: usize,
     model_path: String,
 ) -> AppResult<Value> {
-    let handle = library::resolve(&app, &library)?;
-    tauri::async_runtime::spawn_blocking(move || {
-        handle.ensure_gltf(&animation_path)?;
-        handle.ensure_gltf(&model_path)?;
-        read_pair(&handle.root, &animation_path, clip_index, &model_path)
-    })
-    .await
-    .map_err(|error| AppError::msg(format!("Preview worker failed: {error}")))?
+    let host = host(&app);
+    blocking(move || host.read_preview_pair(&library, &animation_path, clip_index, &model_path)).await
 }

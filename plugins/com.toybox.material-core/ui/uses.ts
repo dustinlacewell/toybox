@@ -4,7 +4,7 @@
  */
 
 import type { SelectOption } from "@ldlework/toybox-sdk/ui";
-import type { ChannelRole, FileUse } from "./draft.js";
+import type { ChannelRole, FileUse } from "../lib/draft.js";
 
 export const USE_OPTIONS: SelectOption[] = [
   { value: "unassigned", label: "Not used" },

@@ -5,10 +5,9 @@ use std::path::Path;
 use std::collections::BTreeMap;
 use serde::{Serialize,Deserialize};
 
-use tauri::{AppHandle, Manager};
+use toybox_core::error::AppResult;
 
-use crate::error::AppResult;
-use crate::infra::appdata;
+use crate::host::Host;
 
 /// The bundled plugin ids to seed. Each must have a matching `bundle.resources`
 /// entry (`plugins/<id>/manifest.json` + `plugins/<id>/dist`) in tauri.conf.json.
@@ -60,35 +59,33 @@ pub fn is_superseded(replacements: &[&str], installed: impl Fn(&str) -> bool) ->
     replacements.iter().all(|id| installed(id))
 }
 
-/// Copy any not-yet-installed bundled plugin into the app-data plugins dir.
-/// Best-effort and idempotent: a present plugin is skipped, and a copy failure
-/// for one plugin doesn't abort startup (logged via the returned error only when
-/// the whole resource root is unreadable).
-pub fn seed_bundled_plugins(app: &AppHandle) -> AppResult<()> {
-    let Ok(resources) = app.path().resource_dir() else {
-        return Ok(()); // no resource dir (unusual) — nothing to seed
-    };
-    let dest_root = appdata::plugins_dir(app)?;
-    std::fs::create_dir_all(&dest_root)?;
+impl Host {
+    /// Copy any not-yet-installed bundled plugin from `<resources>/plugins/<id>` into
+    /// the plugins folder. Best-effort and idempotent: a present plugin is skipped,
+    /// and a copy failure for one plugin doesn't abort startup.
+    pub fn seed_bundled_plugins(&self, resources: &Path) -> AppResult<()> {
+        let dest_root = self.paths.plugins_dir();
+        std::fs::create_dir_all(&dest_root)?;
 
-    for id in BUNDLED_PLUGINS {
-        // A failed copy for one plugin shouldn't break the app; drop it.
-        let _ = seed_one(&resources.join("plugins").join(id), &dest_root.join(id));
-    }
-    for (old, replacements) in RETIRED_PLUGINS {
-        let _ = retire_one(&dest_root, old);
-        // The user's switch for the old plugin carries over to its replacements.
-        let present: Vec<&str> = replacements.iter().copied().filter(|id| dest_root.join(id).is_dir()).collect();
-        if !present.is_empty() {
-            if let Ok(mut settings) = crate::infra::settings::load(app) {
-                // `|` not `||`: both carry-overs run.
-                if carry_over_disabled(&mut settings.disabled_plugins, old, &present) | carry_over_plugin_settings(&mut settings.plugin_settings, old, &present) {
-                    let _ = crate::infra::settings::save(app, &settings);
+        for id in BUNDLED_PLUGINS {
+            // A failed copy for one plugin shouldn't break the app; drop it.
+            let _ = seed_one(&resources.join("plugins").join(id), &dest_root.join(id));
+        }
+        for (old, replacements) in RETIRED_PLUGINS {
+            let _ = retire_one(&dest_root, old);
+            // The user's switch for the old plugin carries over to its replacements.
+            let present: Vec<&str> = replacements.iter().copied().filter(|id| dest_root.join(id).is_dir()).collect();
+            if !present.is_empty() {
+                if let Ok(mut settings) = self.load_settings() {
+                    // `|` not `||`: both carry-overs run.
+                    if carry_over_disabled(&mut settings.disabled_plugins, old, &present) | carry_over_plugin_settings(&mut settings.plugin_settings, old, &present) {
+                        let _ = self.save_settings(&settings);
+                    }
                 }
             }
         }
+        Ok(())
     }
-    Ok(())
 }
 
 /// Hand the stored preferences of `old` (`plugin_settings` is keyed by plugin id)
@@ -141,7 +138,7 @@ const RECEIPT:&str=".toybox-bundle.json";
 #[derive(Serialize,Deserialize)]
 struct Receipt {version:u32,files:BTreeMap<String,u64>}
 
-fn linked(path:&Path)->std::io::Result<bool> {
+pub(crate) fn linked(path:&Path)->std::io::Result<bool> {
     let metadata=std::fs::symlink_metadata(path)?;
     #[cfg(windows)] {
         use std::os::windows::fs::MetadataExt;
@@ -156,7 +153,7 @@ fn inventory(root:&Path)->std::io::Result<BTreeMap<String,u64>> {
             if linked(&path)? {return Err(std::io::Error::other("Linked plugin files are user-managed"));}
             if path.is_dir(){walk(root,&path,files)?;}
             else if path.file_name()!=Some(std::ffi::OsStr::new(RECEIPT)) {
-                files.insert(path.strip_prefix(root).unwrap().to_string_lossy().replace('\\',"/"),crate::domain::rig::hash(&std::fs::read(path)?));
+                files.insert(path.strip_prefix(root).unwrap().to_string_lossy().replace('\\',"/"),toybox_core::domain::rig::hash(&std::fs::read(path)?));
             }
         }
         Ok(())
@@ -208,7 +205,7 @@ fn seed_one(src: &Path, dst: &Path) -> std::io::Result<bool> {
 }
 
 /// Recursively copy `src` into `dst`.
-fn copy_dir(src: &Path, dst: &Path) -> std::io::Result<()> {
+pub(crate) fn copy_dir(src: &Path, dst: &Path) -> std::io::Result<()> {
     std::fs::create_dir_all(dst)?;
     for entry in std::fs::read_dir(src)? {
         let entry = entry?;
@@ -279,7 +276,7 @@ mod tests {
 
     #[test]
     fn every_bundled_manifest_matches_its_folder_and_finds_its_dependencies() {
-        let plugins = Path::new(env!("CARGO_MANIFEST_DIR")).join("../plugins");
+        let plugins = Path::new(env!("CARGO_MANIFEST_DIR")).join("../../../plugins");
         let manifests: std::collections::HashMap<&str, serde_json::Value> = BUNDLED_PLUGINS.iter()
             .map(|id| (*id, serde_json::from_slice(&std::fs::read(plugins.join(id).join("manifest.json")).unwrap_or_else(|_| panic!("{id} has no manifest"))).unwrap()))
             .collect();

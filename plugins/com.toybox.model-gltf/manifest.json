@@ -10,5 +10,8 @@
   "permissions": {
     "fsRead": true,
     "fsWrite": true
+  },
+  "cli": {
+    "module": "dist/index.js"
   }
 }

@@ -1,0 +1,17 @@
+[package]
+name = "toybox-script"
+version = "0.4.1"
+description = "Runs Toybox plugin modules outside a window: an embedded JavaScript engine, an ES module loader and the bridge to host functions"
+authors = ["Dustin Lacewell"]
+edition = "2021"
+
+[lib]
+name = "toybox_script"
+
+[dependencies]
+serde = { workspace = true }
+serde_json = { workspace = true }
+rquickjs = { version = "0.14", default-features = false, features = ["std", "loader", "array-buffer"] }
+
+[dev-dependencies]
+tempfile = "3"

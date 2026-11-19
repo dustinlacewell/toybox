@@ -14,6 +14,6 @@
     // Same externals as the placer: `@ldlework/toybox-sdk` (+ `/ui`) and `react`
     // resolve at runtime via the app's import map; types come from the linked SDK.
   },
-  "include": ["ui/**/*.tsx", "ui/**/*.ts"],
-  "exclude": ["ui/**/*.test.ts"]
+  "include": ["cli.ts", "lib/**/*.ts", "ui/**/*.tsx", "ui/**/*.ts"],
+  "exclude": ["lib/**/*.test.ts", "ui/**/*.test.ts"]
 }

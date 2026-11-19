@@ -13,5 +13,17 @@
   },
   "ui": {
     "importPanel": "dist/ui/Import.js"
+  },
+  "cli": {
+    "module": "dist/cli.js",
+    "importers": [
+      {
+        "name": "material",
+        "summary": "Import folders of PBR texture images (PNG, JPG) as materials.",
+        "options": [
+          { "name": "category", "type": "string", "default": "uncategorized", "help": "Category of the imported materials." }
+        ]
+      }
+    ]
   }
 }

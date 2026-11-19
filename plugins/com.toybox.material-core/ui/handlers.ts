@@ -3,7 +3,7 @@
  * Each names the item by its index in the review list. Types only.
  */
 
-import type { ChannelRole, FileUse } from "./draft.js";
+import type { ChannelRole, FileUse } from "../lib/draft.js";
 
 export type Channel = "r" | "g" | "b" | "a";
 

@@ -5,7 +5,7 @@
  */
 
 import { Select } from "@ldlework/toybox-sdk/ui";
-import type { ChannelRole, DraftFile, FileUse } from "./draft.js";
+import type { ChannelRole, DraftFile, FileUse } from "../lib/draft.js";
 import type { Channel } from "./handlers.js";
 import { Thumb } from "./Thumb.js";
 import type { ThumbLoader } from "./thumbs.js";

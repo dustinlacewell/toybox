@@ -1,5 +1,5 @@
 [package]
-name = "toybox"
+name = "toybox-client"
 version = "0.4.1"
 description = "Local asset library for game development"
 authors = ["Dustin Lacewell"]
@@ -14,7 +14,7 @@ default-run = "toybox"
 # binaries (reindex, migrate-library, repair-colors) are built by a plain
 # `cargo build` here because it is a default member.
 [workspace]
-members = ["crates/toybox-core", "crates/toybox-server", "crates/toybox-remote"]
+members = ["crates/toybox-core", "crates/toybox-server", "crates/toybox-remote", "crates/toybox-host", "crates/toybox-script", "crates/toybox-cli"]
 default-members = [".", "crates/toybox-core"]
 
 [workspace.dependencies]
@@ -39,6 +39,12 @@ subtle = "2"
 ureq = { version = "3", default-features = false, features = ["rustls", "gzip"] }
 keyring = "4"
 
+# The package is `toybox-client`; the program it builds is still `toybox` (the installed
+# executable, shortcuts and updater keep their name).
+[[bin]]
+name = "toybox"
+path = "src/main.rs"
+
 [lib]
 # The `_lib` suffix may seem redundant but it is necessary
 # to make the lib name unique and wouldn't conflict with the bin name.
@@ -52,6 +58,7 @@ tauri-build = { version = "2", features = [] }
 [dependencies]
 toybox-core = { path = "crates/toybox-core" }
 toybox-remote = { path = "crates/toybox-remote" }
+toybox-host = { path = "crates/toybox-host" }
 tauri = { version = "2", features = ["protocol-asset"] }
 tauri-plugin-opener = "2"
 tauri-plugin-dialog = "2"

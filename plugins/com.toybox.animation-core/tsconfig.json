@@ -16,5 +16,5 @@
     // each other at run time. Build com.toybox.model-core first.
     "paths": { "com.toybox.model-core": ["../com.toybox.model-core/dist/api.d.ts"] }
   },
-  "include": ["lib/**/*.ts", "ui/**/*.tsx"]
+  "include": ["cli.ts", "lib/**/*.ts", "ui/**/*.tsx"]
 }

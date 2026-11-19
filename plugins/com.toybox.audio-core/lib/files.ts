@@ -1,6 +1,5 @@
 import type { FsApi } from "@ldlework/toybox-sdk";
 export const supportedAudio=(name:string)=>/\.(wav|mp3|ogg|flac)$/i.test(name);
-export function validSegment(value:string) {return !!value.trim()&&!/[<>:"/\\|?*\x00-\x1f]/.test(value)&&value!=="."&&value!==".."&&!/[. ]$/.test(value);}
 export function audioId(pack:string,category:string,file:string) {
   let hash=0xcbf29ce484222325n;for(const c of `${pack}\0${category}\0${file}`){hash=BigInt.asUintN(64,(hash^BigInt(c.codePointAt(0)!))*0x100000001b3n);}
   return `uid://audio_${hash.toString(16)}`;

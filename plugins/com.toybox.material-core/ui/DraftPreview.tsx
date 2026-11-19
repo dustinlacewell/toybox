@@ -6,8 +6,8 @@
 
 import { useMemo, type ReactNode } from "react";
 import type { PanelWidgets } from "@ldlework/toybox-sdk";
-import type { MaterialDraft } from "./draft.js";
-import { draftMaps } from "./entry.js";
+import type { MaterialDraft } from "../lib/draft.js";
+import { draftMaps } from "../lib/entry.js";
 import { previewUrlResolver } from "./previewSource.js";
 import type { ThumbLoader } from "./thumbs.js";
 

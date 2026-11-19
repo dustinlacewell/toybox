@@ -1,5 +1,5 @@
 import { Checkbox, NavigationItem } from "@ldlework/toybox-sdk/ui";
-import type { ReviewItem } from "./edit.js";
+import type { ReviewItem } from "../lib/edit.js";
 import { previewFile, roleLabels } from "./summary.js";
 import { Thumb } from "./Thumb.js";
 import type { ThumbLoader } from "./thumbs.js";

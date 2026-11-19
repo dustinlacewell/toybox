@@ -7,7 +7,8 @@ function moduleUrl(file,replacements={}) {
   for(const [from,to]of Object.entries(replacements))outputText=outputText.replaceAll(`from "${from}"`,`from ${JSON.stringify(to)}`);
   return `data:text/javascript;base64,${Buffer.from(outputText).toString("base64")}`;
 }
-const {audioId,findAudio,validSegment}=await import(moduleUrl("../plugins/com.toybox.audio-core/ui/files.ts"));
+import {validSegment} from "@ldlework/toybox-sdk";
+const {audioId,findAudio}=await import(moduleUrl("../plugins/com.toybox.audio-core/lib/files.ts"));
 test("audio scans preserve nested paths, recognize supported formats and keep same-name sounds distinct",async()=>{
   const tree={".":[{name:"step.WAV",relPath:"step.WAV",isDir:false},{name:"room",relPath:"room",isDir:true},{name:"photo.png",relPath:"photo.png",isDir:false}],room:[{name:"step.wav",relPath:"room/step.wav",isDir:false},{name:"wind.ogg",relPath:"room/wind.ogg",isDir:false},{name:"music.flac",relPath:"room/music.flac",isDir:false},{name:"radio.mp3",relPath:"room/radio.mp3",isDir:false}]};
   const found=await findAudio({readDir:async(_source,path)=>tree[path]},"source");assert.equal(found.length,5);assert.ok(found.includes("room/step.wav"));

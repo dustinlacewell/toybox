@@ -9,8 +9,20 @@
   "icon": "icons/animation.svg",
   "assetIcons": {"animation":"icons/animation.svg"},
   "description": "The Animations type of the library and its importer. Clips are taken from model files through the Models plugin, so it reads the formats the format plugins add.",
-  "permissions": {},
+  "permissions": { "fsRead": true },
   "ui": {
     "importPanel": "dist/ui/Import.js"
+  },
+  "cli": {
+    "module": "dist/cli.js",
+    "importers": [
+      {
+        "name": "animation",
+        "summary": "Import the animation clips of model files (any format a turned-on format plugin reads) as animations.",
+        "options": [
+          { "name": "category", "type": "string", "default": "animations", "help": "Category of the imported animations." }
+        ]
+      }
+    ]
   }
 }

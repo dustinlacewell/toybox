@@ -1,0 +1,19 @@
+[package]
+name = "toybox-host"
+version = "0.4.1"
+description = "What the Toybox app and the tbx command line both do around libraries: the registered libraries, plugins, settings, and routing a request to a local or remote library (no GUI dependency)"
+authors = ["Dustin Lacewell"]
+edition = "2021"
+
+[lib]
+name = "toybox_host"
+
+[dependencies]
+toybox-core = { path = "../toybox-core" }
+toybox-remote = { path = "../toybox-remote" }
+serde = { workspace = true }
+serde_json = { workspace = true }
+semver = { workspace = true }
+image = { workspace = true }
+dirs = "7"
+rusqlite = { workspace = true }

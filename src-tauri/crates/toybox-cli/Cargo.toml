@@ -1,0 +1,28 @@
+[package]
+name = "toybox-cli"
+version = "0.4.1"
+description = "tbx: the Toybox command line"
+authors = ["Dustin Lacewell"]
+edition = "2021"
+
+[[bin]]
+name = "tbx"
+path = "src/main.rs"
+
+[dependencies]
+toybox-core = { path = "../toybox-core" }
+toybox-remote = { path = "../toybox-remote" }
+toybox-host = { path = "../toybox-host" }
+toybox-script = { path = "../toybox-script" }
+serde = { workspace = true }
+serde_json = { workspace = true }
+clap = { workspace = true, features = ["string"] }
+clap_complete = "4"
+rpassword = "7"
+ctrlc = "3"
+
+[dev-dependencies]
+tempfile = "3"
+toybox-server = { path = "../toybox-server" }
+axum = { workspace = true }
+tokio = { workspace = true }

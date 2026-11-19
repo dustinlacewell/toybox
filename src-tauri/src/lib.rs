@@ -1,14 +1,13 @@
+mod app_host;
 mod commands;
 // The path-based library logic lives in `toybox-core`; these aliases keep
 // `crate::domain::...`, `crate::error::...` paths valid across the app crate.
 use toybox_core::{domain, error};
-mod infra;
 
 use commands::{
     browse, catalog, export_copy, export_glb, export_plugin, import, import_convert, library, packs,
     plugins, recenter, scan, settings, thumbs,
 };
-use infra::library::LibraryState;
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
@@ -17,17 +16,10 @@ pub fn run() {
         .plugin(tauri_plugin_dialog::init())
         .plugin(tauri_plugin_process::init())
         .plugin(tauri_plugin_updater::Builder::new().build())
-        .manage(LibraryState::default())
-        .manage(commands::plugin_services::ToolProcesses::default())
-        .manage(commands::fingerprint::Fingerprinter::default())
         .setup(|app| {
-            // Migrate an old single-library setup, restore the registered
-            // libraries and re-open the asset scope to each root, so a returning
-            // user skips the picker and the viewer can serve files immediately.
-            infra::library::hydrate(app.handle())?;
-            // Install bundled plugins (the importer) into the user's plugins dir
-            // on first run, so a built app ships with a working import path.
-            infra::bundled::seed_bundled_plugins(app.handle())?;
+            // Build the host (restoring the registered libraries and opening the asset scope
+            // to each root) and install bundled plugins into the user's plugins dir on first run.
+            app_host::setup(app.handle())?;
             Ok(())
         })
         .register_uri_scheme_protocol("plugin", serve_plugin_asset)
@@ -129,8 +121,10 @@ pub fn run() {
             // Programs plugins started must not outlive the app.
             if let tauri::RunEvent::Exit = event {
                 use tauri::Manager;
-                app.state::<commands::plugin_services::ToolProcesses>().stop_all();
-                app.state::<commands::fingerprint::Fingerprinter>().stop();
+                if let Some(host) = app.try_state::<std::sync::Arc<toybox_host::Host>>() {
+                    host.tools.stop_all();
+                    host.fingerprinter.stop();
+                }
             }
         });
 }
@@ -161,7 +155,8 @@ fn resolve_plugin_file(
     app: &tauri::AppHandle,
     uri_path: &str,
 ) -> Option<(Vec<u8>, &'static str)> {
-    let root = infra::appdata::plugins_dir(app).ok()?;
+    use tauri::Manager;
+    let root = app.try_state::<std::sync::Arc<toybox_host::Host>>()?.paths().plugins_dir();
     // uri_path is like "/com.toybox.placer/index.js"; reject parent escapes.
     let rel = uri_path.trim_start_matches('/');
     if rel.split('/').any(|s| s == ".." || s.is_empty()) {

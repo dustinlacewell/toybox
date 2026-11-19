@@ -14,26 +14,23 @@ import { Stack, Button, TextInput } from "@ldlework/toybox-sdk/ui";
 import {
   defineImportPanel,
   importNamespace,
-  groupSeedVariants,
   type ImportPanelCtx,
-  type SeedEntryInput,
 } from "@ldlework/toybox-sdk";
 
 import {
-  importable,
   rename,
   setAllIncluded,
   setChannel,
   setIncluded,
   setUse,
   type ReviewItem,
-} from "./edit.js";
-import { toEntry } from "./entry.js";
-import { groupMaterials } from "./group.js";
+} from "../lib/edit.js";
+import { importMaterialItems } from "../lib/import.js";
+import { groupMaterials } from "../lib/group.js";
 import { ReviewDialog } from "./ReviewDialog.js";
 import { useThumbLoader } from "./useThumbLoader.js";
-import { copyMaterial, findImages } from "./walk.js";
-import { materialGroups } from "./variants.js";
+import { findImages } from "../lib/walk.js";
+import { materialGroups } from "../lib/variants.js";
 
 type Phase =
   | { step: "idle" }
@@ -70,28 +67,14 @@ export default defineImportPanel(function ImportPanel({ ctx }: { ctx: ImportPane
       const libraryRoot = await ctx.host.getLibraryRoot();
       if (!libraryRoot) throw new Error("no library configured");
 
-      const io = { fs: ctx.fs, sourceRoot: source, libraryRoot };
-      const entries: SeedEntryInput[] = [];
-      const warnings: string[] = [];
-
-      for (const { draft } of importable(items, pack, category)) {
-        const res = toEntry(draft, pack, category);
-        if (!("entry" in res)) continue;
-        try {
-          await copyMaterial(io, draft, pack);
-          entries.push(res.entry);
-        } catch (e) {
-          warnings.push(`skipped ${draft.name}: ${String(e)}`);
-        }
-      }
-
-      const grouped = groupSeedVariants(entries);
+      const result = await importMaterialItems({ fs: ctx.fs, sourceRoot: source, libraryRoot }, items, pack, category);
+      const grouped = result.entries;
       if (grouped.length) await ctx.commit(grouped);
       setPhase({
         step: "done",
         imported: grouped.length,
         skipped: materialGroups(items).length - grouped.length,
-        warnings,
+        warnings: result.warnings,
       });
     } catch (e) {
       setPhase({ step: "error", message: String(e) });

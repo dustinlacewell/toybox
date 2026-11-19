@@ -5,40 +5,18 @@
 
 import { useEffect, useMemo, useRef, useState } from "react";
 import { Button, Checkbox, Pane, Select, Stack, TextInput, Workbench } from "@ldlework/toybox-sdk/ui";
-import { defineImportPanel, importNamespace, type FsApi, type ImportPanelCtx, type PluginSeedEntry } from "@ldlework/toybox-sdk";
+import { defineImportPanel, importNamespace, validSegment, type ImportPanelCtx } from "@ldlework/toybox-sdk";
 
 import {
-  FACES, LAYOUT_LABELS, cleanName, findSkies, isSkyImage, layoutFromSize, skyId,
+  LAYOUT_LABELS, layoutFromSize, findSkies,
   type ImageLayout, type SkyCandidate, type SkyMeta,
 } from "../lib/detect.js";
-import { imageSize } from "../lib/header.js";
+import { IMAGE_LAYOUTS, fileName, findImages, importSkies, measureSky, type LayoutChoice, type Measured } from "../lib/import.js";
 import type { SkySource } from "../lib/sky.js";
 import { SkyCanvas } from "./SkyCanvas.js";
 
-type LayoutChoice = "auto" | ImageLayout;
-const IMAGE_LAYOUTS: ImageLayout[] = ["equirect", "cross-horizontal", "cross-vertical", "strip-horizontal", "strip-vertical"];
 const PREVIEW_WIDTH = 2048;
 const MIME: Record<string, string> = { png: "image/png", jpg: "image/jpeg", jpeg: "image/jpeg", webp: "image/webp" };
-
-const fileName = (path: string) => path.slice(path.lastIndexOf("/") + 1);
-const validSegment = (value: string) => !!value.trim() && !/[<>:"/\\|?*\x00-\x1f]/.test(value) && value !== "." && value !== ".." && !/[. ]$/.test(value);
-
-async function findImages(fs: Pick<FsApi, "readDir">, source: string): Promise<string[]> {
-  const files: string[] = [];
-  const seen = new Set<string>();
-  async function walk(dir: string) {
-    if (seen.has(dir)) return;
-    seen.add(dir);
-    for (const entry of await fs.readDir(source, dir)) {
-      if (entry.isDir) await walk(entry.relPath);
-      else if (isSkyImage(entry.name)) files.push(entry.relPath.replace(/\\/g, "/"));
-    }
-  }
-  await walk(".");
-  return files;
-}
-
-interface Measured { meta: SkyMeta; certain: boolean; }
 
 export default defineImportPanel(function SkyboxImport({ ctx }: { ctx: ImportPanelCtx }) {
   const [source, setSource] = useState<string>();
@@ -72,18 +50,7 @@ export default defineImportPanel(function SkyboxImport({ ctx }: { ctx: ImportPan
   };
 
   /** A sky's metadata: the layout chosen or read from the image's shape. */
-  const measure = async (sky: SkyCandidate, choice: LayoutChoice): Promise<Measured> => {
-    const size = imageSize(await read(sky.files[0]));
-    if (!size) throw new Error(`${fileName(sky.files[0])} is not a readable ${sky.format} image`);
-    const base = { encoding: sky.encoding, format: sky.format, width: size.width, height: size.height };
-    if (sky.layout === "cubemap") {
-      if (size.width !== size.height) throw new Error(`Cube faces must be square; ${fileName(sky.files[0])} is ${size.width} × ${size.height}`);
-      const faces = Object.fromEntries(FACES.map((face) => [face, fileName(sky.faces![face])])) as SkyMeta["faces"];
-      return { meta: { ...base, layout: "cubemap", faces }, certain: true };
-    }
-    const guess = layoutFromSize(size.width, size.height);
-    return choice === "auto" ? { meta: { ...base, layout: guess.layout }, certain: guess.certain } : { meta: { ...base, layout: choice }, certain: true };
-  };
+  const measure = (sky: SkyCandidate, choice: LayoutChoice): Promise<Measured> => measureSky(read, sky, choice);
 
   const activeSky = skies.find((sky) => sky.name === active);
   const activeChoice = (active && layouts.get(active)) || "auto";
@@ -148,19 +115,7 @@ export default defineImportPanel(function SkyboxImport({ ctx }: { ctx: ImportPan
       if (!root) throw new Error("Choose a library first");
       const pack = importNamespace(source);
       const chosen = skies.filter((sky) => selected.has(sky.name));
-      const entries: PluginSeedEntry[] = [];
-      let index = 0;
-      for (const sky of chosen) {
-        setStatus(`Copying ${++index} of ${chosen.length}: ${sky.name}`);
-        const name = cleanName(sky.name);
-        let meta: SkyMeta;
-        try { meta = (await measure(sky, layouts.get(sky.name) ?? "auto")).meta; }
-        catch (failure) { throw new Error(`${sky.name}: ${failure instanceof Error ? failure.message : String(failure)}`); }
-        const files = sky.files.map(fileName);
-        // Copied by the host: these files are too large to pass through here.
-        for (const path of sky.files) await ctx.fs.copyFile(source, path, root, `library/${pack}/skybox/${name}/${fileName(path)}`);
-        entries.push({ kind: "plugin", type: "skybox", id: skyId(pack, name), pack, category, name, files, format: files[0]?.split(".").pop()?.toLowerCase(), meta: { ...meta } });
-      }
+      const { entries } = await importSkies({ fs: ctx.fs, libraryRoot: root }, { source, skies: chosen, layouts, category, pack, read }, setStatus);
       setStatus("Adding skies to the library…");
       await ctx.commit(entries);
     } catch (failure) { setError(String(failure)); setStatus(""); }

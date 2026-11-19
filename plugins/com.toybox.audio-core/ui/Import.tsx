@@ -1,7 +1,8 @@
 import { useEffect, useRef, useState } from "react";
 import { AudioTransport, Button, Checkbox, Pane, Stack, TextInput, Workbench } from "@ldlework/toybox-sdk/ui";
-import { defineImportPanel, importNamespace, type ImportPanelCtx, type AudioSeedEntry } from "@ldlework/toybox-sdk";
-import { audioId, findAudio, validSegment } from "./files.js";
+import { defineImportPanel, importNamespace, validSegment, type ImportPanelCtx } from "@ldlework/toybox-sdk";
+import { findAudio } from "../lib/files.js";
+import { importAudioFiles } from "../lib/import.js";
 
 export default defineImportPanel(function AudioImport({ctx}:{ctx:ImportPanelCtx}) {
   const [source,setSource]=useState<string>(),[files,setFiles]=useState<string[]>([]),[selected,setSelected]=useState(new Set<string>());
@@ -16,15 +17,8 @@ export default defineImportPanel(function AudioImport({ctx}:{ctx:ImportPanelCtx}
     catch(error){setError(String(error));}finally{setBusy(false);}
   };
   const run=async()=>{if(!source)return;setBusy(true);setError(undefined);
-    try{const root=await ctx.host.getLibraryRoot();if(!root)throw Error("Choose a library first");const entries:AudioSeedEntry[]=[];let i=0;
-      for(const file of files.filter(file=>selected.has(file))) {
-        setStatus(`Copying ${++i} of ${selected.size}: ${file}`);
-        if(file.split('/').some(segment=>!validSegment(segment)))throw Error(`Cannot import this path: ${file}`);
-        const bytes=await ctx.fs.readBytes(source,file);const target=`library/${pack}/${category}/${file}`;
-        let existing:Uint8Array|undefined;try{existing=await ctx.fs.readBytes(root,target);}catch{/* A new destination is expected. */}
-        if(!existing||!(existing.length===bytes.length&&existing.every((value,index)=>value===bytes[index])))await ctx.fs.writeBytes(root,target,bytes);
-        entries.push({kind:"audio",id:audioId(pack,category,file),pack,category,file,format:file.split(".").pop()?.toLowerCase()});
-      }
+    try{const root=await ctx.host.getLibraryRoot();if(!root)throw Error("Choose a library first");
+      const {entries}=await importAudioFiles({fs:ctx.fs,libraryRoot:root},{source,files:files.filter(file=>selected.has(file)),pack,category},setStatus);
       setStatus("Reading audio metadata and building waveforms…");await ctx.commit(entries);
     }catch(error){setError(String(error));setStatus("");}finally{setBusy(false);}
   };

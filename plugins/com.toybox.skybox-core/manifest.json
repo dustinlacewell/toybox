@@ -9,5 +9,19 @@
   ],
   "description": "The Skyboxes type of the library and its importer, for skies in your scenes: HDR and EXR panoramas, image panoramas, six-image cube maps, and cube maps unfolded into a cross or strip.",
   "permissions": { "fsRead": true, "fsWrite": true },
-  "ui": { "importPanel": "dist/ui/Import.js" }
+  "ui": { "importPanel": "dist/ui/Import.js" },
+  "cli": {
+    "module": "dist/cli.js",
+    "importers": [
+      {
+        "name": "skybox",
+        "summary": "Import HDR and EXR panoramas, image panoramas, six-image cube maps and unfolded cube maps as skyboxes.",
+        "options": [
+          { "name": "category", "type": "string", "default": "skies", "help": "Category of the imported skies." },
+          { "name": "layout", "type": "choice", "choices": ["auto", "equirect", "cross-horizontal", "cross-vertical", "strip-horizontal", "strip-vertical"], "default": "auto", "help": "How a single image is laid out; automatic reads it from the image's shape." },
+          { "name": "all", "type": "flag", "help": "Also import images in a folder that do not look like skies." }
+        ]
+      }
+    ]
+  }
 }

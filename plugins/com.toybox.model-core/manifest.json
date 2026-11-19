@@ -15,5 +15,18 @@
   },
   "ui": {
     "importPanel": "dist/ui/Import.js"
+  },
+  "cli": {
+    "module": "dist/index.js",
+    "importers": [
+      {
+        "name": "model",
+        "summary": "Import model files (any format a turned-on format plugin reads, such as glTF) as models.",
+        "options": [
+          { "name": "category", "type": "string", "default": "props", "help": "Category of the imported models." },
+          { "name": "levels", "type": "choice", "choices": ["all", "best"], "default": "all", "help": "Import every level of detail of a model, or only the best one." }
+        ]
+      }
+    ]
   }
 }

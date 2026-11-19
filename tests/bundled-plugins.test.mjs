@@ -6,7 +6,7 @@ const root = new URL("../", import.meta.url);
 const read = (path) => readFileSync(new URL(path, root), "utf8");
 const json = (path) => JSON.parse(read(path));
 
-const rust = read("src-tauri/src/infra/bundled.rs");
+const rust = read("src-tauri/crates/toybox-host/src/bundled.rs");
 const bundled = [...rust.match(/const BUNDLED_PLUGINS: &\[&str\] = &\[([\s\S]*?)\];/)[1].matchAll(/"([^"]+)"/g)].map((match) => match[1]);
 const retired = Object.fromEntries([...rust.match(/pub const RETIRED_PLUGINS: &\[Retirement\] = &\[([\s\S]*?)\n\];/)[1].matchAll(/\("([^"]+)", &\[([^\]]*)\]\)/g)]
   .map((match) => [match[1], [...match[2].matchAll(/"([^"]+)"/g)].map((id) => id[1])]));

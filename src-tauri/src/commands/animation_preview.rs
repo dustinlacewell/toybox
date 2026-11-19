@@ -1,7 +1,10 @@
-use crate::{error::AppResult, infra::library};
 use serde_json::Value;
 use tauri::AppHandle;
-use toybox_core::ops::animation_preview::{self, PreviewChoice};
+use toybox_core::ops::animation_preview::PreviewChoice;
+
+use crate::app_host::host;
+use crate::commands::remote::blocking;
+use crate::error::AppResult;
 
 #[tauri::command]
 pub async fn compatible_previews(
@@ -9,8 +12,7 @@ pub async fn compatible_previews(
     library: String,
     asset_id: String,
 ) -> AppResult<Vec<PreviewChoice>> {
-    let handle = library::resolve(&app, &library)?;
-    animation_preview::compatible_previews(&handle, &asset_id)
+    host(&app).compatible_previews(&library, &asset_id)
 }
 
 #[tauri::command]
@@ -20,6 +22,6 @@ pub async fn read_animation_preview(
     animation_id: String,
     model_id: String,
 ) -> AppResult<Value> {
-    let handle = library::resolve(&app, &library)?;
-    crate::commands::remote::blocking(move || animation_preview::read_animation_preview(&handle, &animation_id, &model_id)).await
+    let host = host(&app);
+    blocking(move || host.read_animation_preview(&library, &animation_id, &model_id)).await
 }

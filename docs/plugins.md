@@ -13,6 +13,7 @@ plugin can do several things at once.
 | an entry module whose export has `types` | implements the plugin-implemented types it declares |
 | an entry module whose export has `extensions` | contributes to extension points of other plugins |
 | `ui.exportPanel`, `ui.assetPanel`, `fields`, `settings` | adds settings and panels to the above |
+| `cli` | adds importers, an exporter and commands to the `tbx` command line (see [The command line](cli.md)) |
 
 A `kind` field in an older manifest is ignored.
 
@@ -42,6 +43,18 @@ The eleven bundled plugins are listed in `BUNDLED_PLUGINS`
 `tauri.conf.json` and built, cores first, by `plugins:build`. A test checks that
 each manifest id is its folder name and that every dependency is bundled at a
 version that satisfies it.
+
+## One implementation, two front ends
+
+A plugin's work lives in modules with no user interface, by convention under
+`lib/`: finding the files, deciding what they are, staging them into the
+library, building the entries. The panel in the app (`ui/`) and the plugin's
+command-line module (`cli`) are thin callers of those modules, so an import
+done in the window and one done with `tbx import` run the same code. The SDK
+carries the pieces every importer needs (`resolveSources`, `runImport`,
+`assertCategory`, `mergeImportOutcome`). A plugin that only extends another
+(a model format, say) still names a `cli.module`, because `tbx` loads nothing
+else of a plugin: without it the extension does not exist on the command line.
 
 ## The manifest
 

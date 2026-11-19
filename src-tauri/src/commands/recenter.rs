@@ -1,11 +1,12 @@
 //! `recenter_asset`: correct an asset's origin in place. The work is
-//! `toybox_core::ops::recenter`.
+//! `toybox_host::Host::recenter_asset`; the window is then told the new fingerprint.
 
 use tauri::AppHandle;
 
+use crate::app_host::host;
+use crate::commands::fingerprint::push_hashes;
 use crate::domain::gltf_origin::{Aabb, Align, Axis};
 use crate::error::AppResult;
-use crate::infra::library;
 
 #[tauri::command]
 pub async fn recenter_asset(
@@ -15,9 +16,11 @@ pub async fn recenter_asset(
     axis: Axis,
     align: Align,
 ) -> AppResult<Aabb> {
-    let handle = library::resolve(&app, &library)?;
-    let aabb = toybox_core::ops::recenter::recenter_asset(&handle, &asset_id, axis, align)?;
+    let host = host(&app);
+    let aabb = host.recenter_asset(&library, &asset_id, axis, align)?;
     // The file changed under its storage key; core recomputed the fingerprint, the window learns it.
-    crate::commands::fingerprint::push_asset_hash(&app, &handle, &asset_id);
+    if let Some(hashes) = host.asset_hash_event(&library, &asset_id) {
+        push_hashes(&app, hashes);
+    }
     Ok(aabb)
 }

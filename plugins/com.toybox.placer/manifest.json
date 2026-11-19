@@ -11,5 +11,17 @@
   },
   "ui": {
     "exportPanel": "dist/ui/Export.js"
+  },
+  "cli": {
+    "module": "dist/index.js",
+    "exporter": {
+      "name": "placer",
+      "summary": "Publish models into a Godot project's asset_placer library, creating or merging its asset_library.json.",
+      "options": [
+        { "name": "format", "type": "choice", "choices": ["glb", "copy"], "default": "glb", "help": "Per-asset file: a merged .glb, or a loose .gltf copy with its .bin and textures." },
+        { "name": "sub-dir", "type": "string", "default": "assets/exported", "help": "Project subfolder, relative to --to; also the res:// prefix of each asset's id." },
+        { "name": "library-json", "type": "path", "required": true, "help": "The addon's asset_library.json to create or merge." }
+      ]
+    }
   }
 }

@@ -1,13 +1,12 @@
-//! Compatibility source metadata API. The work is `toybox_core::ops::packs`.
+//! Compatibility source metadata API. The work is `toybox_host::Host::load_packs`.
 
 use tauri::AppHandle;
 
+use crate::app_host::host;
 use crate::domain::pack_meta::PackMeta;
 use crate::error::AppResult;
-use crate::infra::library;
 
 #[tauri::command]
 pub fn load_packs(app: AppHandle, library: String) -> AppResult<Vec<PackMeta>> {
-    let handle=library::resolve(&app, &library)?;
-    toybox_core::ops::packs::load_packs_for(&handle)
+    host(&app).load_packs(&library)
 }
