@@ -261,6 +261,11 @@ export function materialId(pack: string, name: string): string {
 
 /** Texture sizes offered, as the engine counts them (a power of two). */
 export const SIZES = [{ value: "9", label: "512" }, { value: "10", label: "1024" }, { value: "11", label: "2048" }, { value: "12", label: "4096" }];
+/** The size a new material is rendered at when the *Default texture size* setting holds nothing usable: 1024.
+ *  (The same value is the setting's `default` in the manifest.) */
+export const DEFAULT_SIZE = 10;
+/** `value` as a size. The fallback of 11 (2048) is for a material's record: one written before the size was
+ *  recorded was rendered at 2048. Pass `DEFAULT_SIZE` when reading the setting. */
 export const sizeOf = (value: unknown, fallback = 11): number => {
   const size = Number(value);
   return Number.isInteger(size) && size >= 5 && size <= 13 ? size : fallback;

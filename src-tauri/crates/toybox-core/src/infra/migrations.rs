@@ -117,6 +117,13 @@ pub fn run(root: &Path, cache: &Path) -> AppResult<()> {
             // The journal first: from here on an older Toybox refuses the library, so it never reads the
             // new layout. Then the files move; an interruption is finished at the next open.
             let store = Store::local(root, cache);
+            // Entries are about to be rewritten: keep the database as it is, to go back to by hand.
+            if crate::infra::preflight::count_unshared_sources(root).map(|count| count.items > 0).unwrap_or(false) {
+                match crate::infra::snapshot::take(root, next - 1) {
+                    Ok(path) => eprintln!("toybox: snapshot of the library database before step {next}: {}", path.display()),
+                    Err(error) => return Err(AppError::msg(format!("Could not take the snapshot before step {next}, nothing was changed: {error}"))),
+                }
+            }
             journal["version"] = json!(next);
             journal["applied"]
                 .as_array_mut()

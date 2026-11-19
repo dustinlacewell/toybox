@@ -33,6 +33,10 @@ pub fn setup(app: &AppHandle) -> AppResult<()> {
     let sink: toybox_remote::progress::Sink = Arc::new(move |progress| {
         let _ = events.emit(PROGRESS_EVENT, progress);
     });
+    // Tell `tbx` which app (and version) is installed here, so it can say when it is not the same one.
+    if let Ok(exe) = std::env::current_exe() {
+        let _ = toybox_host::cli_install::write_app_record(&paths.app_data, &exe, env!("CARGO_PKG_VERSION"));
+    }
     let host = Host::open(paths, Some(sink))?;
     for root in host.local_library_roots() {
         extend_scope(app, &root);

@@ -6,7 +6,7 @@ use toybox_core::infra::store::Store;
 
 use crate::ctx::{Ctx, Origin};
 use crate::error::{CliError, CliResult};
-use crate::json::{library_doc, HelpDoc, HelpEntry, PathsDoc, PluginSummary, StatusDoc};
+use crate::json::{library_doc, HelpDoc, HelpEntry, PathsDoc, PluginSummary, StatusDoc, TbxDoc};
 use crate::out::{self, Table};
 use crate::plugin_runtime::PluginCli;
 
@@ -14,8 +14,16 @@ pub fn status(ctx: &Ctx, plugins: &[PluginCli]) -> CliResult<()> {
     let host = &ctx.host;
     let paths = host.paths();
     let mut problems: Vec<String> = Vec::new();
+    let mut notices: Vec<String> = Vec::new();
     let mut libraries = Vec::new();
     for info in host.list_libraries() {
+        if let Some(remote) = &info.remote {
+            match (remote.compat.as_deref(), &remote.compat_message) {
+                (Some("server_too_old" | "client_too_old"), Some(message)) => problems.push(format!("library '{}': {message}", info.name)),
+                (Some("notice"), Some(message)) => notices.push(format!("library '{}': {message}", info.name)),
+                _ => {}
+            }
+        }
         let items = if info.available {
             host.resolve(&info.id).ok().map(|handle| Store::for_handle(&handle)).filter(|store| store.catalog_exists()).and_then(|store| store.asset_count().ok())
         } else {
@@ -52,7 +60,20 @@ pub fn status(ctx: &Ctx, plugins: &[PluginCli]) -> CliResult<()> {
             problems.push(format!("plugin '{}': {problem}", plugin.plugin_id));
         }
     }
+    let record = toybox_host::cli_install::read_app_record(&paths.app_data);
+    if let Some(mismatch) = record.as_ref().and_then(|record| toybox_host::cli_install::mismatch_with_app(record, env!("CARGO_PKG_VERSION"))) {
+        problems.push(mismatch);
+    }
+    let me = std::env::current_exe().map(|p| p.to_string_lossy().to_string()).unwrap_or_default();
+    let found = toybox_host::cli_install::status(&toybox_host::cli_install::System, std::env::current_exe().ok().as_deref(), env!("CARGO_PKG_VERSION"));
+    if let (Some(path), Some(version)) = (&found.on_path, &found.on_path_version) {
+        if version != env!("CARGO_PKG_VERSION") && path != &me {
+            notices.push(format!("the tbx your terminal finds first ({path}) is version {version}; this one is {}", env!("CARGO_PKG_VERSION")));
+        }
+    }
     let doc = StatusDoc {
+        tbx: TbxDoc { version: env!("CARGO_PKG_VERSION").to_string(), path: me.clone(), app_version: record.map(|r| r.version) },
+        notices,
         paths: PathsDoc {
             app_data: paths.app_data.to_string_lossy().to_string(),
             cache: paths.cache.to_string_lossy().to_string(),
@@ -71,6 +92,7 @@ pub fn status(ctx: &Ctx, plugins: &[PluginCli]) -> CliResult<()> {
     };
     text.push_str(&format!("data      {} ({whose}{})\n", doc.paths.app_data, if doc.paths.exists { "" } else { ", not created yet" }));
     text.push_str(&format!("cache     {}\n", doc.paths.cache));
+    text.push_str(&format!("tbx       {} ({}){}\n", doc.tbx.version, doc.tbx.path, doc.tbx.app_version.as_ref().map(|v| format!(", Toybox app {v}")).unwrap_or_default()));
     text.push('\n');
     if doc.libraries.is_empty() {
         text.push_str("libraries none registered (try `tbx library create <DIR>`)\n");
@@ -96,6 +118,12 @@ pub fn status(ctx: &Ctx, plugins: &[PluginCli]) -> CliResult<()> {
     text.push_str(&format!("plugins   {} on, {} off, {} blocked\n", doc.plugins.on.len(), doc.plugins.off.len(), doc.plugins.blocked.len()));
     if !doc.plugins.off.is_empty() {
         text.push_str(&format!("  off: {}\n", doc.plugins.off.join(", ")));
+    }
+    if !doc.notices.is_empty() {
+        text.push_str("\nnotices\n");
+        for notice in &doc.notices {
+            text.push_str(&format!("  {notice}\n"));
+        }
     }
     if !doc.problems.is_empty() {
         text.push_str("\nproblems\n");

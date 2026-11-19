@@ -30,7 +30,8 @@ materials → Preferences** holds its location:
   above; choose the file yourself anywhere else.
 - **Render with** — *Automatic* uses the graphics card. Vulkan and *Processor
   only* are there for machines where that fails.
-- **Default texture size** — the size the import screen starts at.
+- **Default texture size** — the size the import screen starts at and `tbx import
+  sbsar` renders at without `--size`: 1024 pixels unless you change it.
 
 ## Importing
 

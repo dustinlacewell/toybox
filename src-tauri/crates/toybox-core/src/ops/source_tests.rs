@@ -299,3 +299,117 @@ fn a_source_that_cannot_be_moved_stays_where_it_is_and_is_reported() {
     let broken = store.load_entries(&["uid://Broken".to_string()]).unwrap().remove(0);
     assert_eq!(broken["origin"]["files"], json!(["stone.sbsar"]), "left as it was");
 }
+
+/// Every file below `root` with a hash of its content, in path order.
+fn tree_hash(root: &std::path::Path) -> Vec<(String, String)> {
+    let mut all: Vec<(String, String)> = files_below(root)
+        .into_iter()
+        .map(|path| (path.strip_prefix(root).unwrap().to_string_lossy().replace('\\', "/"), hash(&std::fs::read(&path).unwrap())))
+        .collect();
+    all.sort();
+    all
+}
+
+/// Set the library journal back to `version` (as a library that has not seen the later steps).
+fn journal_at(library: &LibraryHandle, version: u32) {
+    let path = library.root.join("_library_config/migrations.json");
+    let mut journal: Value = serde_json::from_slice(&std::fs::read(&path).unwrap()).unwrap();
+    journal["version"] = json!(version);
+    journal["applied"].as_array_mut().unwrap().retain(|step| step["version"].as_u64().unwrap() <= version as u64);
+    std::fs::write(path, serde_json::to_vec_pretty(&journal).unwrap()).unwrap();
+}
+
+fn legacy_library(base: &Base) -> LibraryHandle {
+    let lib = library(base, "a");
+    let archive = vec![5u8; 100_000];
+    merge_entries(&lib, vec![preset(&lib, "One", &archive), preset(&lib, "Two", &archive), preset(&lib, "Solo", &[6u8; 3000])]).unwrap();
+    make_legacy(&lib);
+    journal_at(&lib, 4);
+    lib
+}
+
+#[test]
+fn the_pre_flight_reports_step_five_and_changes_nothing() {
+    let base = Base::new("preflight");
+    let lib = legacy_library(&base);
+    let before = tree_hash(&lib.root);
+    let report = crate::infra::preflight::check(&lib.root).unwrap();
+    assert_eq!(tree_hash(&lib.root), before, "the library is byte-identical after the check");
+    assert_eq!(report.format_version, 4);
+    assert_eq!(report.latest_version, 5);
+    assert_eq!(report.pending.len(), 1);
+    let step = &report.pending[0];
+    assert_eq!((step.version, step.name.as_str()), (5, "shared-sources"));
+    assert_eq!(step.items, Some(3));
+    assert_eq!(step.files, Some(3));
+    assert_eq!(step.bytes, Some(2 * 100_000 + 3000));
+    assert!(step.rewrites_entries);
+    assert!(report.estimate_seconds.is_some());
+    assert!(report.free_bytes.is_some() && report.needed_bytes > 0 && report.enough_space);
+    let target = report.snapshot.clone().expect("it says where the snapshot will go");
+    assert!(target.replace('\\', "/").contains("_library_config/snapshots/library-v4-"), "{target}");
+    assert!(report.refused_before.is_some());
+    assert!(!lib.root.join("_library_config/snapshots").exists(), "nothing was created");
+    // Said twice, same answer, still nothing written.
+    assert_eq!(crate::infra::preflight::check(&lib.root).unwrap().pending, report.pending);
+    assert_eq!(tree_hash(&lib.root), before);
+}
+
+#[test]
+fn the_conversion_takes_a_snapshot_first_and_keeps_the_newest_three() {
+    let base = Base::new("snapshot");
+    let lib = legacy_library(&base);
+    crate::infra::migrations::run(&lib.root, &lib.cache_path).unwrap();
+    let made = crate::infra::snapshot::list(&lib.root);
+    assert_eq!(made.len(), 1);
+    assert_eq!(made[0].from_version, 4);
+    // It is a database of the library as it was: the entries name the files beside the items.
+    let connection = crate::infra::snapshot::open_unchanged(&made[0].path).unwrap();
+    let entry: String = connection.query_row("SELECT entry FROM items WHERE id = 'uid://One'", [], |row| row.get(0)).unwrap();
+    assert!(entry.contains("\"stone.sbsar\"") && !entry.contains("_sources"), "{entry}");
+    drop(connection);
+    // Nothing more to convert: no second snapshot on the next open.
+    crate::infra::migrations::run(&lib.root, &lib.cache_path).unwrap();
+    assert_eq!(crate::infra::snapshot::list(&lib.root).len(), 1);
+    // Only the newest three are kept.
+    for _ in 0..4 {
+        crate::infra::snapshot::take(&lib.root, 5).unwrap();
+    }
+    let kept = crate::infra::snapshot::list(&lib.root);
+    assert_eq!(kept.len(), crate::infra::snapshot::KEEP);
+    assert!(kept.iter().all(|snapshot| snapshot.from_version == 5), "the oldest, the first one, was dropped");
+    assert_eq!(std::fs::read_dir(lib.root.join("_library_config/snapshots")).unwrap().count(), 3, "no partial files left");
+}
+
+#[test]
+fn a_snapshot_restores_entries_but_not_files_a_migration_moved() {
+    let base = Base::new("restore");
+    let lib = legacy_library(&base);
+    crate::infra::migrations::run(&lib.root, &lib.cache_path).unwrap();
+    let snapshot = crate::infra::snapshot::list(&lib.root).remove(0);
+    let live_before = tree_hash(&lib.root);
+    // The copies beside the items are gone: refused, and nothing changed.
+    let error = crate::infra::snapshot::restore(&lib.root, &snapshot.name).unwrap_err().to_string();
+    assert!(error.contains("no longer there"), "{error}");
+    assert_eq!(tree_hash(&lib.root), live_before);
+
+    // A snapshot taken while the files are all in place restores, and the journal goes back with it.
+    let base2 = Base::new("restore-ok");
+    let lib2 = legacy_library(&base2);
+    let taken = crate::infra::snapshot::take(&lib2.root, 4).unwrap();
+    let name = taken.file_name().unwrap().to_string_lossy().to_string();
+    journal_at(&lib2, 4);
+    let store = Store::for_handle(&lib2);
+    store.set_meta("afterSnapshot", "yes").unwrap();
+    let mut journal: Value = serde_json::from_slice(&std::fs::read(lib2.root.join("_library_config/migrations.json")).unwrap()).unwrap();
+    journal["version"] = json!(5);
+    journal["applied"].as_array_mut().unwrap().push(json!({"version": 5, "name": "shared-sources", "appVersion": "x"}));
+    std::fs::write(lib2.root.join("_library_config/migrations.json"), serde_json::to_vec(&journal).unwrap()).unwrap();
+    let restored = crate::infra::snapshot::restore(&lib2.root, &name).unwrap();
+    assert!(restored.previous.is_file(), "the database that was replaced is kept");
+    assert_eq!(Store::for_handle(&lib2).meta("afterSnapshot"), None);
+    let journal: Value = serde_json::from_slice(&std::fs::read(lib2.root.join("_library_config/migrations.json")).unwrap()).unwrap();
+    assert_eq!(journal["version"], 4);
+    assert_eq!(journal["applied"].as_array().unwrap().len(), 4);
+    assert!(crate::infra::snapshot::restore(&lib2.root, "library-v9-nothing.db").is_err());
+}

@@ -10,6 +10,7 @@
 pub mod api;
 pub mod auth;
 pub mod cli;
+pub mod compat;
 pub mod config;
 pub mod data;
 pub mod error;
@@ -17,6 +18,7 @@ pub mod library;
 pub mod limiter;
 pub mod state;
 pub mod timeutil;
+pub mod update;
 pub mod uploads;
 
 /// Version of the HTTP API (the `/api/v1` prefix is the route family; this number is

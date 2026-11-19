@@ -294,6 +294,12 @@ pub fn plugin_command(ctx: &Ctx, plugins: &[PluginCli], top: &str, matches: &Arg
     let arguments = leaf(matches);
     let library = ctx.library()?;
     let asset_ids = if declared.selection { Some(selection::resolve(ctx, arguments, false, "run on")?.ids) } else { None };
+    // A command that reads the items' files gets them on this computer first, with the source files
+    // kept with each (the archive a material was rendered from), as the app does before it opens a
+    // plugin's asset panel. Nothing is fetched for a local library.
+    if let (true, Some(ids)) = (declared.files, &asset_ids) {
+        ctx.host.ensure_asset_files(&library.id, ids, true)?;
+    }
     let args = plugin_values(arguments, &declared.args);
     let options = plugin_values(arguments, &declared.options);
     let runtime = runtime(ctx)?;

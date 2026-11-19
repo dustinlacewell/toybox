@@ -20,14 +20,17 @@ if systemctl list-unit-files toybox-server.service >/dev/null 2>&1; then
   say "Stopping the service"
   systemctl disable --now toybox-server >/dev/null 2>&1 || true
 fi
+systemctl disable --now toybox-server-update.timer >/dev/null 2>&1 || true
+rm -f /etc/systemd/system/toybox-server-update.timer /etc/systemd/system/toybox-server-update.service
 if [[ -f "$UNIT_PATH" ]]; then
   rm -f "$UNIT_PATH"
   systemctl daemon-reload
 fi
 if [[ -f "$BIN_PATH" ]]; then
   say "Removing $BIN_PATH"
-  rm -f "$BIN_PATH"
+  rm -f "$BIN_PATH" "$BIN_PATH.previous"
 fi
+systemctl daemon-reload 2>/dev/null || true
 
 echo
 echo "The Toybox server program and service are removed."

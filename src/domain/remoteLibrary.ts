@@ -11,7 +11,13 @@ export interface RemoteFacts {
   kind: string;
   available?: boolean;
   offline?: boolean;
-  remote?: { role: RemoteRole; serverName: string; offline: boolean; url: string };
+  remote?: { role: RemoteRole; serverName: string; offline: boolean; url: string; compat?: string; compatMessage?: string };
+}
+
+/** The sentence about the server's and this app's versions, if there is one to show. */
+export function versionNotice(library: Pick<RemoteFacts, "remote">): string | undefined {
+  const remote = library.remote;
+  return remote?.compat && remote.compat !== "ok" ? remote.compatMessage || undefined : undefined;
 }
 
 export const isRemote = (library: Pick<RemoteFacts, "kind">): boolean => library.kind === "remote";

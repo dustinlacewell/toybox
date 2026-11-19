@@ -103,6 +103,11 @@ fn load_plugin_clis(host: &Host) -> Vec<PluginCli> {
 /// Run `tbx` and return its exit status.
 pub fn run() -> i32 {
     let args: Vec<OsString> = std::env::args_os().collect();
+    toybox_remote::client::set_product("tbx");
+    // `tbx self ...` is about this program, not the libraries: it needs no data and runs from an installer.
+    if args.get(1).is_some_and(|word| word == "self") {
+        return crate::cmd_self::run(&args[2..]);
+    }
     let pre = prescan(&args);
     let color = out::color_wanted(&pre.color);
     let (host, origin, secrets_file) = match open_host(&pre) {
@@ -153,6 +158,19 @@ fn dispatch(ctx: &Ctx, root: &Command, plugins: &[PluginCli], matches: &ArgMatch
     };
     match name {
         "status" => cmd_info::status(ctx, plugins),
+        "self" => {
+            if sub.subcommand_name().is_none() {
+                return Err(CliError::usage("choose install, uninstall or status").hint("see `tbx help self`"));
+            }
+            let mut words = vec![OsString::from(sub.subcommand_name().unwrap_or(""))];
+            if ctx.g.json {
+                words.push(OsString::from("--json"));
+            }
+            match crate::cmd_self::run(&words) {
+                0 => Ok(()),
+                _ => Err(CliError::failed("tbx self failed")),
+            }
+        }
         "help" => cmd_info::help(ctx, root, plugins, sub),
         "completions" => cmd_info::completions(root, sub),
         "library" => cmd_library::run(ctx, sub),

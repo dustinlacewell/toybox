@@ -29,7 +29,9 @@ pub enum RemoteError {
     /// The answer was not what a Toybox server sends.
     Protocol(String),
     /// The server is a Toybox server, but older than this app can follow.
-    ServerTooOld { found: u32, needed: u32 },
+    ServerTooOld { found: u32, needed: u32, server_version: String },
+    /// The server no longer accepts a Toybox as old as this one (HTTP 426, or its `/info` says so).
+    ClientTooOld { server_version: String, min_client_version: String },
     /// A problem on this computer (disk, credential store).
     Local(String),
 }
@@ -50,6 +52,7 @@ impl RemoteError {
             RemoteError::Server { .. } => "server_error",
             RemoteError::Protocol(_) => "protocol",
             RemoteError::ServerTooOld { .. } => "server_too_old",
+            RemoteError::ClientTooOld { .. } => "client_too_old",
             RemoteError::Local(_) => "local",
         }
     }
@@ -105,9 +108,21 @@ impl fmt::Display for RemoteError {
                 f,
                 "The server sent an answer Toybox does not understand ({detail}). Is this address really a Toybox server, and is it up to date?"
             ),
-            RemoteError::ServerTooOld { found, needed } => write!(
+            RemoteError::ServerTooOld { found, needed, server_version } => {
+                if server_version.is_empty() {
+                    write!(f, "This server is too old for this version of Toybox: it speaks version {found} of the library protocol and this app needs version {needed}. Update the server, or use an older Toybox with it.")
+                } else {
+                    write!(
+                        f,
+                        "This server runs Toybox {server_version}, which is too old for this Toybox ({}): it speaks version {found} of the library protocol and this needs version {needed}. Ask whoever runs it to update the server (toybox-server update), or use an older Toybox with it.",
+                        crate::compat::APP_VERSION
+                    )
+                }
+            }
+            RemoteError::ClientTooOld { server_version, min_client_version } => write!(
                 f,
-                "This server is too old for this version of Toybox: it speaks version {found} of the library protocol and this app needs version {needed}. Update the server, or use an older Toybox with it."
+                "This server runs Toybox {server_version} and no longer accepts this Toybox ({}). Update Toybox to {min_client_version} or newer.",
+                crate::compat::APP_VERSION
             ),
             RemoteError::Local(message) => f.write_str(message),
         }

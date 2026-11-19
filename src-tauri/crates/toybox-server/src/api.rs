@@ -103,6 +103,8 @@ pub fn router(state: AppState) -> Router {
         )
         .route("/api/v1/tokens/{id}", guarded(Role::Admin, delete(delete_token)))
         .fallback(not_found)
+        // Inside authentication: only a known token learns the window.
+        .layer(middleware::from_fn_with_state(state.clone(), crate::compat::enforce))
         .layer(middleware::from_fn_with_state(state.clone(), auth::authenticate));
     Router::new()
         .route("/api/v1/health", get(health))
@@ -133,16 +135,23 @@ async fn log_requests(State(state): State<AppState>, request: Request, next: Nex
     let method = request.method().clone();
     let path = request.uri().path().to_string();
     let ip = auth::client_ip(&request);
+    let client = request
+        .headers()
+        .get("x-toybox-client")
+        .and_then(|v| v.to_str().ok())
+        .map(|v| v.chars().filter(|c| !c.is_control()).take(64).collect::<String>())
+        .unwrap_or_else(|| "-".to_string());
     let started = Instant::now();
     let response = next.run(request).await;
     let token = response.extensions().get::<TokenName>().map(|t| t.0.clone()).unwrap_or_else(|| "-".to_string());
     println!(
-        "ts={} method={} path={:?} status={} token={:?} ip={} ms={}",
+        "ts={} method={} path={:?} status={} token={:?} client={:?} ip={} ms={}",
         fmt_utc(crate::timeutil::now_secs()),
         method,
         path,
         response.status().as_u16(),
         token,
+        client,
         ip,
         started.elapsed().as_millis()
     );
@@ -210,10 +219,15 @@ async fn health() -> Json<Value> {
 async fn info(State(state): State<AppState>, principal: Principal, level: Level) -> Result<Json<Value>, ApiError> {
     let library = state.library.state().await?;
     let name = state.config.snapshot().map(|c| c.name.clone()).unwrap_or_default();
+    let min_api = state.options.min_api_version.unwrap_or_else(|| crate::compat::oldest_level(API_VERSION));
     Ok(Json(json!({
         "name": name,
         "serverVersion": SERVER_VERSION,
+        "version": SERVER_VERSION,
         "apiVersion": API_VERSION,
+        // The window: clients below these get HTTP 426 (see compat).
+        "minApiVersion": min_api,
+        "minClientVersion": crate::compat::oldest_client_version(min_api),
         "role": principal.role,
         // A number for clients that follow the feed, the string they always had for the others.
         "revision": if level.feed() { json!(library.revision) } else { json!(library.legacy_revision()) },

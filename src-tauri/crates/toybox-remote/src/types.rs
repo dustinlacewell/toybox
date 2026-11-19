@@ -20,6 +20,12 @@ pub struct Info {
     pub server_version: String,
     #[serde(default)]
     pub api_version: u32,
+    /// The oldest protocol level the server serves (absent from servers before the window).
+    #[serde(default)]
+    pub min_api_version: Option<u32>,
+    /// The oldest Toybox version the server serves.
+    #[serde(default)]
+    pub min_client_version: Option<String>,
     pub role: RemoteRole,
     /// The library revision (the revision feed is keyed by it).
     #[serde(default, deserialize_with = "revision_or_zero")]

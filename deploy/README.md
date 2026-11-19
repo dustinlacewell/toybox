@@ -32,7 +32,14 @@ sudo bash install.sh --source .. --domain assets.example.com
 
 # or, with a program you already have
 sudo bash install.sh --binary ./toybox-server --domain assets.example.com
+
+# or the latest signed release from GitHub (Linux x86-64), updating itself every day
+sudo bash install.sh --release --auto-update --domain assets.example.com
 ```
+
+`--release [VERSION]` downloads the released program and checks its signature with `minisign`
+(a package it installs) against the Toybox release key before installing it. After that,
+`toybox-server update` keeps it current with the same key built into the program.
 
 Leave out `--domain` to try it first: the server then only answers on the
 machine itself (`http://127.0.0.1:8787`). Run the same command again later with
@@ -83,7 +90,8 @@ folder); each Toybox app keeps its own.
 | --- | --- |
 | Is it running? | `sudo -u toybox toybox-server status` |
 | Logs | `journalctl -u toybox-server -f` (one line per request, never tokens) |
-| Update | build or copy the new program and run `install.sh` again |
+| Update | `sudo toybox-server update` (checks the signature, keeps `toybox-server.previous`, restarts, goes back if it does not start); look first with `toybox-server update --check` (exit 10 = available). Every day by itself: `sudo bash install.sh --auto-update` (`--no-auto-update` stops it). See "Versions and updating" in docs/server.md. |
+| Before an update that changes the library | `sudo -u toybox toybox-server migrate --check` (changes nothing) |
 | Backup | copy `/var/lib/toybox`, including the `-wal` and `-shm` files next to `library/_library_config/library.db` (see docs/server.md) |
 | Remove | `sudo bash uninstall.sh` (leaves `/var/lib/toybox` alone) |
 
@@ -94,6 +102,7 @@ folder); each Toybox app keeps its own.
 | `install.sh` | the installer described above |
 | `uninstall.sh` | removes the service and the program, keeps your data |
 | `toybox-server.service` | the systemd unit the installer installs |
+| `toybox-server-update.service`, `.timer` | the daily update, installed by `install.sh --auto-update` |
 | `Caddyfile.example` | the HTTPS reverse-proxy configuration, for doing it by hand |
 
 ## Doing it without the installer

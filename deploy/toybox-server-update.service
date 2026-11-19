@@ -1,0 +1,26 @@
+# systemd unit that updates the Toybox library server to the latest signed release.
+# Started by toybox-server-update.timer (install it with: sudo bash install.sh --auto-update).
+# deploy/install.sh edits the two lines marked "edited by install.sh" like it does for
+# toybox-server.service.
+#
+# It runs as root because it replaces /usr/local/bin/toybox-server and restarts the service. The
+# program checks the release's signature against the key built into it before it installs anything,
+# keeps the old program as toybox-server.previous, and goes back to it if the new one does not answer.
+
+[Unit]
+Description=Update the Toybox library server to the latest signed release
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+# edited by install.sh when --data or --port is given
+ExecStart=/usr/local/bin/toybox-server update --yes --data /var/lib/toybox --listen 127.0.0.1:8787
+# Be gentle with the machine: this is housekeeping.
+Nice=10
+IOSchedulingClass=idle
+# An update that is stuck (a download, a server that never answers) is stopped.
+TimeoutStartSec=15min
+PrivateTmp=true
+ProtectHome=true
+NoNewPrivileges=true

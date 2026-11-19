@@ -425,7 +425,7 @@ fn old_server() -> String {
 fn a_server_of_the_first_version_is_refused_with_a_clear_message() {
     let url = old_server();
     let error = toybox_remote::probe(&url, "tbx_whatever").unwrap_err();
-    assert!(matches!(error, RemoteError::ServerTooOld { found: 1, needed: 2 }), "{error:?}");
+    assert!(matches!(error, RemoteError::ServerTooOld { found: 1, needed: 2, .. }), "{error:?}");
     assert!(error.to_string().contains("too old") && error.to_string().contains("version 1"), "{error}");
     let mut world = World::new("old");
     let entry: LibraryEntry = world.settings.add_remote_library(&url, "Old", "old-lib".into()).unwrap();
@@ -433,6 +433,82 @@ fn a_server_of_the_first_version_is_refused_with_a_clear_message() {
     let library = world.hub.get(&entry).unwrap();
     let status = library.connect();
     assert!(status.offline && status.offline_reason.unwrap().contains("too old"));
+    assert_eq!(status.compat.map(|c| (c.state, c.server_version)), Some(("server_too_old".to_string(), "0.3.0".to_string())));
     let error = library.refresh_catalog(false).unwrap_err();
     assert!(error.to_string().contains("too old"), "{error}");
+}
+
+/// A server that answers every request with one fixed reply and keeps what it was asked.
+fn fixed_server(reply_status: &str, body: &'static str) -> (String, std::sync::mpsc::Receiver<String>) {
+    let listener = std::net::TcpListener::bind("127.0.0.1:0").unwrap();
+    let address = listener.local_addr().unwrap();
+    let (sender, receiver) = std::sync::mpsc::channel();
+    let status = reply_status.to_string();
+    std::thread::spawn(move || {
+        for stream in listener.incoming() {
+            let Ok(mut stream) = stream else { continue };
+            let mut seen = Vec::new();
+            let mut buffer = [0u8; 1024];
+            while !seen.windows(4).any(|w| w == b"\r\n\r\n") {
+                match stream.read(&mut buffer) {
+                    Ok(0) | Err(_) => break,
+                    Ok(count) => seen.extend_from_slice(&buffer[..count]),
+                }
+            }
+            let _ = sender.send(String::from_utf8_lossy(&seen).to_string());
+            let reply = format!("HTTP/1.1 {status}\r\nContent-Type: application/json\r\nContent-Length: {}\r\nConnection: close\r\n\r\n{body}", body.len());
+            let _ = stream.write_all(reply.as_bytes());
+        }
+    });
+    (format!("http://{address}"), receiver)
+}
+
+#[test]
+fn a_client_older_than_the_window_is_told_so_in_plain_words_and_names_itself() {
+    let (url, requests) = fixed_server(
+        "426 Upgrade Required",
+        r#"{"error":{"code":"client_too_old","message":"x"},"serverVersion":"9.1.0","apiVersion":9,"minApiVersion":8,"minClientVersion":"9.0.0"}"#,
+    );
+    let error = toybox_remote::probe(&url, "tbx_whatever").unwrap_err();
+    assert_eq!(error, RemoteError::ClientTooOld { server_version: "9.1.0".into(), min_client_version: "9.0.0".into() });
+    let text = error.to_string();
+    assert!(text.contains("runs Toybox 9.1.0") && text.contains("Update Toybox to 9.0.0 or newer"), "{text}");
+    // Every request says who is asking.
+    let seen = requests.recv().unwrap().to_ascii_lowercase();
+    assert!(seen.contains(&format!("x-toybox-client: toybox/{}", env!("CARGO_PKG_VERSION"))), "{seen}");
+    assert!(seen.contains("x-toybox-api: 2"));
+    // The library shows offline with that sentence, and remembers why.
+    let mut world = World::new("too-new-server");
+    let entry: LibraryEntry = world.settings.add_remote_library(&url, "Future", "future-lib".into()).unwrap();
+    world.hub.store_token("future-lib", "tbx_whatever").unwrap();
+    let library = world.hub.get(&entry).unwrap();
+    let status = library.connect();
+    assert!(status.offline);
+    let compat = status.compat.expect("the versions are remembered");
+    assert_eq!((compat.state.as_str(), compat.min_client_version.as_deref()), ("client_too_old", Some("9.0.0")));
+    assert!(status.offline_reason.unwrap().contains("Update Toybox to 9.0.0"));
+}
+
+#[test]
+fn a_server_of_the_same_release_fits_and_says_what_it_is() {
+    let server = TestServer::start();
+    let admin = server.admin.clone();
+    let probe = toybox_remote::probe(&server.url, &admin).unwrap();
+    assert_eq!(probe.notice, None, "same version, nothing to say");
+    let mut world = World::new("fits");
+    let library = world.add(&server, &admin, "Fits");
+    let status = library.connect();
+    let compat = status.compat.expect("compat after connecting");
+    assert_eq!(compat.state, "ok");
+    assert_eq!(compat.server_version, env!("CARGO_PKG_VERSION"));
+    assert_eq!(compat.min_api_version, Some(1));
+}
+
+#[test]
+fn a_server_inside_the_window_but_of_another_version_gives_a_notice_not_an_error() {
+    let (url, _) = fixed_server("200 OK", r#"{"name":"Older","serverVersion":"0.1.0","apiVersion":2,"minApiVersion":1,"minClientVersion":"0.1.0","role":"read","revision":1}"#);
+    let probe = toybox_remote::probe(&url, "tbx_whatever").unwrap();
+    let notice = probe.notice.expect("a notice");
+    assert!(notice.contains("0.1.0") && notice.contains("toybox-server update"), "{notice}");
+    assert_eq!(probe.server_name, "Older");
 }

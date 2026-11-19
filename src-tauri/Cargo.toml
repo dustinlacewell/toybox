@@ -1,6 +1,6 @@
 [package]
 name = "toybox-client"
-version = "0.4.1"
+version.workspace = true
 description = "Local asset library for game development"
 authors = ["Dustin Lacewell"]
 edition = "2021"
@@ -16,6 +16,11 @@ default-run = "toybox"
 [workspace]
 members = ["crates/toybox-core", "crates/toybox-server", "crates/toybox-remote", "crates/toybox-host", "crates/toybox-script", "crates/toybox-cli"]
 default-members = [".", "crates/toybox-core"]
+
+[workspace.package]
+# The one version of the app, the server and `tbx`: they are released together and must match.
+# `node scripts/set-version.mjs <version>` changes it everywhere; `scripts/check-release.mjs` checks it.
+version = "0.4.1"
 
 [workspace.dependencies]
 serde = { version = "1", features = ["derive"] }

@@ -14,7 +14,7 @@ import { definePlugin, runImport, type AssetView, type CommandRun, type ImportRu
 import { absolutePath, locateArchive } from "./lib/archive.js";
 import { cleanupRenders, engineStatus, startEngine, Substance, type Env } from "./lib/engine.js";
 import { describeGraph, describeRendering, graphText, inputsText, pixels, renderingText } from "./lib/describe.js";
-import { sizeOf } from "./lib/graph.js";
+import { DEFAULT_SIZE, sizeOf } from "./lib/graph.js";
 import { importArchivePaths } from "./lib/import.js";
 import { givenParameters } from "./lib/params.js";
 import { planRender, renderedWith, rerenderMaterial } from "./lib/rerender.js";
@@ -45,7 +45,7 @@ export default definePlugin({
         return tidy(env, () => runImport(
           run,
           async (libraryRoot) => {
-            const size = sizeFromOption(run) ?? sizeOf((await run.services.settings.get()).size);
+            const size = sizeFromOption(run) ?? sizeOf((await run.services.settings.get()).size, DEFAULT_SIZE);
             const given = await givenParameters(run.fs, run.options.values, run.options.set);
             return importArchivePaths(env, libraryRoot, run.paths, {
               category: String(run.options.category ?? "substance"),

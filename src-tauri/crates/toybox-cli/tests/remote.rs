@@ -25,6 +25,10 @@ struct Server {
 
 impl Server {
     fn start(parent: &std::path::Path) -> Server {
+        Self::start_with(parent, |_| {})
+    }
+
+    fn start_with(parent: &std::path::Path, tweak: impl FnOnce(&mut Options)) -> Server {
         let dir = parent.join("server");
         std::fs::create_dir_all(&dir).unwrap();
         let data = DataDir::new(&dir);
@@ -33,6 +37,7 @@ impl Server {
         options.fail_delay = Duration::from_millis(1);
         options.log_requests = false;
         options.lockout.max_failures = 10_000;
+        tweak(&mut options);
         let state = AppState::open(DataDir::new(&dir), options).expect("open");
         let app = toybox_server::api::router(state.clone());
         let (addr_tx, addr_rx) = std::sync::mpsc::channel();
@@ -111,6 +116,15 @@ fn a_remote_library_can_be_connected_read_and_forgotten() {
     assert_eq!(info["remote"]["role"], "admin");
     assert_eq!(info["remote"]["serverName"], "Test server");
     assert!(world.tbx(&["library", "info"]).ok().out.contains("server    Test server"));
+    // The versions of the server and this tbx: the same release, so nothing to warn about.
+    assert_eq!(info["remote"]["serverVersion"], env!("CARGO_PKG_VERSION"));
+    assert_eq!(info["remote"]["compat"], "ok");
+    assert!(info["remote"].get("compatMessage").is_none());
+    let text = world.tbx(&["library", "info"]).ok().out;
+    assert!(text.contains(&format!("version   server {}, this tbx {}", env!("CARGO_PKG_VERSION"), env!("CARGO_PKG_VERSION"))), "{text}");
+    let status = world.tbx(&["--json", "status"]).ok().json();
+    assert_eq!(status["tbx"]["version"], env!("CARGO_PKG_VERSION"));
+    assert_eq!(status["problems"], json!([]));
 
     assert_eq!(world.tbx(&["search", "--ids"]).ok().lines(), vec!["uid://srv-crate", "uid://srv-lamp"]);
     let shown = world.tbx(&["--json", "show", "uid://srv-crate"]).ok().json();
@@ -243,4 +257,13 @@ fn the_real_audio_importer_imports_into_a_remote_library_and_the_item_is_found()
     let on_server = toybox_core::infra::store::Store::for_handle(&handle).asset_id_page("", 100).unwrap().0;
     assert_eq!(on_server.len(), 4, "two seeded decals and two sounds: {on_server:?}");
     assert_eq!(world.tbx(&["-L", "Studio", "count", "--type", "audio"]).ok().out.trim(), "2");
+}
+
+#[test]
+fn a_server_that_no_longer_accepts_this_tbx_says_so_in_plain_words() {
+    let world = World::new();
+    let server = Server::start_with(world.dir.path(), |options| options.min_api_version = Some(3));
+    let refused = with_token(&world, &server.admin, &["library", "connect", &server.url]).fails_with(1);
+    assert!(refused.err.contains("no longer accepts this Toybox") && refused.err.contains("Update Toybox to"), "{}", refused.err);
+    assert!(refused.err.contains(&format!("runs Toybox {}", env!("CARGO_PKG_VERSION"))), "{}", refused.err);
 }

@@ -10,7 +10,7 @@ import { Button, Checkbox, Pane, Select, Stack, TextInput, Workbench } from "@ld
 import { defineImportPanel, validSegment, type ImportPanelCtx } from "@ldlework/toybox-sdk";
 
 import { clearScratch, Substance, type Env } from "../lib/engine.js";
-import { presetValues, SIZES, sizeOf, type Value } from "../lib/graph.js";
+import { DEFAULT_SIZE, presetValues, SIZES, sizeOf, type Value } from "../lib/graph.js";
 import { findArchives, importArchives, stemOf, type ArchiveConfig as Config } from "../lib/import.js";
 import { Parameters } from "./Parameters.js";
 import { useLoaded, usePreview } from "./useSubstance.js";
@@ -25,7 +25,7 @@ export default defineImportPanel(function SbsarImport({ ctx }: { ctx: ImportPane
   const [active, setActive] = useState<string>();
   const [configs, setConfigs] = useState(new Map<string, Config>());
   const [category, setCategory] = useState("substance");
-  const [size, setSize] = useState("11");
+  const [size, setSize] = useState(String(DEFAULT_SIZE));
   const [busy, setBusy] = useState(false);
   const [status, setStatus] = useState("");
   const [error, setError] = useState<string>();
@@ -33,7 +33,7 @@ export default defineImportPanel(function SbsarImport({ ctx }: { ctx: ImportPane
 
   useEffect(() => {
     void clearScratch(env).catch(() => undefined);
-    void env.services.settings.get().then((settings) => setSize(String(sizeOf(settings.size))), () => undefined);
+    void env.services.settings.get().then((settings) => setSize(String(sizeOf(settings.size, DEFAULT_SIZE))), () => undefined);
   }, [env]);
 
   const loaded = useLoaded(env, source && active ? `${source}/${active}` : undefined);

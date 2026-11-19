@@ -80,6 +80,7 @@ impl Hub {
                 let dir = library_dir(&self.app_data, &entry.id);
                 let (role, server_name) = read_saved_summary(&dir);
                 RemoteStatus {
+                    compat: None,
                     role: role.unwrap_or(RemoteRole::Read),
                     server_name,
                     offline: true,

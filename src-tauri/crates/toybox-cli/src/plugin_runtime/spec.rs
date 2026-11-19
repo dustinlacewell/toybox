@@ -57,6 +57,9 @@ pub struct CliCommand {
     pub args: Vec<CliArg>,
     pub options: Vec<CliOption>,
     pub selection: bool,
+    /// With `selection`: the command reads the selected items' files (and the source files kept
+    /// with them), so for a remote library they are downloaded before it runs.
+    pub files: bool,
 }
 
 /// One active plugin's command-line contributions that are mounted.
@@ -310,7 +313,7 @@ fn parse_command(v: &Value, path: &str, problems: &mut Vec<String>) -> Option<Cl
         if children.is_empty() {
             return None;
         }
-        return Some(CliCommand { name: name.into(), summary: text(v, "summary"), commands: children, args: Vec::new(), options: Vec::new(), selection: false });
+        return Some(CliCommand { name: name.into(), summary: text(v, "summary"), commands: children, args: Vec::new(), options: Vec::new(), selection: false, files: false });
     }
     let args = parse_options(v.get("args"), true, &[], &what, problems)?;
     let options = parse_options(v.get("options"), false, &[], &what, problems)?;
@@ -324,7 +327,7 @@ fn parse_command(v: &Value, path: &str, problems: &mut Vec<String>) -> Option<Cl
         problems.push(format!("{what}: '{}' is both an argument and an option", dup.name));
         return None;
     }
-    Some(CliCommand { name: name.into(), summary: text(v, "summary"), commands: Vec::new(), args, options, selection: v.get("selection").and_then(Value::as_bool).unwrap_or(false) })
+    Some(CliCommand { name: name.into(), summary: text(v, "summary"), commands: Vec::new(), args, options, selection: v.get("selection").and_then(Value::as_bool).unwrap_or(false), files: v.get("files").and_then(Value::as_bool).unwrap_or(false) })
 }
 
 fn module_is_valid(module: &str) -> bool {

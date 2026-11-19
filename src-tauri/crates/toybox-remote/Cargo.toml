@@ -1,6 +1,6 @@
 [package]
 name = "toybox-remote"
-version = "0.4.1"
+version.workspace = true
 description = "Client for remote Toybox libraries: a blocking HTTP client for toybox-server, the local file cache and the shared-thumbnail sync (no GUI dependency)"
 authors = ["Dustin Lacewell"]
 edition = "2021"
@@ -15,6 +15,7 @@ serde_json = { workspace = true }
 sha2 = { workspace = true }
 ureq = { workspace = true }
 keyring = { workspace = true }
+semver = { workspace = true }
 
 [dev-dependencies]
 rusqlite = { workspace = true }

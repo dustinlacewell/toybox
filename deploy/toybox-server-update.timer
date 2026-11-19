@@ -1,0 +1,15 @@
+# Checks for a new Toybox server release once a day, at a random time, so a fleet of servers does not
+# all ask at once. Persistent: a server that was off at the time checks when it is next on.
+# Installed and enabled by: sudo bash install.sh --auto-update   (removed by --no-auto-update)
+
+[Unit]
+Description=Daily check for a new Toybox server release
+
+[Timer]
+OnCalendar=daily
+RandomizedDelaySec=4h
+Persistent=true
+Unit=toybox-server-update.service
+
+[Install]
+WantedBy=timers.target

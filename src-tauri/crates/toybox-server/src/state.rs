@@ -19,6 +19,9 @@ pub struct Options {
     pub max_thumb_bytes: usize,
     /// Print one log line per request.
     pub log_requests: bool,
+    /// The oldest protocol level served. `None`: this server's own level and the one before.
+    /// Tests set it to exercise the window without a second protocol level.
+    pub min_api_version: Option<u32>,
 }
 
 impl Default for Options {
@@ -29,6 +32,7 @@ impl Default for Options {
             uploads: UploadLimits::default(),
             max_thumb_bytes: 2 * 1024 * 1024,
             log_requests: true,
+            min_api_version: None,
         }
     }
 }

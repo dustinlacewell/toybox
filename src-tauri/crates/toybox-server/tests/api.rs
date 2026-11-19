@@ -1378,3 +1378,45 @@ async fn an_old_client_reads_and_writes_through_the_catalog_as_before() {
     assert_eq!(deleted["catalog"]["assets"].as_array().unwrap().len(), 0);
     assert_eq!(deleted["revision"], call(&h, "GET", "/api/v1/info", Some(&write)).await.json()["revision"]);
 }
+
+#[tokio::test]
+async fn info_names_the_window_of_clients_it_serves() {
+    let h = Harness::new(|_| {});
+    let info = call(&h, "GET", "/api/v1/info", Some(&h.admin)).await.json();
+    assert_eq!(info["version"], env!("CARGO_PKG_VERSION"));
+    assert_eq!(info["apiVersion"], 2);
+    assert_eq!(info["minApiVersion"], 1, "a server serves its own level and the one before");
+    assert_eq!(info["minClientVersion"], "0.1.0");
+}
+
+#[tokio::test]
+async fn a_client_below_the_window_gets_426_with_the_versions_and_others_are_served() {
+    let h = Harness::new(|options| options.min_api_version = Some(2));
+    // Without a token nothing is learned: authentication comes first.
+    assert_eq!(call(&h, "GET", "/api/v1/catalog", None).await.status, StatusCode::UNAUTHORIZED);
+    // A client that sends no level (level 1) is below a window that starts at 2.
+    let old = call_with(&h, "GET", "/api/v1/catalog", Some(&h.admin), &[("x-toybox-client", "toybox/0.3.0")]).await;
+    assert_eq!(old.status, StatusCode::UPGRADE_REQUIRED);
+    let body = old.json();
+    assert_eq!(body["error"]["code"], "client_too_old");
+    assert_eq!(body["serverVersion"], env!("CARGO_PKG_VERSION"));
+    assert_eq!(body["minApiVersion"], 2);
+    assert_eq!(body["minClientVersion"], "0.4.1");
+    assert!(body["error"]["message"].as_str().unwrap().contains("Update Toybox to 0.4.1"));
+    // The first call of an old client, /info, says the same.
+    assert_eq!(call(&h, "GET", "/api/v1/info", Some(&h.admin)).await.status, StatusCode::UPGRADE_REQUIRED);
+    // A client in the window is served, and the health check stays open to everyone.
+    let ok = call_with(&h, "GET", "/api/v1/info", Some(&h.admin), &[("x-toybox-api", "2"), ("x-toybox-client", "toybox/0.4.1")]).await;
+    assert_eq!(ok.status, StatusCode::OK);
+    assert_eq!(call(&h, "GET", "/api/v1/health", None).await.status, StatusCode::OK);
+    // Level 2 but a stated version older than the window starts is refused as well.
+    let stale = call_with(&h, "GET", "/api/v1/info", Some(&h.admin), &[("x-toybox-api", "2"), ("x-toybox-client", "tbx/0.2.0")]).await;
+    assert_eq!(stale.status, StatusCode::UPGRADE_REQUIRED);
+}
+
+#[tokio::test]
+async fn a_level_one_client_is_still_served_by_this_server() {
+    let h = Harness::new(|_| {});
+    let reply = call(&h, "GET", "/api/v1/catalog", Some(&h.admin)).await;
+    assert_eq!(reply.status, StatusCode::OK);
+}

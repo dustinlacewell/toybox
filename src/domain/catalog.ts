@@ -197,6 +197,14 @@ export interface RemoteInfo {
   role: "read" | "write" | "admin";
   serverName: string;
   offline: boolean;
+  /** The server's Toybox version, when it has said. */
+  serverVersion?: string;
+  /** The oldest Toybox the server serves. */
+  minClientVersion?: string;
+  /** How the server's version fits this app: ok, notice, server_too_old or client_too_old. */
+  compat?: "ok" | "notice" | "server_too_old" | "client_too_old";
+  /** The sentence to show about the versions, when there is one. */
+  compatMessage?: string;
 }
 
 export interface RigBinding { rigId: string; nodes: Record<string, number>; }

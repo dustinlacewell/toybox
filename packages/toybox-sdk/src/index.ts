@@ -311,6 +311,10 @@ export interface CliCommandSpec {
   /** The command accepts the standard item selection (ids or a filter) and
    *  receives the selected items as `CommandRun.assets`. */
   selection?: boolean;
+  /** With `selection`: the command reads the selected items' files or the source files kept with
+   *  them. For a remote library they are downloaded before the command runs. Leave it out for a
+   *  command that only reads the items' records, so a large selection downloads nothing. */
+  files?: boolean;
 }
 
 /** A parsed option or argument value: a string or `path` (absolute), a number,

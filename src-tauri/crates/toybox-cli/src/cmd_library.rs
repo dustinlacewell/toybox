@@ -35,6 +35,23 @@ fn named(matches: &ArgMatches) -> Option<&str> {
     matches.try_get_one::<String>("library_arg").ok().flatten().map(String::as_str)
 }
 
+/// A line about library format migrations this build would run when the library is opened, for a local
+/// library only (cheap: the journal and a read-only look at the database, nothing is written).
+fn pending_line(library: &LibraryInfo) -> Option<String> {
+    if library.remote.is_some() || !library.available {
+        return None;
+    }
+    let report = toybox_core::infra::preflight::check(std::path::Path::new(&library.root)).ok()?;
+    if report.newer_than_this_build {
+        return Some(format!("migrated by a newer Toybox (format {}); this tbx cannot open it", report.format_version));
+    }
+    if report.pending.is_empty() {
+        return None;
+    }
+    let steps: Vec<String> = report.pending.iter().map(|step| format!("{} ({})", step.version, step.name)).collect();
+    Some(format!("format {} -> {}: migration {} would run on the next open (toybox-server migrate --check shows what it touches)", report.format_version, report.latest_version, steps.join(", ")))
+}
+
 fn remote_only(library: &LibraryInfo) -> CliResult<()> {
     if library.remote.is_none() {
         return Err(CliError::usage(format!("library '{}' is not a remote library", library.name)));
@@ -62,8 +79,12 @@ fn info(ctx: &Ctx, matches: &ArgMatches) -> CliResult<()> {
         role: format!("{:?}", remote.role).to_lowercase(),
         offline: remote.offline,
         cache_bytes: stats.cache_bytes.unwrap_or(0),
+        server_version: remote.server_version.clone(),
+        min_client_version: remote.min_client_version.clone(),
+        compat: remote.compat.clone(),
+        compat_message: remote.compat_message.clone(),
     });
-    let doc = LibraryInfoDoc {
+    let mut doc = LibraryInfoDoc {
         library: library_doc(&current, Some(stats.items)),
         items: stats.items,
         revision: stats.revision,
@@ -77,6 +98,7 @@ fn info(ctx: &Ctx, matches: &ArgMatches) -> CliResult<()> {
             migration: stats.migration.as_ref().map(|report| MigrationDoc { items: report.items, bytes_freed: report.bytes_freed, skipped: report.skipped.len() }),
         }),
         remote,
+        pending_migrations: Vec::new(),
     };
     let mut text = format!("id        {}\nname      {}\nkind      {}\nlocation  {}\nstate     {}\nitems     {}\nrevision  {}\n", doc.library.id, doc.library.name, doc.library.kind, doc.library.location, doc.library.state, doc.items, doc.revision);
     if let (Some(files), Some(bytes)) = (doc.files, doc.bytes) {
@@ -92,6 +114,16 @@ fn info(ctx: &Ctx, matches: &ArgMatches) -> CliResult<()> {
     }
     if let Some(remote) = &doc.remote {
         text.push_str(&format!("server    {} ({})\nrole      {}\ncache     {}\n", remote.server_name, if remote.offline { "offline" } else { "online" }, remote.role, human_bytes(remote.cache_bytes)));
+        if let Some(version) = &remote.server_version {
+            text.push_str(&format!("version   server {version}, this tbx {}{}\n", env!("CARGO_PKG_VERSION"), remote.min_client_version.as_ref().map(|min| format!(" (the server serves Toybox {min} and newer)")).unwrap_or_default()));
+        }
+        if let Some(message) = &remote.compat_message {
+            text.push_str(&format!("          {message}\n"));
+        }
+    }
+    if let Some(line) = pending_line(&current) {
+        text.push_str(&format!("format    {line}\n"));
+        doc.pending_migrations = vec![line];
     }
     if !doc.types.is_empty() {
         text.push_str("types\n");
@@ -182,6 +214,7 @@ fn check(ctx: &Ctx, matches: &ArgMatches) -> CliResult<()> {
         problems: report.problems.iter().map(|problem| ProblemDoc { item: problem.item.clone(), message: problem.message.clone() }).collect(),
         orphan_sources: report.orphan_sources.clone(),
         removed_sources: report.removed_sources.clone(),
+        pending_migrations: pending_line(&library).into_iter().collect(),
     };
     let mut text = String::new();
     for problem in &doc.problems {
@@ -192,6 +225,9 @@ fn check(ctx: &Ctx, matches: &ArgMatches) -> CliResult<()> {
     }
     for removed in &doc.removed_sources {
         text.push_str(&format!("removed unused source file {removed}\n"));
+    }
+    for line in &doc.pending_migrations {
+        text.push_str(&format!("{line}\n"));
     }
     if doc.ok {
         text.push_str(&format!("'{}' is fine: {} items, {} files checked\n", library.name, doc.items, doc.files_checked));

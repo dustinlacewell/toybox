@@ -49,7 +49,7 @@
       "key": "size",
       "type": "select",
       "label": "Default texture size",
-      "default": "11",
+      "default": "10",
       "options": [
         {
           "value": "9",
@@ -196,6 +196,7 @@
             "name": "render",
             "summary": "Render Substance materials again with another preset, other parameters or size: in place, or as a new material with --save-as.",
             "selection": true,
+            "files": true,
             "options": [
               {
                 "name": "set",

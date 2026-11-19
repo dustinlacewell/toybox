@@ -75,6 +75,8 @@ export interface RemoteProbe {
   warning: string | null;
   serverName: string;
   role: RemoteRole;
+  /** A sentence about the server's and this app's versions, when they differ. */
+  notice?: string | null;
 }
 
 /** Check an address and token: the server's name and the role the token grants. */
@@ -515,3 +517,31 @@ export const recenterAsset = (
   axis: Axis,
   align: Align,
 ): Promise<Aabb> => invoke("recenter_asset", { ...inLibrary(assetId), axis, align });
+
+// --- The command line (tbx) -----------------------------------------------------
+
+/** Whether `tbx` (shipped with the app) is on the user's PATH, and what is stale. */
+export interface CliStatus {
+  bundled: string | null;
+  bundledVersion: string | null;
+  onPath: string | null;
+  onPathVersion: string | null;
+  appVersion: string;
+  upToDate: boolean;
+  target: string | null;
+  targetOnPath: boolean;
+  /** A package or installer already put it on the PATH. */
+  managed: boolean;
+  message: string;
+}
+
+export interface CliChange {
+  program: string | null;
+  folder: string | null;
+  changed: boolean;
+  note: string | null;
+}
+
+export const cliStatus = (): Promise<CliStatus> => invoke("cli_status");
+export const installCli = (): Promise<CliChange> => invoke("cli_install");
+export const uninstallCli = (): Promise<CliChange> => invoke("cli_uninstall");

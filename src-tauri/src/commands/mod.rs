@@ -4,6 +4,7 @@
 
 pub mod browse;
 pub mod catalog;
+pub mod cli;
 pub mod animation_preview;
 pub mod export_copy;
 pub mod export_glb;

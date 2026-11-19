@@ -11,6 +11,7 @@ mod cmd_items;
 mod cmd_library;
 mod cmd_plugin;
 mod cmd_run;
+mod cmd_self;
 mod cmd_transfer;
 mod ctx;
 mod error;

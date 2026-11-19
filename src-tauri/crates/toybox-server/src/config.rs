@@ -71,6 +71,10 @@ pub struct ServerConfig {
     pub name: String,
     #[serde(default)]
     pub tokens: Vec<TokenRecord>,
+    /// Where `toybox-server update` looks for releases (a manifest address or a folder). Unset: the
+    /// release page the app is built from.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub update_url: Option<String>,
 }
 
 fn one() -> u32 {
@@ -145,7 +149,7 @@ fn validate_name(name: &str) -> Result<String, ConfigError> {
 
 impl ServerConfig {
     pub fn new(name: &str) -> ServerConfig {
-        ServerConfig { version: 1, name: name.trim().to_string(), tokens: Vec::new() }
+        ServerConfig { version: 1, name: name.trim().to_string(), tokens: Vec::new(), update_url: None }
     }
 
     /// Create a token. Returns its record and the secret, which is not stored

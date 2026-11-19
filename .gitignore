@@ -27,3 +27,6 @@ dist-ssr
 *.key
 __pycache__/
 *.py[cod]
+
+# tbx sidecar placed here by the release build (scripts/prepare-tbx-sidecar.mjs)
+src-tauri/binaries/

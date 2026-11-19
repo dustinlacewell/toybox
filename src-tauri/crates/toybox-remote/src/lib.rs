@@ -15,6 +15,7 @@
 //! * [`hub`]      the open remote libraries of the app
 
 pub mod client;
+pub mod compat;
 pub mod error;
 pub mod files;
 pub mod hub;
@@ -42,6 +43,10 @@ pub struct Probe {
     pub warning: Option<String>,
     pub server_name: String,
     pub role: RemoteRole,
+    /// A sentence about the versions of the server and this Toybox, when they differ.
+    pub notice: Option<String>,
+    /// The version comparison behind the notice (kept with the library once it is added).
+    pub compat: toybox_core::infra::library::RemoteCompat,
 }
 
 /// Check an address and token without saving anything: normalise the address,
@@ -54,7 +59,11 @@ pub fn probe(address: &str, token: &str) -> RemoteResult<Probe> {
     }
     let info = client::Client::new(&server.url, token).info()?;
     if info.api_version < client::API_LEVEL {
-        return Err(RemoteError::ServerTooOld { found: info.api_version, needed: client::API_LEVEL });
+        return Err(RemoteError::ServerTooOld { found: info.api_version, needed: client::API_LEVEL, server_version: info.server_version });
     }
-    Ok(Probe { url: server.url, warning: server.warning, server_name: info.name, role: info.role })
+    let compat = compat::assess(&info, compat::APP_VERSION);
+    if compat.state == compat::CLIENT_TOO_OLD {
+        return Err(RemoteError::ClientTooOld { server_version: info.server_version, min_client_version: info.min_client_version.unwrap_or_default() });
+    }
+    Ok(Probe { url: server.url, warning: server.warning, server_name: info.name, role: info.role, notice: compat.message.clone(), compat })
 }

@@ -145,7 +145,9 @@ impl Host {
             }
         };
         let _ = registry::write_sidecar(&self.paths.app_data, &entry);
-        self.hub.get(&entry).map_err(AppError::from)?.remember(&prepared.probe.server_name, prepared.probe.role);
+        let remote = self.hub.get(&entry).map_err(AppError::from)?;
+        remote.remember(&prepared.probe.server_name, prepared.probe.role);
+        remote.remember_compat(prepared.probe.compat.clone());
         self.library_info(&entry.id)
     }
 
@@ -162,6 +164,7 @@ impl Host {
         let probe = toybox_remote::probe(library.url(), token).map_err(AppError::from)?;
         self.hub.replace_token(id, token.trim()).map_err(AppError::from)?;
         library.remember(&probe.server_name, probe.role);
+        library.remember_compat(probe.compat.clone());
         self.library_info(id)
     }
 }

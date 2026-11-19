@@ -21,6 +21,7 @@
 //! by the app after the call.
 
 pub mod browse;
+pub mod cli_install;
 pub mod bundled;
 pub mod fingerprint;
 pub mod host;

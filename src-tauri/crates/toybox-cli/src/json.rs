@@ -15,7 +15,22 @@ pub struct StatusDoc {
     pub paths: PathsDoc,
     pub libraries: Vec<LibraryDoc>,
     pub plugins: PluginSummary,
+    pub tbx: TbxDoc,
     pub problems: Vec<String>,
+    /// Things worth knowing that are not problems (a server of another version, for example).
+    #[serde(skip_serializing_if = "Vec::is_empty")]
+    pub notices: Vec<String>,
+}
+
+/// This `tbx`, and the Toybox app it is checked against.
+#[derive(Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct TbxDoc {
+    pub version: String,
+    pub path: String,
+    /// The version of the installed Toybox app, when the app has run on this machine.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub app_version: Option<String>,
 }
 
 #[derive(Serialize)]
@@ -96,6 +111,9 @@ pub struct LibraryInfoDoc {
     pub sources: Option<SourcesDoc>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub remote: Option<RemoteDoc>,
+    /// Library format migrations this version would run when the library is opened (local libraries).
+    #[serde(skip_serializing_if = "Vec::is_empty")]
+    pub pending_migrations: Vec<String>,
 }
 
 #[derive(Serialize)]
@@ -132,6 +150,17 @@ pub struct RemoteDoc {
     pub role: String,
     pub offline: bool,
     pub cache_bytes: u64,
+    /// The server's Toybox version, when known.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub server_version: Option<String>,
+    /// The oldest Toybox the server serves, when it said.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub min_client_version: Option<String>,
+    /// `ok`, `notice`, `server_too_old` or `client_too_old`.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub compat: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub compat_message: Option<String>,
 }
 
 #[derive(Serialize)]
@@ -165,6 +194,9 @@ pub struct CheckDoc {
     pub orphan_sources: Vec<String>,
     /// Orphans `--fix` removed.
     pub removed_sources: Vec<String>,
+    /// Library format migrations this version would run when the library is opened (local libraries).
+    #[serde(skip_serializing_if = "Vec::is_empty")]
+    pub pending_migrations: Vec<String>,
 }
 
 #[derive(Serialize)]

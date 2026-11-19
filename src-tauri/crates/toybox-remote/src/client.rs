@@ -24,6 +24,19 @@ use crate::types::*;
 pub const API_LEVEL: u32 = 2;
 /// Sent with every request so the server answers in the shapes of [`API_LEVEL`].
 const API_HEADER: &str = "X-Toybox-Api";
+/// Says who is asking: `toybox/<version>` (the app) or `tbx/<version>`, logged by the server.
+const CLIENT_HEADER: &str = "X-Toybox-Client";
+
+static PRODUCT: std::sync::OnceLock<&'static str> = std::sync::OnceLock::new();
+
+/// Name this program in `X-Toybox-Client` (the app is `toybox`, the default; `tbx` calls this once at start).
+pub fn set_product(name: &'static str) {
+    let _ = PRODUCT.set(name);
+}
+
+fn client_header() -> String {
+    format!("{}/{}", PRODUCT.get().copied().unwrap_or("toybox"), crate::compat::APP_VERSION)
+}
 const CONNECT_TIMEOUT: Duration = Duration::from_secs(10);
 /// A big library builds its catalog on the first request after a start.
 const RESPONSE_TIMEOUT: Duration = Duration::from_secs(120);
@@ -162,7 +175,7 @@ impl Client {
     }
 
     fn get(&self, path: &str, extra: &[(&str, &str)]) -> RemoteResult<ureq::http::Response<ureq::Body>> {
-        let mut request = self.agent.get(self.url(path)).header("Authorization", self.auth()).header("Accept", "application/json").header(API_HEADER, "2");
+        let mut request = self.agent.get(self.url(path)).header("Authorization", self.auth()).header("Accept", "application/json").header(API_HEADER, "2").header(CLIENT_HEADER, client_header());
         for (name, value) in extra {
             request = request.header(*name, *value);
         }
@@ -196,18 +209,18 @@ impl Client {
             .header("Authorization", self.auth())
             .header("Content-Type", "application/json")
             .header("Accept", "application/json")
-            .header(API_HEADER, "2")
+            .header(API_HEADER, "2").header(CLIENT_HEADER, client_header())
             .send(bytes);
         self.call(result, allow)
     }
 
     fn empty_post(&self, path: &str) -> RemoteResult<ureq::http::Response<ureq::Body>> {
-        let result = self.agent.post(self.url(path)).header("Authorization", self.auth()).header("Accept", "application/json").header(API_HEADER, "2").send_empty();
+        let result = self.agent.post(self.url(path)).header("Authorization", self.auth()).header("Accept", "application/json").header(API_HEADER, "2").header(CLIENT_HEADER, client_header()).send_empty();
         self.call(result, &[])
     }
 
     fn delete(&self, path: &str) -> RemoteResult<()> {
-        let result = self.agent.delete(self.url(path)).header("Authorization", self.auth()).header(API_HEADER, "2").call();
+        let result = self.agent.delete(self.url(path)).header("Authorization", self.auth()).header(API_HEADER, "2").header(CLIENT_HEADER, client_header()).call();
         self.call(result, &[]).map(|_| ())
     }
 
@@ -258,7 +271,7 @@ impl Client {
 
     /// `GET /files/{path}`, streamed.
     pub fn file(&self, rel: &str) -> RemoteResult<Download> {
-        let response = self.agent.get(self.url(&format!("/files/{}", encode_path(rel)))).header("Authorization", self.auth()).header(API_HEADER, "2").call();
+        let response = self.agent.get(self.url(&format!("/files/{}", encode_path(rel)))).header("Authorization", self.auth()).header(API_HEADER, "2").header(CLIENT_HEADER, client_header()).call();
         let response = self.call(response, &[])?;
         let len = response.headers().get("content-length").and_then(|v| v.to_str().ok()).and_then(|v| v.parse().ok());
         Ok(Download { len, reader: Box::new(response.into_body().into_reader()) })
@@ -291,7 +304,7 @@ impl Client {
             .put(self.url(&format!("/thumbs/{}", encode_segment(id))))
             .header("Authorization", self.auth())
             .header("Content-Type", "image/png")
-            .header(API_HEADER, "2")
+            .header(API_HEADER, "2").header(CLIENT_HEADER, client_header())
             .send(png);
         self.call(result, &[]).map(|_| ())
     }
@@ -314,7 +327,7 @@ impl Client {
             .header("Authorization", self.auth())
             .header("Content-Type", "application/octet-stream")
             .header("Content-Length", len.to_string())
-            .header(API_HEADER, "2")
+            .header(API_HEADER, "2").header(CLIENT_HEADER, client_header())
             .send(body);
         self.call(result, &[]).map(|_| ())
     }
@@ -404,6 +417,11 @@ pub fn status_error(status: u16, retry_after: Option<u64>, body: &[u8], server: 
         Some((error.get("code")?.as_str()?.to_string(), error.get("message")?.as_str()?.to_string()))
     });
     let (code, message) = parsed.clone().unwrap_or_else(|| (String::new(), format!("The server answered with an error (HTTP {status}).")));
+    if status == 426 {
+        let body: Value = serde_json::from_slice(body).unwrap_or(Value::Null);
+        let text = |key: &str| body.get(key).and_then(Value::as_str).unwrap_or("").to_string();
+        return RemoteError::ClientTooOld { server_version: text("serverVersion"), min_client_version: text("minClientVersion") };
+    }
     match status {
         401 => RemoteError::BadToken,
         403 => RemoteError::Forbidden(message),

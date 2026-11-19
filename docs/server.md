@@ -70,6 +70,11 @@ toybox-server token add --name TEXT --role read|write|admin
 toybox-server token list
 toybox-server token revoke NAME-OR-ID
 toybox-server status [--listen ADDR:PORT]            setup summary; is a server running?
+toybox-server update [--check] [--yes] [--from URL|DIR] [--allow-downgrade]
+                     [--service NAME] [--listen ADDR:PORT] [--wait SECONDS]
+toybox-server migrate [--check] [--json]             library format migrations (see Versions and updating)
+toybox-server snapshot list
+toybox-server snapshot restore NAME                  put a library database snapshot back (server stopped)
 ```
 
 Every command takes `--data DIR`. Exit status: `0` success, `1` failure (the
@@ -159,9 +164,13 @@ algorithm is in [SQLite library storage](sqlite-storage.md#server-protocol-api-v
 ### `GET /api/v1/info` (read)
 
 ```json
-{ "name": "My Toybox", "serverVersion": "0.4.1", "apiVersion": 2, "role": "read",
+{ "name": "My Toybox", "serverVersion": "0.4.1", "version": "0.4.1", "apiVersion": 2,
+  "minApiVersion": 1, "minClientVersion": "0.1.0", "role": "read",
   "revision": 134, "dbId": "7c1e…", "thumbRevision": 7 }
 ```
+
+`serverVersion` (also sent as `version`) is the version of the server program. `minApiVersion` and `minClientVersion` are
+the oldest protocol level and the oldest Toybox the server still serves ([Versions and updating](#versions-and-updating)).
 
 `role` is the role of the token used. `revision` is the library revision, an integer that goes up
 with every committed change to the library: imports, deletes, edits and **content fingerprints**
@@ -479,9 +488,129 @@ content fingerprint. Every client sees the change when it next follows `/changes
 ### Logging
 
 One line per request on stdout (journald under systemd):
-`ts=2026-11-17T09:30:00Z method=GET path="/api/v1/catalog" status=200 token="alice" ip=203.0.113.5 ms=3`.
-Tokens (and the `Authorization` header) are never logged. `ms` is the time to
+`ts=2026-11-17T09:30:00Z method=GET path="/api/v1/catalog" status=200 token="alice" client="toybox/0.4.1" ip=203.0.113.5 ms=3`.
+`client` is what the caller says it is in `X-Toybox-Client` (`toybox/<version>` for the app, `tbx/<version>` for the
+command line; `"-"` for anything else). Tokens (and the `Authorization` header) are never logged. `ms` is the time to
 the response headers; a download continues after it.
+
+## Versions and updating
+
+**One version.** The app, `toybox-server` and `tbx` are released together under one version number. It is
+`[workspace.package] version` in `src-tauri/Cargo.toml` (every crate inherits it), `package.json` and
+`src-tauri/tauri.conf.json`; `node scripts/set-version.mjs <version>` changes all of them and
+`node scripts/check-release.mjs` fails when they disagree. `toybox-server --version`, `tbx --version`, the app's
+Settings and `serverVersion` in `/info` all show it.
+
+### Who can talk to whom
+
+A server serves clients of **its own protocol level and the one before** (`apiVersion` in `/info`; today 2, so levels 1
+and 2). Each step is one deliberate protocol change, so a client is never more than one step behind a server it
+works with.
+
+| Client | Server answers |
+| --- | --- |
+| speaks the server's level or the one before | works. If the versions differ, the app and `tbx` show a plain notice (Settings > Libraries; `tbx library info`; `tbx status`): "This server runs Toybox 0.4.0; this is Toybox 0.5.0. They work together. Ask whoever runs the server to run toybox-server update so they match." |
+| older than that window | **HTTP 426** `client_too_old` with `serverVersion`, `apiVersion`, `minApiVersion` and `minClientVersion` next to the usual `error`. The app shows "This server runs Toybox X and no longer accepts this Toybox (Y). Update Toybox to Z or newer." |
+| newer than the server (it needs a level the server does not have) | the client reads `/info`, sees the server is behind and says so: "This server runs Toybox X, which is too old for this Toybox (Y) ... Ask whoever runs it to update the server (toybox-server update), or use an older Toybox with it." |
+
+The level is `X-Toybox-Api` (no header means level 1, the clients from before the revision feed). The client also
+sends `X-Toybox-Client: toybox/<version>` or `tbx/<version>` on every request, which the server logs and also checks
+against `minClientVersion`. `/health` is open to everyone and never refused; the 426 comes after authentication, so
+a wrong token still gets `401`.
+
+**Decision for level 1 (`/catalog`) clients:** at protocol level 2 the window is levels 1 and 2, so the clients that
+send no header keep working unchanged, and the old whole-catalog route stays. They stop being served when the server's
+level becomes 3, which is the next protocol change; the version table (`PROTOCOL_SINCE` in
+`crates/toybox-server/src/compat.rs`) then names the first Toybox that speaks level 2 as the oldest accepted.
+`minClientVersion` for a level is the first release that spoke it (for level 2: 0.4.1, the release that introduced
+the window; earlier 0.4.x apps that already sent level 2 are served all the same, because the check is by level).
+
+### Updating the server
+
+```text
+sudo toybox-server update                   look, ask, download, verify, install, restart
+toybox-server update --check                only look: exit status 0 = up to date, 10 = a newer release exists
+sudo toybox-server update --yes             do not ask (what the daily timer runs)
+toybox-server update --from DIR_OR_URL      a folder or address holding toybox-server.json and the files
+```
+
+What it does, in order (any step failing leaves everything as it was):
+
+1. Reads the release manifest: `updateUrl` from `server.json` (or `--from`), otherwise the `toybox-server.json` of the
+   latest release of the repository in the app's updater address
+   (`https://github.com/<owner>/<repo>/releases/latest/download/toybox-server.json`).
+2. Compares versions (semantic versioning): newer is offered; the same is "up to date"; an older release is not
+   installed unless `--allow-downgrade`.
+3. Picks the asset for this build's target (`x86_64-unknown-linux-gnu`). No asset: it names the targets the release has
+   and stops.
+4. Downloads it next to the installed program and **verifies its minisign signature against the public key compiled into
+   the program** (the key of `plugins.updater` in `tauri.conf.json`, the one the app's updater trusts). A release build
+   has no way to change the key at run time. A mismatch is reported as "NOT signed by the Toybox release key", the
+   download is discarded.
+5. Runs the new program's `--version` (it must equal the manifest's, so an old signed program cannot pass as a new
+   version) and its **`migrate --check`** against the data folder, and shows the report.
+6. Keeps the running program as `toybox-server.previous` and puts the new one in its place (a rename).
+7. Restarts the systemd service if there is one (otherwise it says to restart it yourself), then waits up to
+   `--wait` seconds (180) for `/api/v1/health` on `--listen`. If it does not answer, the previous program is put back, the
+   service restarted again, and the command says what happened.
+
+Without enough rights to replace the program it stops before downloading and suggests `sudo`.
+
+The manifest `toybox-server.json` (made by `scripts/build-server-release.mjs`, attached to the release):
+
+```json
+{ "version": "0.4.2", "notes": "optional text",
+  "targets": { "x86_64-unknown-linux-gnu": { "url": "toybox-server-x86_64-unknown-linux-gnu",
+                                             "signature": "<the contents of the .sig file>" } } }
+```
+
+`url` may be relative to the manifest. The release also carries `toybox-server-<target>` + `.sig` and
+`tbx-<target>[.exe]` + `.sig` for every platform, signed with the same key as the app.
+
+**Daily, by itself:** `sudo bash deploy/install.sh --auto-update` installs `toybox-server-update.timer` (daily, at a
+random time within four hours, also after a missed run) which runs `toybox-server update --yes`. `--no-auto-update`
+removes it. Look with `systemctl list-timers toybox-server-update.timer` and `journalctl -u toybox-server-update`.
+
+**First install from a release:** `sudo bash install.sh --release [VERSION]` downloads the signed program and checks it
+with `minisign` (installed from the distribution) against the release key written in `install.sh`. It is checked by
+something other than the program being checked: a tampered program would vouch for itself. After that, the program
+itself updates, with the same key compiled in. (`scripts/check-release.mjs` fails a release if the key in `install.sh`
+and the one in `tauri.conf.json` differ.) `--binary` and `--source` work as before.
+
+### Before a migration: `migrate --check` and snapshots
+
+A new version may change the library's format (the steps listed in `_library_config/migrations.json`; step 5 stores
+each kept source file once per library). The server runs pending steps when it starts. To see first:
+
+```text
+toybox-server migrate --check [--json]      change nothing and say what a start would do
+sudo -u toybox toybox-server migrate        run the pending steps now (the server must be stopped)
+```
+
+`migrate --check` reads the journal and opens the database read-only (immutable), so the library is byte-for-byte as it
+was afterwards. It reports the format version now and after, each pending step with what it touches (items, files,
+bytes), a rough time, free disk space against what the step needs at its peak, where the snapshot will go, and that
+**after a step like 5, older Toybox apps and servers refuse the library** ("migrated by a newer Toybox").
+
+Before a migration that rewrites entries (step 5), core copies `library.db` alone (SQLite `VACUUM INTO`, consistent)
+to `library/_library_config/snapshots/library-v<version>-<UTC time>.db` and keeps the newest 3.
+
+What a snapshot can and cannot do: **it restores entries, not files.** Step 5 moves the kept source files into shared
+storage and deletes the copies beside the items, so a snapshot of before names files that are gone. Therefore:
+
+```text
+toybox-server snapshot list
+sudo systemctl stop toybox-server
+sudo -u toybox toybox-server snapshot restore library-v4-20261119-101500.db
+```
+
+`snapshot restore` refuses while a server answers, and **refuses when a file the snapshot's entries name is
+missing** (it lists some) rather than bring back entries that point at nothing. It keeps the database it replaced as
+`library.db.before-restore-<time>`, and puts the library journal back to the snapshot's version so an older program
+may open it. In practice that means a snapshot is the way back from a migration that changed no files (or whose
+files you restored from a backup); after step 5 has moved files, going back means restoring a backup of the data
+folder. The update procedure above keeps the previous program for exactly this reason: it cannot open a library the
+new one migrated.
 
 ## Writes are serialised
 

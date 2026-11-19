@@ -136,3 +136,12 @@ test("files of a remote library are never edited in place, with a reason", () =>
   assert.equal(transfer.fileEditBlockers([lib("disk", { canWrite: false })], [{ library: "disk" }])[0].reason, "it is read-only");
   assert.deepEqual(transfer.fileEditBlockers([cloud("edit", "admin")], [{ library: "elsewhere" }]), [], "only the libraries the items belong to count");
 });
+
+test("a version sentence is shown for a notice or a refusal and not when the versions fit", () => {
+  const library = (compat, compatMessage) => ({ kind: "remote", remote: { role: "read", serverName: "S", offline: false, url: "https://s", compat, compatMessage } });
+  assert.equal(remote.versionNotice(library("ok", undefined)), undefined);
+  assert.equal(remote.versionNotice(library(undefined, undefined)), undefined);
+  assert.equal(remote.versionNotice({ kind: "local" }), undefined);
+  assert.equal(remote.versionNotice(library("notice", "This server runs Toybox 0.4.0.")), "This server runs Toybox 0.4.0.");
+  assert.equal(remote.versionNotice(library("client_too_old", "Update Toybox to 0.5.0 or newer.")), "Update Toybox to 0.5.0 or newer.");
+});

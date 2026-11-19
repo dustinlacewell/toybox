@@ -61,7 +61,7 @@ export function AddRemoteLibraryDialog({ onAdded, onClose }: { onAdded: (library
       </label>
       <p className="remote-dialog__note">The token is kept in your system's credential store, not in Toybox's files.</p>
       {probe && <>
-        <p className="remote-dialog__ok" role="status">{connectedLine(probe.serverName, probe.role)}</p>
+        <p className="remote-dialog__ok" role="status">{connectedLine(probe.serverName, probe.role)}{probe.notice ? ` ${probe.notice}` : ""}</p>
         <p className="remote-dialog__note">{roleSummary(probe.role)}</p>
       </>}
       {error && <p className="remote-dialog__error" role="alert">{error}</p>}

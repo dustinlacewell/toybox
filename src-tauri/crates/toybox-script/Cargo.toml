@@ -1,6 +1,6 @@
 [package]
 name = "toybox-script"
-version = "0.4.1"
+version.workspace = true
 description = "Runs Toybox plugin modules outside a window: an embedded JavaScript engine, an ES module loader and the bridge to host functions"
 authors = ["Dustin Lacewell"]
 edition = "2021"

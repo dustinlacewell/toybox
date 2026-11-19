@@ -712,7 +712,20 @@ fn help_covers_every_command_and_every_command_has_clean_help() {
     assert!(text.out.contains("tbx library add"), "{}", text.out);
     world.tbx(&["help", "nonsense"]).fails_with(2);
     world.tbx(&["--help"]).ok();
-    world.tbx(&["--version"]).ok();
+    // The version is the one shared with the app and the server.
+    let version = world.tbx(&["--version"]).ok();
+    assert_eq!(version.out.trim(), format!("tbx {}", env!("CARGO_PKG_VERSION")));
+}
+
+#[test]
+fn self_status_works_without_any_data_and_names_the_running_program() {
+    let world = World::new();
+    let run = world.tbx(&["self", "status", "--json"]).ok().json();
+    assert_eq!(run["appVersion"], env!("CARGO_PKG_VERSION"));
+    assert!(run["bundled"].as_str().unwrap().contains("tbx"));
+    world.tbx(&["self"]).fails_with(2);
+    world.tbx(&["self", "frobnicate"]).fails_with(2);
+    assert!(world.tbx(&["help", "self"]).ok().out.contains("PATH"));
 }
 
 #[test]

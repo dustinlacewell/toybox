@@ -42,6 +42,9 @@ struct Saved {
     server_name: String,
     #[serde(default)]
     role: Option<RemoteRole>,
+    /// How the server's version fits this Toybox, as of the last time it answered (or refused).
+    #[serde(default)]
+    compat: Option<toybox_core::infra::library::RemoteCompat>,
     /// Shared pictures the server had at the last sync: asset id -> version.
     #[serde(default)]
     shared_thumbs: BTreeMap<String, String>,
@@ -113,7 +116,7 @@ struct Cursor {
 
 fn require_current(info: &Info) -> RemoteResult<()> {
     if info.api_version < API_LEVEL {
-        return Err(RemoteError::ServerTooOld { found: info.api_version, needed: API_LEVEL });
+        return Err(RemoteError::ServerTooOld { found: info.api_version, needed: API_LEVEL, server_version: info.server_version.clone() });
     }
     Ok(())
 }
@@ -245,6 +248,12 @@ impl RemoteLibrary {
         self.save_state();
     }
 
+    /// Keep how the server's version fits this Toybox (from a connection check).
+    pub fn remember_compat(&self, compat: toybox_core::infra::library::RemoteCompat) {
+        self.lock().saved.compat = Some(compat);
+        self.save_state();
+    }
+
     pub fn files_root(&self) -> &Path {
         self.cache.root()
     }
@@ -282,6 +291,7 @@ impl RemoteLibrary {
     pub fn status(&self) -> RemoteStatus {
         let state = self.lock();
         RemoteStatus {
+            compat: state.saved.compat.clone(),
             role: state.saved.role.unwrap_or(RemoteRole::Read),
             server_name: state.saved.server_name.clone(),
             offline: state.offline,
@@ -324,7 +334,17 @@ impl RemoteLibrary {
     /// Ask the server who we are. Updates the role and name; a server that cannot
     /// be reached (or refuses the token, or is too old) makes the library offline instead of failing.
     pub fn connect(&self) -> RemoteStatus {
-        match self.client().info().and_then(|info| require_current(&info).map(|()| info)) {
+        let asked = self.client().info();
+        // The versions are worth remembering even when the server is then refused.
+        let compat = match &asked {
+            Ok(info) => Some(crate::compat::assess(info, crate::compat::APP_VERSION)),
+            Err(error) => crate::compat::from_error(error),
+        };
+        if compat.is_some() {
+            self.lock().saved.compat = compat;
+            self.save_state();
+        }
+        match asked.and_then(|info| require_current(&info).map(|()| info)) {
             Ok(info) => {
                 {
                     let mut state = self.lock();
@@ -377,7 +397,7 @@ impl RemoteLibrary {
                 }
                 self.note_online();
             }
-            Err(error) if error.is_connectivity() || error.is_access() || matches!(error, RemoteError::Protocol(_) | RemoteError::ServerTooOld { .. }) => {
+            Err(error) if error.is_connectivity() || error.is_access() || matches!(error, RemoteError::Protocol(_) | RemoteError::ServerTooOld { .. } | RemoteError::ClientTooOld { .. }) => {
                 self.go_offline(&error);
                 return self.cache_ready(error);
             }

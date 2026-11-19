@@ -9,7 +9,7 @@ import { useCallback, useEffect, useState } from "react";
 import { Button } from "@ldlework/toybox-sdk/ui";
 
 import type { LibraryInfo } from "../domain/catalog";
-import { canManageAccess, formatBytes } from "../domain/remoteLibrary";
+import { canManageAccess, formatBytes, versionNotice } from "../domain/remoteLibrary";
 import { accessSentence } from "../domain/librarySettings";
 import { clearRemoteCache, reconnectRemoteLibrary, remoteCacheSize } from "../services/tauriApi";
 import { ChangeTokenDialog, ManageAccessDialog } from "./RemoteAccessDialogs";
@@ -39,6 +39,8 @@ export function RemoteLibraryDetails({ library, busy, run, onChanged }: {
         {canManageAccess(library) && <Button variant="ghost" disabled={!!busy} onClick={() => setManaging(true)}>Manage access…</Button>}
       </div>
     </dd>
+    {versionNotice(library) && <><dt>Versions</dt>
+      <dd><span className={library.remote.compat === "notice" ? "libraries__why" : "libraries__problem"} role={library.remote.compat === "notice" ? "status" : "alert"}>{versionNotice(library)}</span></dd></>}
     {offline && <><dt>Connection</dt>
       <dd><span className="libraries__problem" role="alert">{library.offlineReason ?? "The server cannot be reached right now."}</span> Your cached copy of the catalog is shown and nothing can be changed until it is back.
         <div className="libraries__inline">

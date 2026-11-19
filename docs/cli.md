@@ -18,6 +18,31 @@ app to be running nor Node.
 A plugin has one implementation of its work, in modules with no user
 interface. Its panel in the app and its `tbx` commands both call them.
 
+## Installing
+
+`tbx` comes with the desktop app and is replaced together with it by the app's updater, so it is always the app's
+version (`tbx --version` is the version of the app and of `toybox-server`). It is installed next to the app's own
+program:
+
+| Platform | Where `tbx` is | On the PATH |
+| --- | --- | --- |
+| Windows (installer) | `<install folder>\tbx.exe` | The installer runs `tbx self install`: a copy of `tbx.exe` goes into `<install folder>\bin\`, a folder with nothing else in it, and that folder is added to **your** PATH (no administrator; an update does not add it twice; uninstalling removes it). The install folder itself is not put on PATH because it also holds `toybox.exe` and `uninstall.exe`. Open a new terminal afterwards. |
+| macOS | `Toybox.app/Contents/MacOS/tbx` | Not by itself: an app cannot write `/usr/local/bin` silently. Settings > Updates > Command line has "Add to my PATH", which makes the link `~/.local/bin/tbx` (and says if that folder is not on your PATH). The link stays valid across app updates. |
+| Linux `.deb` / `.rpm` | `/usr/bin/tbx` | Yes, the package puts it there. |
+| Linux AppImage | inside the AppImage | "Add to my PATH" copies it to `~/.local/bin/tbx` (the AppImage's own path changes on every run, so a link would break); the row shows when the copy is older than the app and offers to update it. |
+
+The same from a terminal, for your user only: `tbx self install`, `tbx self uninstall`, `tbx self status`
+(works without any libraries). In Settings the row shows whether a terminal finds `tbx`, where the bundled one is, and
+a button to add it, update it or remove it. `tbx status` prints the version and path of the running `tbx` and warns
+when it differs from the installed app (the app leaves its version in the data folder each time it starts):
+"tbx 0.4.0 is older than the installed Toybox 0.4.1. Run the one that came with it ...".
+
+**Without the app** (a server, a build machine): every release has `tbx-<target>[.exe]` and a `.sig` file for Windows,
+macOS (Apple Silicon and Intel) and Linux x86-64, signed with the key that signs the app's updates
+(`minisign -V -p <key> -m tbx-<target>`; the key is `plugins.updater.pubkey` in `tauri.conf.json`, base64 of the
+minisign key file). Download, make it executable, run `tbx self install`. Plugins are installed with
+`tbx plugin install <DIR>`. Such a copy does not update itself: download the new one with the new release.
+
 ## Building
 
 ```
@@ -30,7 +55,9 @@ The program is `src-tauri/target/release/tbx` (`tbx.exe` on Windows). The
 plugin SDK is compiled into it, which is why the SDK is built first; the build
 stops with that instruction when `packages/toybox-sdk/dist` is missing
 (`TOYBOX_SDK_DIST` names another folder). `tbx` is not part of the default
-workspace build and is not yet shipped with the app's installer.
+workspace build. Release installers include it (see Installing): the release workflow builds it with
+`node scripts/prepare-tbx-sidecar.mjs`, which puts it in `src-tauri/binaries/` for Tauri's `bundle.externalBin`,
+configured only in `src-tauri/tauri.release.conf.json` so `tauri dev` and a plain `tauri build` work without it.
 
 Plugins are found in the `plugins` folder of the data folder, where the app
 installs the bundled ones the first time it runs. On a machine without the app,
@@ -122,7 +149,8 @@ so they are not selection filters there.
 
 | Command | Does |
 | --- | --- |
-| `tbx status` | Where the data is, the libraries with their item counts, the plugins that are on, and anything wrong (a library that is missing, a blocked plugin, a remote that is offline). |
+| `tbx status` | Where the data is, the libraries with their item counts, the plugins that are on, this `tbx`'s version and path, and anything wrong (a library that is missing, a blocked plugin, a remote that is offline or whose server and this `tbx` do not fit, a `tbx` that differs from the installed app). Server versions that merely differ are listed as notices, not problems. |
+| `tbx self install\|uninstall\|status` | Put this `tbx` on your PATH for your user, take it off, or say which `tbx` a terminal finds (see Installing). Needs no libraries. |
 | `tbx help [COMMAND]...` | Help. `tbx help --all` prints the whole command tree, including plugin commands; with `--json` as data. |
 | `tbx completions <bash\|zsh\|fish\|powershell>` | A completion script. |
 
@@ -140,7 +168,7 @@ so they are not selection filters there.
 | `tbx library default <LIBRARY>` | |
 | `tbx library remove <LIBRARY>` | Forget a library. Its files stay where they are (for a remote library its token and downloaded files go; the server is untouched). `--dry-run` prints what would happen. |
 | `tbx library scan [LIBRARY]` | Local: rebuild the index from the manifest and the files. Remote: fetch what changed on the server. |
-| `tbx library check [LIBRARY] [--fix]` | Verify the database and that every item's files exist, and that each kept source file (stored by content) still is what its name says. Exit `4` when something is wrong. Stored source files no item uses are reported (not an error); `--fix` removes them and changes nothing else. |
+| `tbx library check [LIBRARY] [--fix]` | Verify the database and that every item's files exist, and that each kept source file (stored by content) still is what its name says. Exit `4` when something is wrong. Stored source files no item uses are reported (not an error); `--fix` removes them and changes nothing else. A local library with library-format migrations this version would run on opening gets a line saying so (`pendingMigrations` in JSON; the details are `toybox-server migrate --check`). `tbx library info` shows the same, and for a remote library the server's version, the oldest Toybox it serves and the version sentence (`remote.serverVersion`, `minClientVersion`, `compat`, `compatMessage`). |
 | `tbx library cache size\|clear [LIBRARY]` | The downloaded files of a remote library. |
 | `tbx library token list [LIBRARY]` | Access tokens of a remote library (needs an admin token). |
 | `tbx library token create --name NAME --role read\|write\|admin [LIBRARY]` | Make a token; its secret is printed once, alone, on standard output. |
@@ -264,7 +292,11 @@ in the plugin's command-line module.
   (`text` → string, `checkbox` → flag, `select` → choice, `directory` and
   `saveFile` → path).
 - A command with `"selection": true` accepts the standard selection and
-  receives the selected items.
+  receives the selected items. Add `"files": true` when it reads their files or
+  the source files kept with them: for a remote library those are downloaded
+  before the command runs (the app does the same before it opens an asset
+  panel). A command that only reads the items' records leaves it out, so a large
+  selection downloads nothing.
 
 **Arguments and options**
 

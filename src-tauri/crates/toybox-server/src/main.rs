@@ -2,8 +2,12 @@ use clap::Parser;
 
 fn main() {
     let cli = toybox_server::cli::Cli::parse();
-    if let Err(message) = toybox_server::cli::run(cli) {
-        eprintln!("toybox-server: {message}");
-        std::process::exit(1);
+    match toybox_server::cli::run(cli) {
+        Ok(0) => {}
+        Ok(code) => std::process::exit(code),
+        Err(message) => {
+            eprintln!("toybox-server: {message}");
+            std::process::exit(1);
+        }
     }
 }

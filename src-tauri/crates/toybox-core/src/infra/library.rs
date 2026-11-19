@@ -33,9 +33,26 @@ pub enum RemoteRole {
     Admin,
 }
 
+/// How this Toybox and a library's server fit together (the comparison and its words live in
+/// `toybox-remote`). `state` is `ok`, `notice` (works, versions differ), `server_too_old` or `client_too_old`.
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, serde::Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct RemoteCompat {
+    pub state: String,
+    pub server_version: String,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub min_client_version: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub min_api_version: Option<u32>,
+    /// A sentence for the person, when there is something to say.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub message: Option<String>,
+}
+
 /// What this client last learned about a remote library's server.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct RemoteStatus {
+    pub compat: Option<RemoteCompat>,
     pub role: RemoteRole,
     pub server_name: String,
     /// The server could not be reached the last time we tried; the cached catalog is used.
@@ -53,6 +70,33 @@ pub struct RemoteInfo {
     pub role: RemoteRole,
     pub server_name: String,
     pub offline: bool,
+    /// Version of the server program, when known.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub server_version: Option<String>,
+    /// The oldest Toybox the server serves, when it said.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub min_client_version: Option<String>,
+    /// `ok`, `notice`, `server_too_old` or `client_too_old`.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub compat: Option<String>,
+    /// The sentence to show about the versions, if any.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub compat_message: Option<String>,
+}
+
+impl RemoteInfo {
+    pub fn new(url: String, role: RemoteRole, server_name: String, offline: bool, compat: Option<&RemoteCompat>) -> RemoteInfo {
+        RemoteInfo {
+            url,
+            role,
+            server_name,
+            offline,
+            server_version: compat.map(|c| c.server_version.clone()).filter(|v| !v.is_empty()),
+            min_client_version: compat.and_then(|c| c.min_client_version.clone()),
+            compat: compat.map(|c| c.state.clone()),
+            compat_message: compat.and_then(|c| c.message.clone()),
+        }
+    }
 }
 
 /// What the frontend is told about a library.
@@ -149,14 +193,14 @@ impl Registry {
                                     id: entry.id.clone(), name: entry.name.clone(), kind: entry.kind, root: entry.root.clone(),
                                     available, can_write, can_edit_files, is_default,
                                     offline: known.offline, offline_reason: known.offline_reason.clone(),
-                                    remote: Some(RemoteInfo { url, role: known.role, server_name: known.server_name, offline: known.offline }),
+                                    remote: Some(RemoteInfo::new(url, known.role, known.server_name, known.offline, known.compat.as_ref())),
                                 }
                             }
                             None => LibraryInfo {
                                 id: entry.id.clone(), name: entry.name.clone(), kind: entry.kind, root: entry.root.clone(),
                                 available: false, can_write: false, can_edit_files: false, is_default,
                                 offline: false, offline_reason: None,
-                                remote: Some(RemoteInfo { url, role: RemoteRole::Read, server_name: String::new(), offline: false }),
+                                remote: Some(RemoteInfo::new(url, RemoteRole::Read, String::new(), false, None)),
                             },
                         }
                     }
@@ -318,7 +362,7 @@ mod tests {
     fn a_remote_library_is_described_by_its_role_and_whether_the_server_answers() {
         let entry = LibraryEntry::remote("r1", "Cloud", "https://assets.example.com");
         let registry = Registry { libraries: vec![entry.clone()], default: Some("r1".into()) };
-        let status = |role, offline, has_cache| RemoteStatus { role, server_name: "My Toybox".into(), offline, offline_reason: offline.then(|| "Cannot reach the server".to_string()), has_cache };
+        let status = |role, offline, has_cache| RemoteStatus { compat: None, role, server_name: "My Toybox".into(), offline, offline_reason: offline.then(|| "Cannot reach the server".to_string()), has_cache };
         let list = |known: Option<RemoteStatus>| serde_json::to_value(registry.list_with(&|_| known.clone())).unwrap();
 
         // Online: the role decides whether it can be written; files are never edited in place.

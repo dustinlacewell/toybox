@@ -11,7 +11,7 @@ use crate::selection::{add_filter_args, add_selection_args, add_selection_args_w
 
 /// Names of the built-in top-level commands (a plugin command may not take one).
 pub const BUILTIN: &[&str] = &[
-    "status", "help", "completions", "library", "search", "count", "show", "path", "types", "facets", "tag", "edit", "favorite",
+    "status", "self", "help", "completions", "library", "search", "count", "show", "path", "types", "facets", "tag", "edit", "favorite",
     "collection", "import", "export", "copy", "move", "delete", "thumbs", "plugin", "config", "debug",
 ];
 
@@ -67,6 +67,7 @@ pub fn build(plugins: &[PluginCli], color: clap::ColorChoice) -> Command {
         .arg(Arg::new("color").long("color").value_name("WHEN").global(true).help_heading("Global options").value_parser(PossibleValuesParser::new(["auto", "always", "never"])).default_value("auto").help("Colour on the terminal"));
     for command in [
         status(),
+        self_command(),
         help(),
         completions(),
         library(),
@@ -103,6 +104,14 @@ pub fn build(plugins: &[PluginCli], color: clap::ColorChoice) -> Command {
 fn status() -> Command {
     Command::new("status").about("Where the data is, the libraries, the plugins that are on, and anything wrong")
         .after_help("Exit status is 0 even when something is wrong; the problems are listed.")
+}
+
+fn self_command() -> Command {
+    Command::new("self").about("Put this tbx on your PATH (install), take it off (uninstall), or check it (status)")
+        .after_help("tbx comes with the Toybox app and is updated with it. `tbx self install` adds it for your user only (no administrator): on Windows a folder with just tbx.exe on your PATH, elsewhere a link in ~/.local/bin.")
+        .subcommand(Command::new("install").about("Make `tbx` available in new terminals"))
+        .subcommand(Command::new("uninstall").about("Undo `tbx self install`"))
+        .subcommand(Command::new("status").about("Which tbx a terminal finds, and whether it matches this one"))
 }
 
 fn help() -> Command {

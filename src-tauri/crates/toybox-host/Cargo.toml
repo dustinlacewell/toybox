@@ -1,6 +1,6 @@
 [package]
 name = "toybox-host"
-version = "0.4.1"
+version.workspace = true
 description = "What the Toybox app and the tbx command line both do around libraries: the registered libraries, plugins, settings, and routing a request to a local or remote library (no GUI dependency)"
 authors = ["Dustin Lacewell"]
 edition = "2021"
@@ -18,3 +18,7 @@ image = { workspace = true }
 dirs = "7"
 rusqlite = { workspace = true }
 sha2 = { workspace = true }
+
+[target.'cfg(windows)'.dependencies]
+winreg = "0.55"
+windows-sys = { version = "0.61", features = ["Win32_Foundation", "Win32_UI_WindowsAndMessaging"] }

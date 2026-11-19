@@ -17,9 +17,11 @@ jobs:
           - platform: macos-latest # Apple Silicon (aarch64)
             args: "--target aarch64-apple-darwin"
             rust-target: aarch64-apple-darwin
+            bundle-target: aarch64-apple-darwin
           - platform: macos-15-intel # Intel (x86_64)
             args: "--target x86_64-apple-darwin"
             rust-target: x86_64-apple-darwin
+            bundle-target: x86_64-apple-darwin
           - platform: ubuntu-22.04
             args: ""
             rust-target: x86_64-unknown-linux-gnu
@@ -66,10 +68,17 @@ jobs:
       - name: Install frontend dependencies
         run: pnpm install --frozen-lockfile
 
-      - name: Validate release version and signing configuration
+      # tbx ships inside every installer (Tauri's externalBin, only in the release config): build it for this
+      # target first and put it where Tauri looks for it. Plain `tauri dev` / `tauri build` do not need this.
+      - name: Build the tbx that goes into the installers
+        run: node scripts/prepare-tbx-sidecar.mjs --target ${{ matrix.rust-target }}
+
+      - name: Validate release version, signing configuration and the tbx sidecar
         env:
           RELEASE_TAG: ${{ github.ref_name }}
           TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
+          RUST_TARGET: ${{ matrix.rust-target }}
+          REQUIRE_TBX: "1"
         run: node scripts/check-release.mjs
 
       - name: Build and release Toybox
@@ -85,4 +94,84 @@ jobs:
           releaseDraft: true
           prerelease: false
           includeUpdaterJson: true
-          args: ${{ matrix.args }}
+          args: ${{ matrix.args }} --config src-tauri/tauri.release.conf.json
+
+      - name: Check that tbx is in what was built
+        env:
+          RUST_TARGET: ${{ matrix.rust-target }}
+          BUNDLE_TARGET: ${{ matrix.bundle-target }}
+        run: node scripts/check-release.mjs --bundle
+
+  # The programs that are not installers: toybox-server (Linux x86_64) and tbx (every platform), each signed
+  # with the key that signs the app's updates and attached to the same draft release, plus the manifest
+  # `toybox-server update` reads. They wait for the app job because that is what creates the draft.
+  standalone:
+    needs: release
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - platform: ubuntu-22.04 # the oldest runner we use: the binaries run on newer glibc too
+            rust-target: x86_64-unknown-linux-gnu
+            only: all
+            files: release-assets/*
+          - platform: macos-latest
+            rust-target: aarch64-apple-darwin
+            only: tbx
+            files: release-assets/tbx-*
+          - platform: macos-15-intel
+            rust-target: x86_64-apple-darwin
+            only: tbx
+            files: release-assets/tbx-*
+          - platform: windows-latest
+            rust-target: x86_64-pc-windows-msvc
+            only: tbx
+            files: release-assets/tbx-*
+
+    runs-on: ${{ matrix.platform }}
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 10
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+
+      - name: Install Rust toolchain
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: ${{ matrix.rust-target }}
+
+      - name: Cache cargo
+        uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: src-tauri -> target
+          key: standalone-${{ matrix.rust-target }}
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Validate release version and signing configuration
+        env:
+          RELEASE_TAG: ${{ github.ref_name }}
+          TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
+        run: node scripts/check-release.mjs
+
+      # tbx embeds the plugin SDK; the script builds it when it is missing.
+      - name: Build, sign and describe the programs
+        env:
+          TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
+          TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
+        run: node scripts/build-server-release.mjs --target ${{ matrix.rust-target }} --only ${{ matrix.only }} --out release-assets --notes "Toybox ${{ github.ref_name }}"
+
+      - name: Attach them to the draft release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ github.ref_name }}
+          draft: true
+          files: ${{ matrix.files }}

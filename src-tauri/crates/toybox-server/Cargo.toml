@@ -1,6 +1,6 @@
 [package]
 name = "toybox-server"
-version = "0.4.1"
+version.workspace = true
 description = "Headless Toybox library server: one library over HTTP with token roles"
 authors = ["Dustin Lacewell"]
 edition = "2021"
@@ -25,7 +25,15 @@ clap = { workspace = true }
 rand = { workspace = true }
 base64 = { workspace = true }
 subtle = { workspace = true }
+semver = { workspace = true }
+ureq = { workspace = true }
+minisign-verify = "0.3"
+
+[build-dependencies]
+serde_json = { workspace = true }
 
 [dev-dependencies]
 tower = { version = "0.5", features = ["util"] }
 http-body-util = "0.1"
+# Test keys: the tests sign with a key they generate, never with a real one.
+ring = "0.17"
