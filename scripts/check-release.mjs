@@ -28,7 +28,8 @@ if(!tauri||tauri.split('.').slice(0,2).join('.')!==api.split('.').slice(0,2).joi
 if(!config.plugins?.updater?.pubkey||!config.bundle.createUpdaterArtifacts)problems.push('Signed updater configuration is incomplete.');
 if(process.env.RELEASE_TAG&&process.env.RELEASE_TAG.replace(/^v/,'')!==app.version)problems.push('Release tag must match the app version.');
 // The signing key and the tag only exist in the release workflow.
-if(process.env.CI&&!process.env.TAURI_SIGNING_PRIVATE_KEY)problems.push('Configure the TAURI_SIGNING_PRIVATE_KEY repository secret before releasing.');
+// The post-build check (--bundle) only looks at what was built; the key was checked before the build.
+if(process.env.CI&&!process.argv.includes('--bundle')&&!process.env.TAURI_SIGNING_PRIVATE_KEY)problems.push('Configure the TAURI_SIGNING_PRIVATE_KEY repository secret before releasing.');
 // deploy/install.sh verifies --release downloads with its own copy of the release public key and repository.
 const installer=readFileSync('deploy/install.sh','utf8');
 if(installer.match(/^RELEASE_PUBKEY="([^"]+)"/m)?.[1]!==config.plugins?.updater?.pubkey)problems.push('deploy/install.sh RELEASE_PUBKEY must equal plugins.updater.pubkey in tauri.conf.json.');
@@ -53,7 +54,7 @@ if(process.argv.includes('--bundle')){
   for(const app of find(bundle,(e,p)=>e.isDirectory()&&p.endsWith('.app')))if(!existsSync(join(app,'Contents','MacOS','tbx')))problems.push(`${app} has no Contents/MacOS/tbx.`);
   for(const deb of find(bundle,(e,p)=>e.isFile()&&p.endsWith('.deb'))){
     const listing=spawnSync('dpkg-deb',['-c',deb],{encoding:'utf8'});
-    if(listing.status===0&&!/\.\/usr\/bin\/tbx\s*$/m.test(listing.stdout))problems.push(`${deb} does not install /usr/bin/tbx.`);
+    if(listing.status===0&&!/(^|[\s/])usr\/bin\/tbx\s*$/m.test(listing.stdout))problems.push(`${deb} does not install /usr/bin/tbx.`);
   }
 }
 if(problems.length){for(const problem of problems)console.error('error: '+problem);process.exit(1);}
