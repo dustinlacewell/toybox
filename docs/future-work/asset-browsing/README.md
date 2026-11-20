@@ -1,6 +1,6 @@
 # Finding assets: filter, search, sort and explore
 
-A concept for how people find things in a Toybox library of any size and any asset type. It replaces the include-only facet rail and the name search with one query that can include and exclude, a sort and group control, an "All assets" view across types, saved views, and an Explore page. Nothing here is built yet.
+A concept for how people find things in a Toybox library of any size and any asset type. It replaces the include-only facet rail and the name search with one query that can include and exclude, a sort control and grid zoom, an "All assets" view across types, saved views, and an Explore page. Nothing here is built yet.
 
 ## What is there today
 
@@ -48,28 +48,30 @@ The rail moves out of the navigation sidebar into its own **Filters pane on the 
 - **Type-specific groups** come from the type's plugin: a range with a histogram (triangles, texture size, duration), and Any/Yes/No switches (rigged, has animations, loops). They show only when one type is in view.
 - A summary line under the query says what the exclusions remove ("Kitbash Works and Unknown licence hidden (−143)") with Undo, so a forgotten exclusion is visible.
 
-### 3. Sort and group
+### 3. Sort and zoom
 
-Sorting is part of the content, not the page header: the **result line** under the search bar holds the count and what is hidden, then **Sort** and **Group** buttons and the grid/list switch. Sort opens:
+Sorting is part of the content, not the page header: the **result line** under the search bar holds the count and what is hidden, then a **Sort** button and the grid **zoom** (− 100% +). The zoom sets the thumbnail size, the same `cardSize` that Ctrl+wheel already changes in `AssetGrid`; the grid stays the only layout (no list view). There is no grouping: publishers, sources and tags are filters already. Sort opens:
 
 - Sort by: Relevance (only while searching), Name, Date added, Recently changed, Publisher, Source, File size, Format, and keys the type's plugin declares (Triangles, Materials used, Clip length, Duration, Resolution).
 - Direction, worded for the key ("Newest first", "A → Z", "Largest first").
-- Group (its own button): None, Publisher, Source, Library, Type, Category, or a tag prefix (`biome:`). Each group has a header with its count and *Only this* / *Exclude*, and can collapse.
+
 - Shuffle: a new random order, for browsing.
 
 The sort is remembered per type.
 
-![Sort menu, grouped by publisher](screens/sort-group.png)
+![Sort menu and zoom in the result line](screens/sort-group.png)
 
 ### 4. All assets
 
 An **All assets** entry above the types shows every type in one grid. Type becomes a filter group like any other, tiles carry a small type label, and the summary counts per type. Shared fields (publisher, source, licence, format, tags, library, favourite, collection) filter across types; type-specific groups appear once a single type is chosen.
 
+Selecting several tiles (click, Shift-click, Ctrl-click as today) checks them, and the **existing selection bar** (Clear, Add to collection, Tag…, Copy to library…, Move to library…, Delete, Export) appears just above the preview tray, which then shows the selected thumbnails stacked with the count and the mix of types.
+
 ![All assets, filtered to one publisher](screens/all-types.png)
 
 ### 5. Saved views
 
-**Save as view** keeps the query, sort and grouping under a name in a *Saved views* group of the sidebar, with a live count. A view is a smart collection: it updates as the library changes. Built-in views can ship with it ("Added this week", "Unknown licence"). Views live in `user.db` next to collections; a view may also be saved into the library so a team shares it.
+**Save as view** keeps the query and sort under a name in a *Saved views* group of the sidebar, with a live count. A view is a smart collection: it updates as the library changes. Built-in views can ship with it ("Added this week", "Unknown licence"). Views live in `user.db` next to collections; a view may also be saved into the library so a team shares it.
 
 ### 6. Explore
 
@@ -109,7 +111,7 @@ favorites | any or yes or no | default any |
 collection | string | | as today
 libraries | string[] | | as today
 sort | SortKey | not null | key and direction
-group | GroupKey | | none, publisher, source, library, type, category or a tag prefix
+
 visibility | VisibilityRules | not null | unchanged
 
 ## Condition | One chip
@@ -143,7 +145,7 @@ All in `src-tauri/crates/toybox-core/src/infra/store/browse.rs` and `mod.rs` unl
 - **Sort keys.** `name` is indexed today (`assets_browse`, and `merged` in the browse index). New keys need columns: `added_at` (set at import; for existing rows, from the change log `revision` order as a stand-in), `changed_at` (from `revision`), `byte_size`. Sorting by publisher/source/format uses the existing `(type, publisher)` etc. indexes extended with `name, id`. Each sorted key needs an index of the form `(type, key, name, id)` so a page stays an index walk; the browse index `merged` stays name-ordered and is used only for the plain name sort.
 - **Plugin properties.** A type declares filterable and sortable properties (`key`, label, `number` or `boolean`, unit) in its asset-type contract (`docs/asset-types.md`); the importer writes them to a new `asset_props(asset_id, key, num, text)` table with an index on `(key, num, asset_id)`. Range histograms are one `GROUP BY` bucket query per property.
 - **All assets.** `a.type = ?` becomes `a.type IN (…)` or is dropped; the unconstrained path walks `merged` without the `type = ?1` prefix. Counts per type already exist (`type_counts`).
-- **Group by.** The page query orders by the group key first; group headers and their counts come from a `facet_counts`-style call for that field under the query.
+
 - **Relevance.** FTS5 `bm25()` when the driver is the text search; otherwise name order.
 
 `tbx` takes the same query string (`tbx list 'tag:sci-fi -publisher:"Kitbash Works" sort:added-'`), parsed by one shared parser in `toybox-core`, so the app's query bar and the CLI agree.
@@ -152,7 +154,7 @@ All in `src-tauri/crates/toybox-core/src/infra/store/browse.rs` and `mod.rs` unl
 
 1. Exclude and Any/All in the backend and `BrowseFilter`, three-state rows in the rail. Biggest gain, no schema change.
 2. Query bar with chips and suggestions (suggestions reuse `search_tags` and `facet_counts`), the shared query parser, `tbx` support.
-3. Sort keys `added`, `changed`, `size`, publisher, source; group by. Needs the new columns and indexes (catalog schema bump).
+3. Sort keys `added`, `changed`, `size`, publisher, source; the zoom control. Needs the new columns and indexes (catalog schema bump).
 4. All assets and saved views.
 5. Plugin-declared properties (`asset_props`), ranges and type-specific sort keys.
 6. Explore page and "Find more by" / "More like this" in the inspector.
