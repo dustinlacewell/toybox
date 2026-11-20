@@ -5,7 +5,11 @@
   "icon": "icons/skybox.svg",
   "entry": "dist/index.js",
   "assetTypes": [
-    { "id": "skybox", "label": "Skyboxes", "singular": "Skybox", "icon": "icons/skybox.svg", "order": 50 }
+    { "id": "skybox", "label": "Skyboxes", "singular": "Skybox", "icon": "icons/skybox.svg", "order": 50,
+      "properties": [
+        { "id": "width", "label": "Width", "path": "meta.width", "unit": "px" },
+        { "id": "height", "label": "Height", "path": "meta.height", "unit": "px" }
+      ] }
   ],
   "description": "The Skyboxes type of the library and its importer, for skies in your scenes: HDR and EXR panoramas, image panoramas, six-image cube maps, and cube maps unfolded into a cross or strip.",
   "permissions": { "fsRead": true, "fsWrite": true },
