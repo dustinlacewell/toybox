@@ -47,3 +47,4 @@ button.facets__row { gap: 8px; padding: 0 8px; border: 0; background: transparen
 .facets__range-label { font-size: 12px; color: var(--text-1); }
 .facets__range-fields { display: flex; align-items: center; gap: 6px; color: var(--text-2); }
 .facets__range-fields .ds-input { height: 26px; padding: 2px 8px; }
+.facets__more { display: block; border: 0; background: transparent; padding: 4px 8px; color: var(--accent); font: inherit; font-size: 12px; cursor: pointer; }

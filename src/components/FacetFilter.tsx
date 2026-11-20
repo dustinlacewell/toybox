@@ -8,11 +8,11 @@ import { memo, useEffect, useMemo, useState, type ReactNode } from "react";
 import { Bookmark, Check, ChevronDown, ChevronRight, Minus, Star, X } from "lucide-react";
 
 import type { LibraryInfo } from "../domain/catalog";
-import { ALL_TYPES, facetState, formatLabel, type FacetField, type Filter } from "../domain/facets";
+import { ALL_TYPES, FIND_FROM, facetState, formatLabel, narrowRows, type ExcludableField, type FacetField, type Filter } from "../domain/facets";
 import type { VisibilityRules } from "../domain/browseQuery";
 import type { Count, FacetCounts } from "../services/browse";
 import type { AssetTypeEntry, AssetTypeProperty } from "../services/assetTypes";
-import { TAG_ROWS, useTagSearch } from "../state/libraryCounts";
+import { useTagSearch } from "../state/libraryCounts";
 import { Button, TextInput } from "@ldlework/toybox-sdk/ui";
 import { RemoteMark } from "./RemoteMark";
 import "./FacetFilter.css";
@@ -52,12 +52,15 @@ function rowsOf(counts: Count[] | undefined, chosen: ReadonlySet<string>, exclud
 export const FacetFilter = memo(function FacetFilter({ counts, rules, filter, libraries = [], types = [], typeCounts, properties, onFacet, onTagsMatch, onRange, onFavorites, onKind, onClear, onSaveView, onClose }: Props) {
   const inLibrary = useMemo(() => new Map((counts?.libraries ?? []).map(({ value, count }) => [value, count])), [counts]);
   const [tagSearch, setTagSearch] = useState("");
+  const [allTags, setAllTags] = useState(false);
   const found = useTagSearch(filter.kind, rules, tagSearch);
   const tagTotal = counts?.tagTotal ?? 0;
   const tagRows = useMemo(() => {
     const rows = found ? byValue(found) : rowsOf(counts?.tags, filter.tags, filter.exclude.tags);
     return { rows, hidden: found ? 0 : Math.max(tagTotal - rows.length, 0) };
   }, [counts, found, tagTotal, filter.tags, filter.exclude.tags]);
+  // Like the other fields: the first few until "Show more"; a search shows every match.
+  const shownTags = narrowRows(tagRows.rows, "", (value) => facetState(filter, "tags", value) !== "off", (count) => count.value, FIND_FROM, allTags || !!found);
   const row = (field: FacetField, value: string, count: number, label: ReactNode = value || "Unknown", mark?: ReactNode) =>
     <FacetRow key={value} label={label} mark={mark} count={count} state={facetState(filter, field, value)} canExclude={field !== "libraries"} onChange={(state, only) => onFacet(field, value, state, only)} />;
   const every = filter.kind === ALL_TYPES;
@@ -78,17 +81,19 @@ export const FacetFilter = memo(function FacetFilter({ counts, rules, filter, li
           </button>)}
         </FacetGroup>}
         {libraries.length > 1 && <FacetGroup title="Libraries">{libraries.map((library) => row("libraries", library.id, inLibrary.get(library.id) ?? 0, library.name, <RemoteMark library={library} />))}</FacetGroup>}
-        <FacetGroup title="Publishers">{rowsOf(counts?.publishers, filter.publishers, filter.exclude.publishers).map(({ value, count }) => row("publishers", value, count))}</FacetGroup>
+        <FieldGroup title="Publishers" noun="publishers" field="publishers" filter={filter} rows={rowsOf(counts?.publishers, filter.publishers, filter.exclude.publishers)} row={row} />
         {(tagTotal > 0 || filter.tags.size > 0 || filter.exclude.tags.size > 0) && <FacetGroup title="Tags" mode={filter.tags.size > 1 ? { value: filter.tagsMatch, onChange: onTagsMatch } : undefined}>
-          {tagTotal > TAG_ROWS && <TextInput className="facets__tag-search" aria-label="Find a tag" placeholder={`Find in ${tagTotal.toLocaleString()} tags`} value={tagSearch} onChange={(event) => setTagSearch(event.currentTarget.value)} />}
-          {tagRows.rows.map(({ value, count }) => row("tags", value, count))}
-          {tagRows.hidden > 0 && <span className="facets__empty">{tagRows.hidden.toLocaleString()} more: search to find them</span>}
+          {tagTotal > FIND_FROM && <TextInput className="facets__tag-search" aria-label="Find a tag" placeholder={`Find in ${tagTotal.toLocaleString()} tags`} value={tagSearch} onChange={(event) => setTagSearch(event.currentTarget.value)} />}
+          {shownTags.rows.map(({ value, count }) => row("tags", value, count))}
+          {shownTags.hidden > 0 && <button type="button" className="facets__more" onClick={() => setAllTags(true)}>Show {shownTags.hidden.toLocaleString()} more</button>}
+          {allTags && !found && tagRows.rows.length > FIND_FROM && <button type="button" className="facets__more" onClick={() => setAllTags(false)}>Show fewer</button>}
+          {tagRows.hidden > 0 && (allTags || !!found) && <span className="facets__empty">{tagRows.hidden.toLocaleString()} more: search to find them</span>}
           {!tagRows.rows.length && <span className="facets__empty">No tag matches</span>}
         </FacetGroup>}
-        <FacetGroup title="Sources">{rowsOf(counts?.sources, filter.sources, filter.exclude.sources).map(({ value, count }) => row("sources", value, count))}</FacetGroup>
-        <FacetGroup title="Licences">{rowsOf(counts?.licenses, filter.licenses, filter.exclude.licenses).map(({ value, count }) => row("licenses", value, count))}</FacetGroup>
-        {(counts?.formats.length ?? 0) > 1 && <FacetGroup title="Formats">{rowsOf(counts?.formats, filter.formats, filter.exclude.formats).map(({ value, count }) => row("formats", value, count, formatLabel(value)))}</FacetGroup>}
-        <FacetGroup title="Category">{rowsOf(counts?.categories, filter.categories, filter.exclude.categories).map(({ value, count }) => row("categories", value, count, titleCase(value)))}</FacetGroup>
+        <FieldGroup title="Sources" noun="sources" field="sources" filter={filter} rows={rowsOf(counts?.sources, filter.sources, filter.exclude.sources)} row={row} />
+        <FieldGroup title="Licences" noun="licences" field="licenses" filter={filter} rows={rowsOf(counts?.licenses, filter.licenses, filter.exclude.licenses)} row={row} />
+        {(counts?.formats.length ?? 0) > 1 && <FieldGroup title="Formats" noun="formats" field="formats" filter={filter} rows={rowsOf(counts?.formats, filter.formats, filter.exclude.formats)} row={row} label={formatLabel} />}
+        <FieldGroup title="Category" noun="categories" field="categories" filter={filter} rows={rowsOf(counts?.categories, filter.categories, filter.exclude.categories)} row={row} label={titleCase} />
         {properties.length > 0 && <FacetGroup title="Properties">
           {properties.map((property) => <RangeRow key={property.path} property={property} bounds={filter.ranges[property.path]} onChange={(bounds) => onRange(property.path, bounds)} />)}
         </FacetGroup>}
@@ -97,6 +102,26 @@ export const FacetFilter = memo(function FacetFilter({ counts, rules, filter, li
     </aside>
   );
 });
+
+/** A field's rows; with more than `FIND_FROM` values, a find field and "Show more". Chosen and left-out values stay in view. */
+function FieldGroup({ title, noun, field, filter, rows, row, label = (value) => value || "Unknown" }: {
+  title: string; noun: string; field: ExcludableField; filter: Filter; rows: Count[];
+  row: (field: FacetField, value: string, count: number, label?: ReactNode) => ReactNode;
+  label?: (value: string) => string;
+}) {
+  const [needle, setNeedle] = useState("");
+  const [all, setAll] = useState(false);
+  const long = rows.length > FIND_FROM;
+  const keep = (value: string) => facetState(filter, field, value) !== "off";
+  const shown = narrowRows(rows, long ? needle : "", keep, (count) => label(count.value), FIND_FROM, all || !!needle.trim());
+  return <FacetGroup title={title}>
+    {long && <TextInput className="facets__tag-search" aria-label={`Find a ${noun.replace(/s$/, "")}`} placeholder={`Find in ${rows.length.toLocaleString()} ${noun}`} value={needle} onChange={(event) => setNeedle(event.currentTarget.value)} />}
+    {shown.rows.map(({ value, count }) => row(field, value, count, label(value)))}
+    {needle.trim() && !shown.rows.some((count) => !keep(count.value)) && <span className="facets__empty">No {noun} contain “{needle.trim()}”</span>}
+    {shown.hidden > 0 && <button type="button" className="facets__more" onClick={() => setAll(true)}>Show {shown.hidden.toLocaleString()} more</button>}
+    {all && long && !needle.trim() && <button type="button" className="facets__more" onClick={() => setAll(false)}>Show fewer</button>}
+  </FacetGroup>;
+}
 
 function FacetGroup({ title, hint, mode, children }: { title: string; hint?: string; mode?: { value: Filter["tagsMatch"]; onChange: (value: Filter["tagsMatch"]) => void }; children: ReactNode }) {
   const [open, setOpen] = useState(true);

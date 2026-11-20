@@ -239,3 +239,19 @@ export function importedFrom(asset: Pick<Asset, "format" | "origin">): string | 
   if (!format) return null;
   return asset.origin?.files?.length ? `${formatLabel(format)} (original kept)` : formatLabel(format);
 }
+
+/** A field's rows get a find field from this many values on, and show this many until "Show more". */
+export const FIND_FROM = 8;
+
+/**
+ * The rows of a field the pane shows: those whose label contains `needle` (any case), the chosen and left-out
+ * values always, at most `limit` unless `all` (chosen ones still first in their place). `hidden` is how many
+ * matching rows the limit leaves out.
+ */
+export function narrowRows<T extends { value: string }>(rows: T[], needle: string, keep: (value: string) => boolean, label: (row: T) => string, limit: number, all: boolean): { rows: T[]; hidden: number } {
+  const text = needle.trim().toLowerCase();
+  const matching = rows.filter((row) => keep(row.value) || !text || label(row).toLowerCase().includes(text));
+  if (all || matching.length <= limit) return { rows: matching, hidden: 0 };
+  const shown = matching.filter((row, index) => index < limit || keep(row.value));
+  return { rows: shown, hidden: matching.length - shown.length };
+}

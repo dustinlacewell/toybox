@@ -101,3 +101,17 @@ test("a saved view keeps the whole question", async () => {
   assert.deepEqual(junk.ranges, {});
   assert.deepEqual(junk.sort, { key: "name", descending: false });
 });
+
+test("a long field is searchable and shortened, its chosen values always shown", async () => {
+  const { narrowRows } = await import(facetsUrl);
+  const rows = ["Alpha", "Beta", "Gamma", "Delta", "Epsilon", "Zeta"].map((value) => ({ value, count: 1 }));
+  const label = (row) => row.value;
+  const kept = new Set(["Zeta"]);
+  const keep = (value) => kept.has(value);
+  assert.deepEqual(narrowRows(rows, "ta", keep, label, 10, false).rows.map(label), ["Beta", "Delta", "Zeta"]);
+  assert.deepEqual(narrowRows(rows, "ALP", keep, label, 10, false).rows.map(label), ["Alpha", "Zeta"]);
+  const short = narrowRows(rows, "", keep, label, 2, false);
+  assert.deepEqual(short.rows.map(label), ["Alpha", "Beta", "Zeta"]);
+  assert.equal(short.hidden, 3);
+  assert.equal(narrowRows(rows, "", keep, label, 2, true).rows.length, 6);
+});
