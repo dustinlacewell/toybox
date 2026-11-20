@@ -26,3 +26,4 @@
 .zoom .zoom__value { min-width: 46px; color: var(--text-0); font-size: var(--fs-sm); font-variant-numeric: tabular-nums; }
 
 @media (max-width: 600px) { .result-line { padding: 0 12px 8px; } }
+.result-line__direction { color: var(--text-2); }

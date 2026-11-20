@@ -124,6 +124,8 @@ export function LibraryView() {
   const [navigationOpen,setNavigationOpen]=useState(false);
   const compact=narrow||maximized;
   useEffect(()=>{if(!compact)setNavigationOpen(false);},[compact]);
+  // The pane sits beside the grid when there is room; in a narrow window it is a drawer, opened on demand.
+  useEffect(()=>{setFiltersOpen(!compact);},[compact]);
   const icons=useMemo(()=>pluginTypeIcons(registry.importers,registry.types),[registry.importers,registry.types]);
   const changeKind=(kind:typeof filter.kind)=>{setKind(kind);clearFilter();setCollectionName(null);setActiveView(null);setExportOpen(false);setNavigationOpen(false);};
   const openView=(view:SavedView)=>{setFilter(readFilter(view.filter));setCollectionName(view.collection);setActiveView(view.id);setExportOpen(false);setNavigationOpen(false);};

@@ -71,7 +71,7 @@ export function ResultLine({ summary, leftOut, onKeepAll, sort, choices, onSort 
     <span className="result-line__spacer" />
     <span className="result-line__sort" ref={box}>
       <button type="button" className={`result-line__button${open ? " is-open" : ""}`} aria-haspopup="menu" aria-expanded={open} onClick={() => setOpen(!open)}>
-        <ArrowDownUp size={13} aria-hidden="true" />Sort <b>{current.label}, {current.directions[sort.descending ? 1 : 0].toLowerCase()}</b><ChevronDown size={13} aria-hidden="true" />
+        <ArrowDownUp size={13} aria-hidden="true" />Sort <b>{current.label}</b><span className="result-line__direction">{current.directions[sort.descending ? 1 : 0]}</span><ChevronDown size={13} aria-hidden="true" />
       </button>
       {open && <div className="sort-menu" role="menu">
         {groups.map((group) => <div key={group}>
