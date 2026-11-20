@@ -6,7 +6,7 @@ use std::collections::{BTreeMap, HashMap, HashSet};
 
 use serde_json::{json, Value};
 
-use super::browse::{BrowseFilter, PropertyRange, Session, SortOrder, Source, Visibility, EVERY_TYPE};
+use super::browse::{BrowseFilter, PropertyRange, Session, SortOrder, Source, Visibility};
 use super::tests::Tmp;
 use super::Store;
 use crate::domain::catalog_model::{Asset, Catalog};
@@ -245,7 +245,7 @@ impl Reference<'_> {
             .filter(|(_, a)| {
                 let x = &f.exclude;
                 let tags = all_tags(a);
-                (f.kind == EVERY_TYPE || type_of(a) == f.kind)
+                type_of(a) == f.kind
                     && !x.sources.contains(&provenance_value(a, "source"))
                     && !x.publishers.contains(&provenance_value(a, "publisher"))
                     && !x.licenses.contains(&provenance_value(a, "license"))
@@ -289,13 +289,12 @@ enum Key2 {
 fn sort_key(asset: &Asset, sort: &SortOrder) -> Option<Key2> {
     match sort.key.as_str() {
         "" | "name" => Some(Key2::Text(String::new())),
-        "type" => Some(Key2::Text(type_of(asset))),
         "category" => Some(Key2::Text(asset.category.to_lowercase())),
         key => property(asset, key.strip_prefix("prop:").unwrap_or(key)).map(Key2::Number),
     }
 }
 
-/// A number at a dotted path of the stored record.
+/// A number at a dotted path of the stored record; any other value is none.
 fn property(asset: &Asset, path: &str) -> Option<f64> {
     let value = serde_json::to_value(asset).unwrap();
     value.pointer(&format!("/{}", path.replace('.', "/"))).and_then(Value::as_f64)
@@ -384,7 +383,7 @@ fn the_list_matches_the_rules_of_the_window() {
         edit(&mut f);
         check(&libs, &f, what);
     }
-    // Leaving things out, any of several tags, every type, property ranges and sort keys.
+    // Leaving things out, any of several tags, property ranges and sort keys.
     for (what, kind, edit) in [
         ("exclude a tag", "audio", (|f: &mut BrowseFilter| f.exclude.tags = vec!["loud".into()]) as fn(&mut BrowseFilter)),
         ("exclude a personal tag", "audio", |f| f.exclude.tags = vec!["mine".into()]),
@@ -410,19 +409,13 @@ fn the_list_matches_the_rules_of_the_window() {
             f.tags = vec!["loud".into()];
             f.tags_any = true;
         }),
-        ("every type", EVERY_TYPE, |_| {}),
-        ("every type with a tag", EVERY_TYPE, |f| f.tags = vec!["warm".into()]),
-        ("every type, one category", EVERY_TYPE, |f| f.categories = vec!["sky".into()]),
-        ("every type, text", EVERY_TYPE, |f| f.text = "dus".into()),
-        ("every type, favourites", EVERY_TYPE, |f| f.favorites_only = true),
-        ("every type, a library", EVERY_TYPE, |f| f.libraries = vec!["b".into()]),
         ("a duration range", "audio", |f| f.ranges = vec![PropertyRange { path: "audio.duration".into(), min: Some(0.5), max: Some(2.0) }]),
         ("an empty range", "audio", |f| f.ranges = vec![PropertyRange { path: "audio.duration".into(), min: Some(5.0), max: None }]),
-        ("a property only some types have", EVERY_TYPE, |f| f.ranges = vec![PropertyRange { path: "audio.duration".into(), min: None, max: None }]),
-        ("by type", EVERY_TYPE, |f| f.sort = SortOrder { key: "type".into(), descending: false }),
-        ("by type, descending", EVERY_TYPE, |f| f.sort = SortOrder { key: "type".into(), descending: true }),
+        ("a property with no bounds", "audio", |f| f.ranges = vec![PropertyRange { path: "audio.duration".into(), min: None, max: None }]),
+        ("a property the type does not have", "skybox", |f| f.ranges = vec![PropertyRange { path: "audio.duration".into(), min: None, max: None }]),
         ("by category", "audio", |f| f.sort = SortOrder { key: "category".into(), descending: false }),
-        ("by a property, missing last", EVERY_TYPE, |f| f.sort = SortOrder { key: "prop:audio.duration".into(), descending: true }),
+        ("by a property", "audio", |f| f.sort = SortOrder { key: "prop:audio.duration".into(), descending: true }),
+        ("by a property, missing last", "skybox", |f| f.sort = SortOrder { key: "prop:audio.duration".into(), descending: true }),
         ("by category with a tag", "audio", |f| {
             f.tags = vec!["loud".into()];
             f.sort = SortOrder { key: "category".into(), descending: true };
@@ -453,6 +446,50 @@ fn the_list_matches_the_rules_of_the_window() {
     let mut f = filter("audio");
     f.visibility.plugins_off = vec!["gone".into()];
     check(&libs, &f, "a plugin that is off");
+}
+
+/// One library of skyboxes whose `meta.size` is a number, text, or absent.
+fn sized_fixture(tmp: &Tmp) -> Vec<Lib> {
+    let sized = |id: &str, name: &str, size: Option<Value>| {
+        let mut value = audio(id, name, "sky", Some(id), &[], &[], false, &[], None, "skybox");
+        if let Some(size) = size {
+            value["meta"] = json!({ "size": size });
+        }
+        value
+    };
+    vec![library(
+        tmp,
+        "a",
+        0,
+        vec![sized("s1", "Five", Some(json!(5))), sized("s2", "Text", Some(json!("n/a"))), sized("s3", "Three", Some(json!(3.5))), sized("s4", "None", None)],
+    )]
+}
+
+#[test]
+fn a_range_never_matches_a_value_that_is_not_a_number() {
+    let tmp = Tmp::new("browse-ranges");
+    let libs = sized_fixture(&tmp);
+    let text = ("a".to_string(), "s2".to_string());
+    for (what, min, max) in [("min only", Some(1.0), None), ("max only", None, Some(10.0)), ("both bounds", Some(1.0), Some(10.0)), ("no bounds", None, None)] {
+        let mut f = filter("skybox");
+        f.ranges = vec![PropertyRange { path: "meta.size".into(), min, max }];
+        check(&libs, &f, what);
+        let got = page_all(&libs, &f);
+        assert!(!got.contains(&text), "{what}: the text value is out");
+        assert_eq!(got.len(), 2, "{what}: the two numbers are in");
+    }
+}
+
+#[test]
+fn an_unknown_sort_key_orders_by_name() {
+    let tmp = Tmp::new("browse-unknown-sort");
+    let libs = fixture(&tmp);
+    for kind in ["audio", "skybox"] {
+        let by_name = page_all(&libs, &filter(kind));
+        let mut f = filter(kind);
+        f.sort = SortOrder { key: "type".into(), descending: false };
+        assert_eq!(page_all(&libs, &f), by_name, "{kind}");
+    }
 }
 
 #[test]
@@ -493,8 +530,8 @@ fn counts_agree_with_the_grid() {
         }
         let counts: BTreeMap<String, i64> = session.type_counts(&visibility).unwrap().into_iter().map(|c| (c.value, c.count)).collect();
         assert_eq!(counts, per_type, "type counts");
-        for kind in ["audio", "skybox", EVERY_TYPE] {
-            let of_kind: Vec<&(usize, &Asset)> = unique.iter().filter(|(_, a)| kind == EVERY_TYPE || type_of(a) == kind).collect();
+        for kind in ["audio", "skybox"] {
+            let of_kind: Vec<&(usize, &Asset)> = unique.iter().filter(|(_, a)| type_of(a) == kind).collect();
             let facets = session.facet_counts(kind, &visibility, 100, &[]).unwrap();
             assert_eq!(facets.total, of_kind.len() as i64, "total of {kind}");
             let tally = |field: &dyn Fn(&Asset) -> String| {
@@ -524,7 +561,7 @@ fn counts_agree_with_the_grid() {
             // Every copy per library, visible ones.
             let mut per_library: BTreeMap<String, i64> = libs.iter().map(|lib| (lib.id.to_string(), 0)).collect();
             for (i, a) in reference.visible(&visibility) {
-                if kind == EVERY_TYPE || type_of(a) == kind {
+                if type_of(a) == kind {
                     *per_library.entry(libs[i].id.to_string()).or_insert(0) += 1;
                 }
             }
@@ -539,14 +576,6 @@ fn counts_agree_with_the_grid() {
         }
         let got: BTreeMap<String, i64> = session.collections("audio", &visibility).unwrap().into_iter().map(|c| (c.name, c.count)).collect();
         assert_eq!(got, names, "collections");
-        let mut every: BTreeMap<String, i64> = BTreeMap::new();
-        for (_, a) in &unique {
-            for name in &a.user.collections {
-                *every.entry(name.clone()).or_insert(0) += 1;
-            }
-        }
-        let got: BTreeMap<String, i64> = session.collections(EVERY_TYPE, &visibility).unwrap().into_iter().map(|c| (c.name, c.count)).collect();
-        assert_eq!(got, every, "collections of every type");
     }
 }
 

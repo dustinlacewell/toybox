@@ -94,7 +94,7 @@ and for items whose plugin is not loaded:
   left out.
 - `use` — `sort`, `range` or both (the default).
 
-Sorting by a property puts the items without it last; a range leaves them out.
+Sorting by a property puts the items without it last; a range leaves them out, and leaves out a value that is not a number.
 A native type redeclared without `properties` keeps the host's list (Models:
 animation clips; Animations: length; Audio: duration, sample rate, channels).
 The sort and the ranges are part of the list query (`sort.key` is

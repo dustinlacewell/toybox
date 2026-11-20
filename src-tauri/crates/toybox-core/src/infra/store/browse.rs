@@ -73,9 +73,6 @@ pub struct Visibility {
     pub owner_off: Vec<String>,
 }
 
-/// The `kind` of a filter that lists every type at once (the "All assets" view).
-pub const EVERY_TYPE: &str = "*";
-
 /// Values that take an item out of the list, per field (the rail's "exclude" state). An item with any of them
 /// is not listed, whatever else it matches.
 #[derive(Debug, Clone, Default, Serialize, Deserialize, PartialEq, Eq)]
@@ -119,7 +116,7 @@ pub struct SortOrder {
 #[derive(Debug, Clone, Default, Serialize, Deserialize, PartialEq)]
 #[serde(rename_all = "camelCase", default)]
 pub struct BrowseFilter {
-    /// The asset type shown (`model`, `skybox`, ...), or `EVERY_TYPE`.
+    /// The asset type shown (`model`, `skybox`, ...).
     pub kind: String,
     /// Library ids; empty means every library.
     pub libraries: Vec<String>,
@@ -145,10 +142,6 @@ pub struct BrowseFilter {
 }
 
 impl BrowseFilter {
-    fn every_type(&self) -> bool {
-        self.kind == EVERY_TYPE
-    }
-
     /// Every chosen tag is required (the default), or there is at most one.
     fn tags_all(&self) -> bool {
         !self.tags_any || self.tags.len() <= 1
@@ -176,7 +169,7 @@ fn sort_column(sort: &SortOrder, p: &mut Vec<Value>) -> Option<String> {
         "" | "name" => None,
         "added" => Some("a.ord".into()),
         "changed" => Some("a.revision".into()),
-        "publisher" | "source" | "license" | "format" | "category" | "type" => Some(format!("a.{} COLLATE NOCASE", sort.key)),
+        "publisher" | "source" | "license" | "format" | "category" => Some(format!("a.{} COLLATE NOCASE", sort.key)),
         key => key.strip_prefix("prop:").and_then(json_path).map(|path| {
             p.push(Value::Text(path));
             "json_extract(a.asset, ?)".to_string()
@@ -434,7 +427,6 @@ impl Session {
     /// The list of a type with no other constraint: what the index serves directly (every library, or one).
     fn plain(&self, f: &BrowseFilter) -> bool {
         self.ix.as_ref().is_some_and(|ix| ix.all || self.arms.len() == 1)
-            && !f.every_type()
             && f.by_name()
             && f.exclude.is_empty()
             && f.ranges.is_empty()
@@ -559,10 +551,7 @@ impl Session {
     /// The largest driving set a page starts from in an arm: sorting the set costs about 3 us a row, walking the list
     /// for the first 100 matches costs about 100 / density us, which balances at about 6 * sqrt(rows).
     fn page_cap(&self, arm: usize, kind: &str) -> i64 {
-        let rows: i64 = self
-            .conn
-            .query_row(&format!("SELECT COALESCE(SUM(n), 0) FROM {}.facets WHERE (?1 = '{EVERY_TYPE}' OR type = ?1) AND field = 'type'", self.arms[arm].l), [kind], |row| row.get(0))
-            .unwrap_or(0);
+        let rows: i64 = self.conn.query_row(&format!("SELECT COALESCE(SUM(n), 0) FROM {}.facets WHERE type = ? AND field = 'type'", self.arms[arm].l), [kind], |row| row.get(0)).unwrap_or(0);
         ((6.0 * (rows as f64).sqrt()) as i64).max(2_000)
     }
 
@@ -591,21 +580,19 @@ impl Session {
             let size = self.bounded_count(&format!("{u}.user_assets WHERE favorite = 1"), &[])?;
             consider(size, What::Favorites, format!("SELECT asset_id FROM {u}.user_assets WHERE favorite = 1"), vec![], false);
         }
-        // Every type: the counts are summed over the types, and the rows are not narrowed to one.
-        let of_type = |column: &str| if f.every_type() { format!("(? = '{EVERY_TYPE}')") } else { format!("{column} = ?") };
         for (field, values) in [("source", &f.sources), ("publisher", &f.publishers), ("license", &f.licenses), ("format", &f.formats)] {
             if values.is_empty() {
                 continue;
             }
             let mut p = vec![text_value(&f.kind), text_value(field)];
             p.extend(values.iter().map(|value| text_value(value)));
-            let size: i64 = self.conn.query_row(&format!("SELECT COALESCE(SUM(n), 0) FROM {l}.facets WHERE {} AND field = ? AND value IN ({})", of_type("type"), marks(values.len())), params_from_iter(p.iter()), |row| row.get(0))?;
+            let size: i64 = self.conn.query_row(&format!("SELECT COALESCE(SUM(n), 0) FROM {l}.facets WHERE type = ? AND field = ? AND value IN ({})", marks(values.len())), params_from_iter(p.iter()), |row| row.get(0))?;
             let mut q = vec![text_value(&f.kind)];
             q.extend(values.iter().map(|value| text_value(value)));
-            consider(size, What::Field(field), format!("SELECT rowid FROM {l}.assets WHERE {} AND {field} IN ({})", of_type("type"), marks(values.len())), q, true);
+            consider(size, What::Field(field), format!("SELECT rowid FROM {l}.assets WHERE type = ? AND {field} IN ({})", marks(values.len())), q, true);
         }
         if let (Some(tag), true) = (f.tags.first(), f.tags_all()) {
-            let library: i64 = self.conn.query_row(&format!("SELECT COALESCE(SUM(n), 0) FROM {l}.facets WHERE {} AND field = 'tag' AND value = ?", of_type("type")), params_from_iter([text_value(&f.kind), text_value(tag)].iter()), |row| row.get(0))?;
+            let library: i64 = self.conn.query_row(&format!("SELECT COALESCE(SUM(n), 0) FROM {l}.facets WHERE type = ? AND field = 'tag' AND value = ?"), params_from_iter([text_value(&f.kind), text_value(tag)].iter()), |row| row.get(0))?;
             let personal = self.bounded_count(&format!("{u}.user_tags WHERE tag = ?"), &[text_value(tag)])?;
             consider(
                 library + personal,
@@ -660,7 +647,6 @@ impl Session {
         };
         let driven = driver.as_ref().map(|d| d.what);
         let mut conds: Vec<String> = Vec::new();
-        let with_type = with_type && !f.every_type();
         if with_type {
             conds.push("a.type = ?".into());
             p.push(text_value(&f.kind));
@@ -704,17 +690,16 @@ impl Session {
         }
         for range in &f.ranges {
             let path = json_path(&range.path).ok_or_else(|| AppError::msg(format!("'{}' is not a property path", range.path)))?;
+            // Only a number is in range: SQLite orders any text above every number.
+            conds.push("json_type(a.asset, ?) IN ('integer', 'real')".into());
+            p.push(Value::Text(path.clone()));
             if let Some(min) = range.min {
                 conds.push("json_extract(a.asset, ?) >= ?".into());
                 p.extend([Value::Text(path.clone()), Value::Real(min)]);
             }
             if let Some(max) = range.max {
                 conds.push("json_extract(a.asset, ?) <= ?".into());
-                p.extend([Value::Text(path.clone()), Value::Real(max)]);
-            }
-            if range.min.is_none() && range.max.is_none() {
-                conds.push("json_type(a.asset, ?) IN ('integer', 'real')".into());
-                p.push(Value::Text(path));
+                p.extend([Value::Text(path), Value::Real(max)]);
             }
         }
         if f.favorites_only && driven != Some(What::Favorites) {
@@ -807,7 +792,7 @@ impl Session {
     /// publishers, licenses or formats), read from the counts the libraries keep minus the hidden rows
     /// (remembered per revision), so it does not walk the list. `None` for any other filter.
     fn counted(&self, f: &BrowseFilter) -> AppResult<Option<i64>> {
-        if !f.text.trim().is_empty() || f.favorites_only || f.collection.is_some() || f.tags.len() > 1 || f.every_type() || !f.exclude.is_empty() || !f.ranges.is_empty() {
+        if !f.text.trim().is_empty() || f.favorites_only || f.collection.is_some() || f.tags.len() > 1 || !f.exclude.is_empty() || !f.ranges.is_empty() {
             return Ok(None);
         }
         let groups: Vec<(&str, &Vec<String>)> = [("source", &f.sources), ("publisher", &f.publishers), ("license", &f.licenses), ("format", &f.formats), ("category", &f.categories)]
@@ -1055,33 +1040,8 @@ impl Session {
         Ok(out)
     }
 
-    /// Every number the rail shows for `kind`. For `EVERY_TYPE`, the numbers of each type added up (an item has one
-    /// type, so each is still counted once); the tags are the most used of each type, and `tag_total` is how many
-    /// different ones those are at least.
+    /// Every number the rail shows for `kind`.
     pub fn facet_counts(&self, kind: &str, visibility: &Visibility, tag_limit: usize, selected_tags: &[String]) -> AppResult<FacetCounts> {
-        if kind == EVERY_TYPE {
-            let mut all = FacetCounts::default();
-            let mut tag_total = 0;
-            for Count { value: type_id, .. } in self.type_counts(visibility)? {
-                let one = self.facet_counts(&type_id, visibility, tag_limit, selected_tags)?;
-                all.total += one.total;
-                tag_total = tag_total.max(one.tag_total);
-                for (into, from) in [
-                    (&mut all.libraries, one.libraries),
-                    (&mut all.categories, one.categories),
-                    (&mut all.sources, one.sources),
-                    (&mut all.publishers, one.publishers),
-                    (&mut all.licenses, one.licenses),
-                    (&mut all.formats, one.formats),
-                    (&mut all.tags, one.tags),
-                ] {
-                    add_counts(into, from);
-                }
-            }
-            all.tags.retain(|count| count.count > 0 || selected_tags.contains(&count.value));
-            all.tag_total = tag_total.max(all.tags.len() as i64);
-            return Ok(all);
-        }
         let hidden = self.hidden(Some(kind), visibility)?;
         let mut sums: HashMap<(String, String), i64> = HashMap::new();
         let mut libraries = Vec::new();
@@ -1194,15 +1154,6 @@ impl Session {
 
     /// The tags of `kind` that contain `text`, most used first (at most `limit`), for the rail's search box.
     pub fn search_tags(&self, kind: &str, visibility: &Visibility, text: &str, limit: usize) -> AppResult<Vec<Count>> {
-        if kind == EVERY_TYPE {
-            let mut all = Vec::new();
-            for Count { value: type_id, .. } in self.type_counts(visibility)? {
-                add_counts(&mut all, self.search_tags(&type_id, visibility, text, limit)?);
-            }
-            all.sort_by(|a, b| b.count.cmp(&a.count).then_with(|| a.value.cmp(&b.value)));
-            all.truncate(limit);
-            return Ok(all);
-        }
         let hidden = self.hidden(Some(kind), visibility)?;
         Ok(self.tag_counts(kind, &hidden, Some(text), limit, &[])?.0)
     }
@@ -1211,7 +1162,7 @@ impl Session {
     pub fn collections(&self, kind: &str, visibility: &Visibility) -> AppResult<Vec<CollectionCount>> {
         let mut counts: HashMap<String, i64> = HashMap::new();
         for (index, arm) in self.arms.iter().enumerate() {
-            let mut p: Vec<Value> = vec![text_value(kind), text_value(kind)];
+            let mut p: Vec<Value> = vec![text_value(kind)];
             let mut conds: Vec<String> = Vec::new();
             if let Some(shown) = Self::visible(visibility, "a", &mut p) {
                 conds.push(shown);
@@ -1221,7 +1172,7 @@ impl Session {
             }
             let filter = if conds.is_empty() { String::new() } else { format!("WHERE {}", conds.join(" AND ")) };
             let mut statement = self.conn.prepare(&format!(
-                "SELECT c.name, SUM(a.type = ? OR ? = '{EVERY_TYPE}') FROM {u}.user_collections c CROSS JOIN {l}.assets a ON a.id = c.asset_id {filter} GROUP BY c.name",
+                "SELECT c.name, SUM(a.type = ?) FROM {u}.user_collections c CROSS JOIN {l}.assets a ON a.id = c.asset_id {filter} GROUP BY c.name",
                 u = arm.u,
                 l = arm.l
             ))?;
@@ -1315,17 +1266,6 @@ pub struct Tallies {
 }
 
 static TALLIES: LazyLock<Mutex<HashMap<String, Arc<Tallies>>>> = LazyLock::new(|| Mutex::new(HashMap::new()));
-
-/// Add `from` into `into` by value, keeping `into` sorted by value.
-fn add_counts(into: &mut Vec<Count>, from: Vec<Count>) {
-    for count in from {
-        match into.iter_mut().find(|c| c.value == count.value) {
-            Some(found) => found.count += count.count,
-            None => into.push(count),
-        }
-    }
-    into.sort_by(|a, b| a.value.cmp(&b.value));
-}
 
 fn fts_phrase(needle: &str) -> String {
     format!("\"{}\"", needle.replace('"', "\"\""))
