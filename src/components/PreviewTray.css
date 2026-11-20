@@ -10,20 +10,6 @@
 .preview-tray__name b { font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .preview-tray__name span { color: var(--text-2); font-size: var(--fs-sm); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .preview-tray__spacer { flex: 1; }
-.preview-tray__more { display: flex; align-items: center; gap: 4px; min-width: 0; overflow: hidden; margin-right: 8px; }
-.preview-tray__more-label { color: var(--text-2); font-size: 12px; white-space: nowrap; margin-right: 2px; }
-.preview-tray__chip { display: inline-flex; align-items: center; gap: 4px; height: 22px; padding: 0 7px; border: 0; border-radius: 5px; background: var(--bg-2); color: var(--text-1); font: inherit; font-size: 12px; white-space: nowrap; cursor: pointer; }
-.preview-tray__chip:hover { background: var(--bg-3); color: var(--text-0); }
 
-.preview-tray__body { height: 272px; min-height: 0; border-top: 1px solid var(--border); }
-/* The inspector, side by side: preview | title and properties; its actions along the bottom. */
-.preview-tray .asset-inspector { height: 100%; }
-.preview-tray .asset-inspector .ds-pane__scroll { display: grid; grid-template-columns: minmax(220px, 300px) minmax(0, 1fr); grid-template-rows: auto 1fr; column-gap: 20px; padding: 12px 20px 0; }
-.preview-tray .asset-inspector__preview { grid-row: 1 / span 2; align-self: start; aspect-ratio: 4 / 3; }
-.preview-tray .asset-inspector__title { padding: 0 0 6px; }
-.preview-tray .asset-inspector .ds-pane__scroll > :last-child { grid-column: 2; }
-.preview-tray .asset-inspector .ds-pane__footer { padding: 8px 20px 12px; justify-content: flex-end; }
-.preview-tray .asset-inspector .ds-pane__footer > * { flex: none; }
-.preview-tray .asset-inspector__transfer { flex: none; }
-
-@media (max-width: 900px) { .preview-tray__more { display: none; } }
+/* Room for the name, the fields and two lines of tags (keep --tray-space in step: this + 50px). */
+.preview-tray__body { height: 168px; min-height: 0; border-top: 1px solid var(--border); }

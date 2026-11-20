@@ -1,19 +1,22 @@
 import type { ReactNode, MouseEvent } from "react";
 
 /** A controlled visual item. Selection and activation are separate callbacks. */
-export function PreviewTile({ title, subtitle, preview, active, selected, onPress, onOpen, onSelectedChange, actions, badge, previewAction, previewAspectRatio=1, onPreviewHoverChange }: {
+export function PreviewTile({ title, subtitle, preview, active, selected, onPress, onOpen, onSelectedChange, actions, badge, previewAction, previewAspectRatio=1, onPreviewHoverChange, onContextMenu }: {
   title: string; subtitle?: ReactNode; preview: ReactNode; active: boolean; selected: boolean;
   onPress: () => void; onOpen: () => void; onSelectedChange: (selected: boolean, shiftKey?: boolean) => void;
   actions?: ReactNode; badge?: ReactNode; previewAction?: ReactNode;
   previewAspectRatio?: number;
   /** Presentation intent only; the caller decides whether/how to animate. */
   onPreviewHoverChange?: (hovered:boolean)=>void;
+  /** The point a context menu for this tile opens at; the browser's own menu does not show. */
+  onContextMenu?: (point: { x: number; y: number }) => void;
 }) {
   const press = (event: MouseEvent) => {
     if (event.shiftKey || event.ctrlKey || event.metaKey) onSelectedChange(!selected, event.shiftKey);
     else onPress();
   };
   return <article className={`ds-preview-tile${active ? " is-active" : ""}${selected ? " is-selected" : ""}`}
+    onContextMenu={onContextMenu && ((event) => { event.preventDefault(); onContextMenu(menuPoint(event)); })}
     onPointerEnter={event=>{if(event.pointerType!=="touch")onPreviewHoverChange?.(true);}}
     onPointerLeave={()=>onPreviewHoverChange?.(false)}>
     <div className="ds-preview-tile__image" style={{aspectRatio:previewAspectRatio}}>
@@ -27,6 +30,13 @@ export function PreviewTile({ title, subtitle, preview, active, selected, onPres
       <span title={title}>{title}</span>{subtitle && <small>{subtitle}</small>}
     </button>
   </article>;
+}
+
+/** The pointer, or the tile's centre when the menu was asked for from the keyboard (no right button, no point). */
+function menuPoint(event: MouseEvent<HTMLElement>): { x: number; y: number } {
+  if (event.button === 2 && (event.clientX || event.clientY)) return { x: event.clientX, y: event.clientY };
+  const rect = event.currentTarget.getBoundingClientRect();
+  return { x: rect.left + rect.width / 2, y: rect.top + rect.height / 2 };
 }
 
 export interface ThumbnailOption { value: string; label: string; preview: ReactNode; detail?: ReactNode; }

@@ -1,0 +1,21 @@
+/* The name, a row of labeled fields, a row of tags. The owner gives the height; only the tag list scrolls. */
+.asset-card { display: flex; flex-direction: column; justify-content: center; gap: var(--space-3); height: 100%; min-width: 0; min-height: 0; padding: var(--space-3) 20px; }
+.asset-card__title { display: flex; align-items: center; gap: var(--space-2); min-width: 0; }
+.asset-card__name { margin: 0; min-width: 0; font-size: 18px; font-weight: 600; line-height: 1.2; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+
+/* One row of labeled fields; every field is the same size, none stands out. */
+.asset-card__fields { display: flex; align-items: flex-start; gap: var(--space-2) 32px; min-width: 0; }
+.asset-card__fields > .ds-field { flex: 0 1 auto; }
+.asset-card__fields .ds-field__value { display: flex; align-items: center; gap: var(--space-1); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.facet-link { min-width: 0; padding: 0; border: 0; background: none; color: inherit; font: inherit; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; cursor: pointer; }
+.facet-link:hover { color: var(--accent); text-decoration: underline; }
+.asset-card__url { flex: none; display: inline-flex; align-items: center; padding: 2px; border: 0; background: none; color: var(--text-2); cursor: pointer; }
+.asset-card__url:hover { color: var(--accent); }
+
+/* Tags take the width that is left; the list scrolls inside its strip, which anchors the tag suggestions. */
+.asset-card__fields > .asset-card__tags { flex: 1 1 0; }
+.asset-card__tags:not(:has(.asset-tags)) { display: none; }
+.asset-card__tags .ds-field__value { display: block; overflow: visible; white-space: normal; }
+.asset-card__tags .asset-tags__list { max-height: 54px; overflow-y: auto; }
+.asset-card__tags .asset-tags__hint { display: none; }
+.asset-card__collections { display: flex; flex-wrap: wrap; gap: 6px; }

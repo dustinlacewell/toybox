@@ -1,34 +1,55 @@
-import { Button, Pane } from "@ldlework/toybox-sdk/ui";
-import { variantInfo } from "@ldlework/toybox-sdk";
-import type { Asset } from "../domain/catalog";
-import { useThumbUrl } from "./useThumbUrl";
-import { FavoriteStar } from "./FavoriteStar";
-import { AssetProperties } from "./AssetProperties";
-import { AudioPreview } from "./AudioPreview";
-import { StaticTilePreview } from "./StaticTilePreview";
-import { AnimationTilePreview } from "./AnimationTilePreview";
-import { inspectorScenePreview } from "../services/hoverScenePreview";
-import { sourceLabel } from "../domain/facets";
-import { useState } from "react";
-import type { TransferMode } from "../domain/transfer";
-import type { PreviewBrightness } from "../domain/previewBrightness";
-import { ViewportBrightnessControl } from "./viewer/ViewportBrightnessControl";
+/**
+ * The item in the open preview tray: its name over one row of labeled fields (type, the values that filter, its
+ * facts, its library) and a row of tags and collections.
+ */
 
-interface Props { asset: Asset; active?: boolean; onOpen: () => void; onFavorite: () => void; onExport: () => void; onCollect: () => void; onTransfer?: (mode: TransferMode) => void; }
-export function AssetInspector({ asset, active=true, onOpen, onFavorite, onExport, onCollect, onTransfer }: Props) {
-  const [brightness,setBrightness]=useState<PreviewBrightness>("dim");
-  const thumbnail = useThumbUrl(asset);
-  const fallback=thumbnail?<img src={thumbnail} alt=""/>:<span>No preview</span>;
-  return <Pane className="asset-inspector" footer={<>{onTransfer&&<div className="asset-inspector__transfer"><Button variant="ghost" onClick={()=>onTransfer("copy")}>Copy to library…</Button><Button variant="ghost" onClick={()=>onTransfer("move")}>Move to library…</Button></div>}<Button onClick={onCollect}>Add to collection</Button><Button variant="primary" onClick={onExport}>Export</Button></>}>
-    {asset.kind === "audio" ? <AudioPreview asset={asset} onOpen={onOpen}/> : asset.kind === "plugin" ? <div className="asset-inspector__preview" onDoubleClick={onOpen}>
-      {fallback}
-      <button className="asset-inspector__expand" onClick={onOpen} aria-label="Open preview">↗</button>
-    </div> : <div className="asset-inspector__preview" title="Drag to rotate · Right-drag to zoom">
-      {asset.kind==="animation"?<AnimationTilePreview key={asset.id} asset={asset} active={active} fallback={fallback} pool={inspectorScenePreview} brightness={brightness}/>:<StaticTilePreview key={asset.id} asset={asset} active={active} fallback={fallback} pool={inspectorScenePreview} brightness={brightness}/>}
-      <div className="asset-inspector__lighting"><ViewportBrightnessControl value={brightness} onChange={setBrightness}/></div>
-      <button className="asset-inspector__expand" onClick={onOpen} aria-label="Open preview">↗</button>
-    </div>}
-    <div className="asset-inspector__title"><div><h2>{variantInfo(asset.name, asset.kind).base}</h2><p>{sourceLabel(asset)}</p></div><FavoriteStar favorited={asset.user.favorite} onToggle={onFavorite} /></div>
-    <AssetProperties asset={asset} onOpen={onOpen} onCollect={onCollect}/>
-  </Pane>;
+import { Chip, Field } from "@ldlework/toybox-sdk/ui";
+import { variantInfo } from "@ldlework/toybox-sdk";
+
+import { assetType, type Asset } from "../domain/catalog";
+import { assetTypeEntry } from "../state/assetTypes";
+import { useStore } from "../state/store";
+import { FavoriteStar } from "./FavoriteStar";
+import { AssetFacets } from "./AssetFacets";
+import { AssetLibraryNote } from "./AssetLibraryNote";
+import { AssetStats } from "./AssetStats";
+import { AssetTags } from "./AssetTags";
+import type { OnFacet } from "./FacetLink";
+import "./AssetInspector.css";
+
+interface Props {
+  asset: Asset;
+  onOpen: () => void;
+  onFavorite: () => void;
+  onCollect: () => void;
+  onFacet: OnFacet;
+}
+
+export function AssetInspector({ asset, onOpen, onFavorite, onCollect, onFacet }: Props) {
+  const library = useStore((state) => state.libraries.find((entry) => entry.id === asset.library));
+  const several = useStore((state) => state.libraries.length > 1);
+  return <div className="asset-card">
+    <div className="asset-card__title">
+      <h2 className="asset-card__name">{variantInfo(asset.name, asset.kind).base}</h2>
+      <FavoriteStar favorited={asset.user.favorite} onToggle={onFavorite} />
+    </div>
+    <div className="asset-card__fields">
+      <Field label="Type">{assetTypeEntry(assetType(asset)).singular}</Field>
+      <AssetFacets asset={asset} onFacet={onFacet} />
+      <AssetStats asset={asset} onOpen={onOpen} />
+      {several && <Field label="Library"><AssetLibraryNote asset={asset} /></Field>}
+    </div>
+    <div className="asset-card__fields">
+      <Field label="Tags" className="asset-card__tags"><AssetTags asset={asset} library={library} onFacet={onFacet} suggestAbove /></Field>
+      <Collections names={asset.user.collections ?? []} onCollect={onCollect} />
+    </div>
+  </div>;
+}
+
+/** The collections holding the item; pressing one opens the collection dialog. */
+function Collections({ names, onCollect }: { names: readonly string[]; onCollect: () => void }) {
+  if (!names.length) return null;
+  return <Field label="Collections"><div className="asset-card__collections" role="list">
+    {names.map((name) => <Chip key={name} role="listitem" tone="accent" label={name} title="Change collections" onPress={onCollect} />)}
+  </div></Field>;
 }

@@ -9,8 +9,8 @@ function moduleUrl(file, replacements = {}) {
   return `data:text/javascript;base64,${Buffer.from(outputText).toString("base64")}`;
 }
 const facetsUrl = moduleUrl("../src/domain/facets.ts");
-const { ALL_TYPES, applyFilter, emptyFilter, facetState, withFacet, propertyValue } = await import(facetsUrl);
-const { parseQuery, applyQuery, filterChips, quoteValue } = await import(moduleUrl("../src/domain/query.ts", { "./facets": facetsUrl }));
+const { applyFilter, emptyFilter, facetState, withFacet, propertyValue } = await import(facetsUrl);
+const { parseQuery, applyQuery, filterChips, quoteValue, typingTerm } = await import(moduleUrl("../src/domain/query.ts", { "./facets": facetsUrl }));
 const { toBrowseFilter, NO_RULES } = await import(moduleUrl("../src/domain/browseQuery.ts"));
 
 const asset = (id, extra = {}) => ({
@@ -50,7 +50,7 @@ test("a value is chosen or left out, never both", () => {
   assert.deepEqual(filterChips(f).map((chip) => `${chip.exclude ? "-" : ""}${chip.label}:${chip.text}`), ["publisher:Lowpoly", "tag:quiet"]);
 });
 
-test("the window's own filter leaves out, matches any tag, reads ranges and shows every type", () => {
+test("the window's own filter leaves out, matches any tag, reads ranges and keeps to one type", () => {
   const assets = [
     asset("a", { tags: ["loud"] }),
     asset("b", { tags: ["quiet"], audio: { duration: 4 } }),
@@ -67,18 +67,19 @@ test("the window's own filter leaves out, matches any tag, reads ranges and show
   assert.deepEqual(ids(two), []);
   assert.deepEqual(ids({ ...two, tagsMatch: "any" }), ["a", "c"]);
   assert.deepEqual(ids({ ...f, ranges: { "audio.duration": { min: 2 } } }), ["b"]);
-  f = emptyFilter(ALL_TYPES);
-  assert.deepEqual(ids(f), ["a", "b", "c", "s"]);
+  f = emptyFilter("skybox");
+  assert.deepEqual(ids(f), ["s"]);
   assert.deepEqual(ids({ ...f, ranges: { "meta.width": { min: 1024, max: 4096 } } }), ["s"]);
+  assert.deepEqual(ids({ ...f, ranges: { "meta.width": { min: 4096 } } }), []);
   assert.equal(propertyValue(assets[3], "meta.width"), 2048);
   assert.equal(propertyValue(assets[3], "meta.nope.deeper"), undefined);
 });
 
 test("the question the backend gets", () => {
-  let f = applyQuery(emptyFilter(ALL_TYPES), parseQuery("tag:b tag:a -source:x -tag:z"));
+  let f = applyQuery(emptyFilter("model"), parseQuery("tag:b tag:a -source:x -tag:z"));
   f = { ...f, tagsMatch: "any", ranges: { "meta.width": { min: 10 }, "audio.duration": { max: 3 } }, sort: { key: "prop:audio.duration", descending: true } };
   const q = toBrowseFilter(f, null, NO_RULES);
-  assert.equal(q.kind, "*");
+  assert.equal(q.kind, "model");
   assert.deepEqual(q.tags, ["a", "b"]);
   assert.equal(q.tagsAny, true);
   assert.deepEqual(q.exclude, { sources: ["x"], publishers: [], licenses: [], formats: [], categories: [], tags: ["z"] });
@@ -100,6 +101,41 @@ test("a saved view keeps the whole question", async () => {
   assert.equal(junk.tags.size, 0);
   assert.deepEqual(junk.ranges, {});
   assert.deepEqual(junk.sort, { key: "name", descending: false });
+});
+
+test("the word being typed: its field, its text and whether a pick is left out", () => {
+  assert.deepEqual(typingTerm("tag:sci"), { field: "tags", part: "sci", exclude: false });
+  assert.deepEqual(typingTerm("-tag:sci"), { field: "tags", part: "sci", exclude: true });
+  assert.deepEqual(typingTerm("-publisher:Kit"), { field: "publishers", part: "Kit", exclude: true });
+  assert.deepEqual(typingTerm("foo"), { part: "foo", exclude: false });
+  assert.deepEqual(typingTerm("door -tag:wo"), { field: "tags", part: "wo", exclude: true });
+  assert.equal(typingTerm("nosuchfield:x").field, undefined);
+});
+
+test("a damaged or retired saved view reads as a valid filter", async () => {
+  const { readFilter, readViews } = await import(moduleUrl("../src/domain/savedViews.ts", { "./facets": facetsUrl }));
+  for (const value of [null, [], "x", 3, undefined]) {
+    const f = readFilter(value);
+    assert.equal(f.kind, "model");
+    assert.equal(f.tags.size, 0);
+    assert.deepEqual(f.sort, { key: "name", descending: false });
+  }
+  // "All assets" and its sort by type are gone: they fall back to the default type and order.
+  const retired = readFilter({ kind: "*", sort: { key: "type", descending: true } });
+  assert.equal(retired.kind, "model");
+  assert.deepEqual(retired.sort, { key: "name", descending: false });
+  assert.equal(readFilter({ kind: "audio" }).kind, "audio");
+  const views = readViews([
+    { id: "a", name: "A", filter: null, collection: null },
+    { id: "b", name: "B", filter: [], collection: null },
+    { id: "c", name: "C", filter: { kind: "*" }, collection: 7 },
+    { id: "d", name: "D", filter: { kind: "audio" }, collection: "Doors" },
+    null, "x", { id: 1, name: "E", filter: {} },
+  ]);
+  assert.deepEqual(views.map((view) => [view.id, view.collection]), [["c", null], ["d", "Doors"]]);
+  for (const view of views) assert.doesNotThrow(() => readFilter(view.filter));
+  assert.deepEqual(readViews(null), []);
+  assert.deepEqual(readViews({ views: [] }), []);
 });
 
 test("a long field is searchable and shortened, its chosen values always shown", async () => {

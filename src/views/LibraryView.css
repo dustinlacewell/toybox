@@ -12,32 +12,19 @@
 }
 .library-sidebar__header { position: sticky; top: -10px; z-index: 3; background: var(--bg-1); padding: 0 0 10px; flex-shrink: 0; }
 .library-sidebar__utilities { display: flex; gap: 4px; padding: 0 10px; }
-.asset-inspector__preview { width: 100%; aspect-ratio: 4 / 3; position: relative; display: grid; place-items: center; border-radius: 12px; background: var(--preview-background); color: var(--text-2); border: 1px solid var(--border); overflow: hidden; cursor: pointer; }
-.asset-inspector__preview img { width: 100%; height: 100%; object-fit: contain; }
-.asset-inspector__preview img { position: absolute; inset: 0; }
-.asset-inspector__expand { position: absolute; top: 8px; left: 8px; z-index: 1; width: 28px; height: 28px; border: 1px solid var(--border); border-radius: 6px; background: var(--bg-1); color: var(--text-1); cursor: pointer; }
-.asset-inspector__lighting { position: absolute; top: 8px; right: 8px; z-index: 2; }
-.asset-inspector__title { display: flex; align-items: start; gap: 8px; padding: 16px 8px 10px; }
-.asset-inspector__title > div { flex: 1; min-width: 0; }
-.asset-inspector__title h2 { margin: 0; font-size: 15px; font-weight: 600; overflow-wrap: anywhere; }
-.asset-inspector__title p { margin: 2px 0 0; color: var(--text-1); }
 .library-workbench > .ds-workbench__navigation .facets, .library-navigation-drawer .facets, .export-screen .ds-workbench__navigation .facets { width: auto; border: 0; background: transparent; overflow: visible; flex-shrink: 0; padding: 0; }
 .collection-dialog { padding: 20px; width: 100%; display: flex; flex-direction: column; gap: 8px; }
 .library-notice { margin: 0; padding: 6px 16px; flex-shrink: 0; border-top: 1px solid var(--border); background: var(--bg-1); color: var(--danger); font-size: var(--fs-sm); overflow-wrap: anywhere; }
 .library-notice--offline { color: var(--text-1); display: flex; flex-direction: column; gap: 2px; }
 .library-notice__offline { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
-.asset-inspector .ds-pane__footer { flex-wrap: wrap; }
-.asset-inspector__transfer { flex: 1 0 100%; display: flex; gap: 8px; }
-.asset-inspector__transfer > * { flex: 1; justify-content: center; }
 .library-view-item { position: relative; }
 .library-view-item__remove { position: absolute; right: 6px; top: 50%; transform: translateY(-50%); width: 22px; height: 22px; display: none; place-items: center; border: 0; border-radius: 5px; background: var(--bg-3); color: var(--text-1); cursor: pointer; }
 .library-view-item:hover .library-view-item__remove, .library-view-item:focus-within .library-view-item__remove { display: grid; }
 .library-view-save { display: flex; align-items: center; gap: 8px; width: 100%; min-height: 30px; padding: 5px 10px; border: 0; border-radius: 8px; background: transparent; color: var(--text-2); font: inherit; text-align: left; cursor: pointer; }
 .library-view-save:hover { background: var(--bg-2); color: var(--text-1); }
-/* Room under the grid for the preview tray and the selection bar above it. */
+/* Room under the grid for the preview tray. */
 .library-workbench { --tray-space: 0px; }
 .library-workbench.has-tray { --tray-space: 49px; }
-.library-workbench.has-tray.is-tray-open { --tray-space: 322px; }
-.library-workbench .grid-scroll { padding-bottom: calc(var(--tray-space) + 90px); }
-.library-workbench .ds-selection-bar { bottom: calc(var(--tray-space) + 14px); }
+.library-workbench.has-tray.is-tray-open { --tray-space: 218px; }
+.library-workbench .grid-scroll { padding-bottom: calc(var(--tray-space) + 24px); }
 .library-workbench > .ds-workbench__inspector { width: 280px; }

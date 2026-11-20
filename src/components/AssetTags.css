@@ -1,0 +1,11 @@
+/* The list may scroll; the strip itself anchors the tag suggestions so the scrolling list does not clip them. */
+.asset-tags { position: relative; display: flex; flex-direction: column; gap: var(--space-1); min-width: 0; min-height: 0; }
+.asset-tags__list { display: flex; flex-wrap: wrap; align-content: flex-start; align-items: center; gap: 6px; min-height: 0; }
+.asset-tags__hint, .asset-tags__error { display: block; font-size: var(--fs-sm); }
+.asset-tags__hint { color: var(--text-2); }
+.asset-tags__error { color: var(--danger); }
+
+.tag-adder__open { display: inline-flex; align-items: center; gap: 2px; min-height: 24px; padding: 0 var(--space-2); border: 1px dashed var(--border-strong); border-radius: 999px; background: transparent; color: var(--text-2); font: inherit; font-size: var(--fs-sm); cursor: pointer; }
+.tag-adder__open:hover { color: var(--text-0); border-color: var(--text-2); }
+.tag-adder__input.ds-input { width: 160px; height: 24px; padding: 0 var(--space-2); font-size: var(--fs-sm); }
+.asset-tags .tag-adder__suggestions { width: 260px; max-height: 300px; }

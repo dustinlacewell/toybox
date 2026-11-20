@@ -1,0 +1,8 @@
+.ds-chip { display: inline-flex; align-items: center; gap: 2px; max-width: 100%; min-height: 24px; padding: 0 var(--space-2); border: 1px solid var(--border); border-radius: 999px; background: var(--bg-2); color: var(--text-1); font-size: var(--fs-sm); line-height: 1.4; }
+.ds-chip--accent { background: var(--accent-soft); border-color: color-mix(in srgb, var(--accent) 45%, transparent); color: var(--text-0); }
+.ds-chip__label { min-width: 0; padding: 0; border: 0; background: none; color: inherit; font: inherit; overflow-wrap: anywhere; text-align: left; }
+button.ds-chip__label { cursor: pointer; }
+button.ds-chip__label:hover { color: var(--text-0); text-decoration: underline; }
+.ds-chip__remove { display: inline-flex; align-items: center; justify-content: center; padding: 0; margin-left: 2px; border: 0; background: none; color: var(--text-2); cursor: pointer; border-radius: 50%; }
+.ds-chip__remove:hover:not(:disabled) { color: var(--text-0); }
+.ds-chip__remove:disabled { opacity: 0.5; cursor: default; }

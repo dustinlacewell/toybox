@@ -8,10 +8,10 @@ import { memo, useEffect, useMemo, useState, type ReactNode } from "react";
 import { Bookmark, Check, ChevronDown, ChevronRight, Minus, Star, X } from "lucide-react";
 
 import type { LibraryInfo } from "../domain/catalog";
-import { ALL_TYPES, FIND_FROM, facetState, formatLabel, narrowRows, type ExcludableField, type FacetField, type Filter } from "../domain/facets";
+import { FIND_FROM, facetState, formatLabel, narrowRows, type ExcludableField, type FacetField, type Filter } from "../domain/facets";
 import type { VisibilityRules } from "../domain/browseQuery";
 import type { Count, FacetCounts } from "../services/browse";
-import type { AssetTypeEntry, AssetTypeProperty } from "../services/assetTypes";
+import type { AssetTypeProperty } from "../services/assetTypes";
 import { useTagSearch } from "../state/libraryCounts";
 import { Button, TextInput } from "@ldlework/toybox-sdk/ui";
 import { RemoteMark } from "./RemoteMark";
@@ -25,16 +25,12 @@ interface Props {
   filter: Filter;
   /** The registered libraries; the Libraries group shows only with more than one. */
   libraries?: LibraryInfo[];
-  /** The library's types and how many items each has, for the Type group of "All assets". */
-  types?: AssetTypeEntry[];
-  typeCounts?: ReadonlyMap<string, number>;
   /** Range properties of the type shown. */
   properties: AssetTypeProperty[];
   onFacet: (field: FacetField, value: string, state: "in" | "out" | "off", only?: boolean) => void;
   onTagsMatch: (match: Filter["tagsMatch"]) => void;
   onRange: (path: string, bounds: { min?: number; max?: number } | null) => void;
   onFavorites: () => void;
-  onKind?: (kind: string) => void;
   onClear: () => void;
   onSaveView?: () => void;
   onClose?: () => void;
@@ -49,7 +45,7 @@ function rowsOf(counts: Count[] | undefined, chosen: ReadonlySet<string>, exclud
   return rows;
 }
 
-export const FacetFilter = memo(function FacetFilter({ counts, rules, filter, libraries = [], types = [], typeCounts, properties, onFacet, onTagsMatch, onRange, onFavorites, onKind, onClear, onSaveView, onClose }: Props) {
+export const FacetFilter = memo(function FacetFilter({ counts, rules, filter, libraries = [], properties, onFacet, onTagsMatch, onRange, onFavorites, onClear, onSaveView, onClose }: Props) {
   const inLibrary = useMemo(() => new Map((counts?.libraries ?? []).map(({ value, count }) => [value, count])), [counts]);
   const [tagSearch, setTagSearch] = useState("");
   const [allTags, setAllTags] = useState(false);
@@ -63,7 +59,6 @@ export const FacetFilter = memo(function FacetFilter({ counts, rules, filter, li
   const shownTags = narrowRows(tagRows.rows, "", (value) => facetState(filter, "tags", value) !== "off", (count) => count.value, FIND_FROM, allTags || !!found);
   const row = (field: FacetField, value: string, count: number, label: ReactNode = value || "Unknown", mark?: ReactNode) =>
     <FacetRow key={value} label={label} mark={mark} count={count} state={facetState(filter, field, value)} canExclude={field !== "libraries"} onChange={(state, only) => onFacet(field, value, state, only)} />;
-  const every = filter.kind === ALL_TYPES;
 
   return (
     <aside className="facets" aria-label="Filters">
@@ -75,11 +70,6 @@ export const FacetFilter = memo(function FacetFilter({ counts, rules, filter, li
       <div className="facets__scroll">
         <button type="button" className="facets__favorites" aria-pressed={filter.favoritesOnly} onClick={onFavorites}><Star size={16} aria-hidden="true" />Favorites only</button>
 
-        {every && onKind && <FacetGroup title="Type" hint="Pick one type to filter by what only it has">
-          {types.map((type) => <button type="button" key={type.id} className="facets__row" onClick={() => onKind(type.id)}>
-            <span className="facets__box" /><span className="facets__label">{type.label}</span><span className="facets__count">{(typeCounts?.get(type.id) ?? 0).toLocaleString()}</span>
-          </button>)}
-        </FacetGroup>}
         {libraries.length > 1 && <FacetGroup title="Libraries">{libraries.map((library) => row("libraries", library.id, inLibrary.get(library.id) ?? 0, library.name, <RemoteMark library={library} />))}</FacetGroup>}
         <FieldGroup title="Publishers" noun="publishers" field="publishers" filter={filter} rows={rowsOf(counts?.publishers, filter.publishers, filter.exclude.publishers)} row={row} />
         {(tagTotal > 0 || filter.tags.size > 0 || filter.exclude.tags.size > 0) && <FacetGroup title="Tags" mode={filter.tags.size > 1 ? { value: filter.tagsMatch, onChange: onTagsMatch } : undefined}>
@@ -123,7 +113,7 @@ function FieldGroup({ title, noun, field, filter, rows, row, label = (value) => 
   </FacetGroup>;
 }
 
-function FacetGroup({ title, hint, mode, children }: { title: string; hint?: string; mode?: { value: Filter["tagsMatch"]; onChange: (value: Filter["tagsMatch"]) => void }; children: ReactNode }) {
+function FacetGroup({ title, mode, children }: { title: string; mode?: { value: Filter["tagsMatch"]; onChange: (value: Filter["tagsMatch"]) => void }; children: ReactNode }) {
   const [open, setOpen] = useState(true);
   return (
     <div className="facets__section" role="group" aria-label={title}>
@@ -133,7 +123,6 @@ function FacetGroup({ title, hint, mode, children }: { title: string; hint?: str
           {(["all", "any"] as const).map((value) => <button type="button" key={value} role="radio" aria-checked={mode.value === value} onClick={() => mode.onChange(value)}>{value === "all" ? "All" : "Any"}</button>)}
         </span>}
       </div>
-      {open && hint && <div className="facets__hint">{hint}</div>}
       {open && children}
     </div>
   );

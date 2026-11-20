@@ -47,7 +47,3 @@ export function PropertyRow({ label, value, onPress }: { label: ReactNode; value
   return onPress ? <button type="button" className="ds-property-row" onClick={onPress}>{content}</button>
     : <div className="ds-property-row">{content}</div>;
 }
-
-export function SelectionBar({ children, label }: { children: ReactNode; label: ReactNode }) {
-  return <div className="ds-selection-bar" role="toolbar" aria-label="Selection actions"><span>{label}</span>{children}</div>;
-}

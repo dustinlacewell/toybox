@@ -8,22 +8,19 @@ import type { Asset, AssetKind, Category, Pack } from "./catalog";
 // own by tests and tools). Mirrors `assetType` in ./catalog.
 const assetType = (a: Asset): AssetKind => (a.kind === "plugin" ? a.type : a.kind);
 
-/** `Filter.kind` when the library shows every type at once ("All assets"). */
-export const ALL_TYPES = "*";
-
 /** The fields whose values can be included or left out. */
 export const EXCLUDABLE = ["sources", "publishers", "licenses", "formats", "categories", "tags"] as const;
 export type ExcludableField = (typeof EXCLUDABLE)[number];
 /** Every field of the filter that holds a set of values. */
 export type FacetField = "libraries" | ExcludableField;
 
-/** The order of the list: `name`, `added`, `changed`, `publisher`, `source`, `format`, `type`, or `prop:<path>`
+/** The order of the list: `name`, `added`, `changed`, `publisher`, `source`, `format`, or `prop:<path>`
  *  for a property a type declares (see `AssetTypeProperty`). */
 export interface SortOrder { key: string; descending: boolean }
 export const NAME_ORDER: SortOrder = { key: "name", descending: false };
 
 export interface Filter {
-  /** Which kind of asset the library shows, or `ALL_TYPES`. A mode, not a narrowing constraint. */
+  /** Which kind of asset the library shows. A mode, not a narrowing constraint. */
   kind: AssetKind;
   /** Library ids; empty means every library. */
   libraries: Set<string>;
@@ -120,7 +117,7 @@ export const ofKind = (assets: Asset[], kind: AssetKind): Asset[] =>
 export function applyFilter(assets: Asset[], f: Filter): Asset[] {
   const needle = f.text.trim().toLowerCase();
   return assets.filter((a) => {
-    if (f.kind !== ALL_TYPES && assetType(a) !== f.kind) return false;
+    if (assetType(a) !== f.kind) return false;
     for (const field of EXCLUDABLE) {
       const out = f.exclude[field];
       if (!out.size) continue;

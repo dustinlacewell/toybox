@@ -1,5 +1,0 @@
-.audio-preview { cursor: default; }
-.audio-preview__open { position: absolute; inset: 0; padding: 12px 12px 54px; width: 100%; height: 100%; background: transparent; border: 0; color: inherit; cursor: pointer; }
-.audio-preview__controls { position: absolute; left: 12px; right: 12px; bottom: 12px; display: flex; align-items: center; gap: 12px; }
-.audio-preview__controls > span { font-size: var(--fs-sm); color: var(--text-2); }
-.audio-preview__error { position: absolute; inset: 8px 8px auto; color: var(--danger); font-size: var(--fs-sm); }

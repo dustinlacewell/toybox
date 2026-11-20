@@ -7,9 +7,9 @@
 
 import { useCallback, useEffect, useMemo, useState } from "react";
 
-import type { AssetKind } from "../domain/catalog";
+import type { Asset, AssetKind } from "../domain/catalog";
+import { menuTarget, type AssetAction } from "../domain/assetMenu";
 import { NO_RULES, filterSignature, toBrowseFilter } from "../domain/browseQuery";
-import { ALL_TYPES } from "../domain/facets";
 import { filterChips } from "../domain/query";
 import { readFilter, type SavedView } from "../domain/savedViews";
 import { useSavedViews } from "../state/savedViews";
@@ -19,9 +19,10 @@ import { assetTypeEntry } from "../state/assetTypes";
 import { getAssets, queryIds, setCollection } from "../services/browse";
 import { listLibraries, deleteAssets, transferAssets, PartialLibraryError, type DeleteResult } from "../services/tauriApi";
 import { OfflineNotice } from "../components/OfflineNotice";
-import { affectedLibraries, canOfferTransfer, readOnlyNotice, readOnlyOwners, type TransferMode } from "../domain/transfer";
+import { affectedLibraries, canOfferTransfer, type TransferMode } from "../domain/transfer";
 import { loadAllLibraries, syncLibrary } from "../services/libraries";
-import { libraryOf } from "../domain/libraryId";
+import { revealAsset } from "../services/reveal";
+import { stopAudioAudition } from "../services/audioAudition";
 import { useStore } from "../state/store";
 import { useAsset, useAssets } from "../state/assetCache";
 import { useAssetList } from "../state/assetList";
@@ -30,6 +31,7 @@ import { alsoInMap, useElsewhere } from "../state/duplicates";
 import { useSavedExports } from "../state/savedExports";
 import { AssetGrid } from "../components/AssetGrid";
 import { AssetDetail } from "../components/AssetDetail";
+import { AssetContextMenu, type AssetMenuOpen } from "../components/AssetContextMenu";
 import { AssetInspector } from "../components/AssetInspector";
 import { LibrarySidebar } from "../components/LibrarySidebar";
 import { CollectionDialog } from "../components/CollectionDialog";
@@ -52,7 +54,7 @@ import { useThumbGeneration } from "../components/useThumbGeneration";
 import { useFavorites } from "../components/useFavorites";
 import { useDebounced } from "../components/useDebounced";
 import { usePluginRegistry } from "../components/usePluginRegistry";
-import { Button, Spinner, Stack, Workbench, SelectionBar } from "@ldlework/toybox-sdk/ui";
+import { Button, Spinner, Stack, Workbench } from "@ldlework/toybox-sdk/ui";
 import "./LibraryView.css";
 import { useNarrowLibrary } from "../components/useNarrowLibrary";
 import { CompactLibraryNavigation } from "../components/CompactLibraryNavigation";
@@ -105,6 +107,8 @@ export function LibraryView() {
   const [tagIds, setTagIds] = useState<string[]>();
   const [deleteIds, setDeleteIds] = useState<string[]>();
   const [transfer, setTransfer] = useState<{ mode: TransferMode; ids: string[] }>();
+  const [menu, setMenu] = useState<AssetMenuOpen | null>(null);
+  const openMenu = useCallback((asset: Asset, point: { x: number; y: number }) => setMenu({ ...point, asset, ids: menuTarget(asset.id, useStore.getState().selection) }), []);
   const [exportIds, setExportIds] = useState<string[]>([]);
   const [filtersOpen, setFiltersOpen] = useState(true);
   const [savingView, setSavingView] = useState(false);
@@ -152,15 +156,13 @@ export function LibraryView() {
   const types=useMemo(()=>withAssetTypesInUse(registry.types,typeCounts?[...typeCounts].filter(([,count])=>count>0).map(([id])=>id):[],registry.hiddenTypes),[registry.types,typeCounts,registry.hiddenTypes]);
   // Turning a plugin off can remove the section being shown; fall back to one
   // that still exists.
-  useEffect(()=>{ if(typeCounts&&filter.kind!==ALL_TYPES&&!types.some(type=>type.id===filter.kind)) setKind(types[0]?.id??"model"); },[types,typeCounts,filter.kind,setKind]);
-  const every = filter.kind === ALL_TYPES;
-  const typeEntry = every ? undefined : assetTypeEntry(filter.kind, types);
-  const properties = useMemo(() => typeEntry?.properties ?? [], [typeEntry]);
+  useEffect(()=>{ if(typeCounts&&!types.some(type=>type.id===filter.kind)) setKind(types[0]?.id??"model"); },[types,typeCounts,filter.kind,setKind]);
+  const typeEntry = assetTypeEntry(filter.kind, types);
+  const properties = useMemo(() => typeEntry.properties ?? [], [typeEntry]);
   const sortChoices = useMemo((): SortChoice[] => [
     ...COMMON_SORTS,
-    ...(every ? [{ key: "type", label: "Type", directions: ["A → Z", "Z → A"] as [string, string] }] : []),
-    ...properties.filter((property) => property.sort).map((property) => ({ key: `prop:${property.path}`, label: property.label, directions: ["Smallest first", "Largest first"] as [string, string], descending: true, group: typeEntry?.label })),
-  ], [every, properties, typeEntry]);
+    ...properties.filter((property) => property.sort).map((property) => ({ key: `prop:${property.path}`, label: property.label, directions: ["Smallest first", "Largest first"] as [string, string], descending: true, group: typeEntry.label })),
+  ], [properties, typeEntry]);
 
   // The list: the filter settles a moment after it stops changing, then a page of the list is asked for as rows
   // scroll into view. The same item in several libraries is shown once (the libraries rank, see `domain/duplicates`);
@@ -205,7 +207,6 @@ export function LibraryView() {
   // Transfers need somewhere else to go; changing a library needs it to be writable.
   const offerTransfer = canOfferTransfer(libraries);
   const openTransfer = (mode: TransferMode, ids: string[]) => setTransfer({ mode, ids: [...ids] });
-  const selectionLocked = useMemo(() => readOnlyNotice("delete", readOnlyOwners(libraries, [...selection].map((id) => ({ library: libraryOf(id) })))), [libraries, selection]);
 
   // What the dialogs show is fetched by id.
   const deleteShown = useMemo(() => deleteIds?.slice(0, LISTED), [deleteIds]);
@@ -216,36 +217,38 @@ export function LibraryView() {
   const tagItems = useAssets(tagIds).assets;
   const tagCopies = useElsewhere(tagIds ?? NO_IDS);
 
-  // "All assets" exports one type at a time: the type of the selection, when the items at hand share one.
-  const selectionSample = useMemo(() => (every ? [...selection].slice(0, 500) : undefined), [every, selection]);
-  const sampled = useAssets(selectionSample).assets;
-  const selectionKind = useMemo((): AssetKind | undefined => {
-    if (!every) return filter.kind;
-    const kinds = new Set(sampled.map((asset) => (asset.kind === "plugin" ? asset.type : asset.kind)));
-    return kinds.size === 1 && sampled.length === selection.size ? [...kinds][0] : undefined;
-  }, [every, filter.kind, sampled, selection.size]);
-  const kindOf = (asset: { kind: string; type?: string }): AssetKind => (asset.kind === "plugin" ? asset.type ?? "plugin" : asset.kind);
-
   // What the header, the result line and the tray say.
-  const totalOfKind = every ? [...(typeCounts?.values() ?? [])].reduce((sum, count) => sum + count, 0) : typeCounts?.get(filter.kind) ?? 0;
+  const totalOfKind = typeCounts?.get(filter.kind) ?? 0;
   const activeViewName = views.find((view) => view.id === activeView)?.name;
   const chips = filterChips(filter, properties);
   const leftOutChips = chips.filter((chip) => chip.exclude);
   const leftOut = leftOutChips.length ? `Leaving out ${leftOutChips.slice(0, 3).map((chip) => chip.text).join(", ")}${leftOutChips.length > 3 ? ` and ${leftOutChips.length - 3} more` : ""}` : undefined;
   const keepAll = () => { for (const chip of leftOutChips) setFacet(chip.field!, chip.value!, "off"); };
-  const noun = every ? (visibleCount === 1 ? "item" : "items") : (visibleCount === 1 ? typeEntry!.singular : typeEntry!.label).toLowerCase();
+  const noun = (visibleCount === 1 ? typeEntry.singular : typeEntry.label).toLowerCase();
   const summary = list.total === null ? "Loading…" : `${visibleCount.toLocaleString()}${list.exact ? "" : "+"} ${noun}${collection ? ` in ${collection}` : ""}`;
-  const suggestedViewName = chips.filter((chip) => !chip.exclude).map((chip) => chip.text).concat(filter.text ? [`“${filter.text}”`] : []).slice(0, 3).join(", ") || (every ? "All assets" : typeEntry!.label);
+  const suggestedViewName = chips.filter((chip) => !chip.exclude).map((chip) => chip.text).concat(filter.text ? [`“${filter.text}”`] : []).slice(0, 3).join(", ") || typeEntry.label;
   const tray = !!inspected || selection.size > 1;
-  const filterPane = (onClose?: () => void) => <FacetFilter counts={facets} rules={rules} filter={filter} libraries={libraries} types={types} typeCounts={typeCounts}
+  const filterPane = (onClose?: () => void) => <FacetFilter counts={facets} rules={rules} filter={filter} libraries={libraries}
     properties={properties.filter((property) => property.range)}
     onFacet={(field, value, state, only) => setFacet(field, value, state, only)} onTagsMatch={setTagsMatch} onRange={setRange}
-    onFavorites={() => { setCollectionName(null); toggleFavoritesOnly(); }} onKind={(kind) => setKind(kind)}
+    onFavorites={() => { setCollectionName(null); toggleFavoritesOnly(); }}
     onClear={() => { clearFilter(); setCollectionName(null); setActiveView(null); }} onSaveView={() => setSavingView(true)} onClose={onClose} />;
 
   const rescan = () => void initCatalog(deps, true);
-  const openExport = (ids: string[], setupId?: string, kind: AssetKind = filter.kind) => { setExportIds(ids); setExportSetup(setupId); setExportKind(kind === ALL_TYPES ? selectionKind ?? "model" : kind); setReturnToExports(false); setExportOpen(true); };
+  const openExport = (ids: string[], setupId?: string, kind: AssetKind = filter.kind) => { setExportIds(ids); setExportSetup(setupId); setExportKind(kind); setReturnToExports(false); setExportOpen(true); };
   const manageExports = () => { setNavigationOpen(false); setExportsManagerOpen(true); };
+  /** What each tile-menu entry does to the items it acts on. */
+  const menuActions: Record<AssetAction, (target: AssetMenuOpen) => void> = {
+    open: ({ asset }) => { stopAudioAudition(); setPreview(asset.id); },
+    collect: ({ ids }) => setCollectIds(ids),
+    tag: ({ ids }) => setTagIds(ids),
+    copy: ({ ids }) => openTransfer("copy", ids),
+    move: ({ ids }) => openTransfer("move", ids),
+    reveal: ({ asset }) => void revealAsset(asset),
+    export: ({ ids }) => openExport(ids),
+    clear: () => clearSelection(),
+    delete: ({ ids }) => setDeleteIds(ids),
+  };
 
   const renderSidebar = () => <LibrarySidebar
         typeCounts={typeCounts} filter={filter} collections={collections} collection={collection} onCollection={(name) => { setCollectionName(name); setExportOpen(false);setNavigationOpen(false); }}
@@ -300,13 +303,13 @@ export function LibraryView() {
       <Workbench className={`library-workbench${compact?" is-compact":""}${tray?" has-tray":""}${tray&&trayOpen?" is-tray-open":""}`} navigation={!compact&&renderSidebar()} header={<>
         {compact&&<CompactLibraryNavigation kind={filter.kind} types={types} icons={icons} favorites={filter.favoritesOnly} onKind={changeKind} onFavorites={changeFavorites} onExports={manageExports} onSettings={()=>setSettingsOpen(true)} narrow={narrow} onRestore={()=>{if(narrow)setNavigationOpen(true);else setMaximized(false);}}/>}
         <LibraryToolbar
-            title={activeViewName ?? (every ? "All assets" : typeEntry!.label)}
+            title={activeViewName ?? typeEntry.label}
             visibleCount={visibleCount}
             visibleApproximate={!list.exact}
             totalCount={totalOfKind}
             onImport={() => setImportOpen(true)}
           />
-        <QueryBar filter={filter} counts={facets} rules={rules} properties={properties} placeholder={every ? "Search every type, or type tag: publisher: …" : `Search ${typeEntry!.label.toLowerCase()}, or type tag: publisher: …`}
+        <QueryBar filter={filter} counts={facets} rules={rules} properties={properties} placeholder={`Search ${typeEntry.label.toLowerCase()}, or type tag: publisher: …`}
           filtersOpen={filtersOpen} onToggleFilters={() => setFiltersOpen((open) => !open)}
           onText={setText} onQuery={applyQueryText} onFacet={(field, value, state) => setFacet(field, value, state)}
           onRange={(path) => setRange(path, null)} onFavorites={toggleFavoritesOnly} />
@@ -341,17 +344,16 @@ export function LibraryView() {
               onToggleFavorite={toggleFavorite}
               onOpen={setPreview}
               onInspect={setInspectedId}
+              onContextMenu={openMenu}
               inspectedId={inspected?.id}
-              showType={every}
             />
           )}
-          {selection.size > 0 && <SelectionBar label={`${selection.size} selected`}><Button variant="ghost" onClick={clearSelection}>Clear</Button><Button variant="ghost" onClick={() => setCollectIds([...selection])}>Add to collection</Button><Button variant="ghost" onClick={() => setTagIds([...selection])}>Tag…</Button>{offerTransfer && <><Button variant="ghost" onClick={() => openTransfer("copy", [...selection])}>Copy to library…</Button><Button variant="ghost" onClick={() => openTransfer("move", [...selection])}>Move to library…</Button></>}<Button variant="ghost" disabled={!!selectionLocked} title={selectionLocked} onClick={() => setDeleteIds([...selection])}>Delete</Button><Button variant="primary" disabled={!selectionKind} title={selectionKind ? undefined : "Several types are selected: export one type at a time"} onClick={() => openExport([...selection], undefined, selectionKind)}>Export</Button></SelectionBar>}
-          {tray && <PreviewTray asset={inspected} selected={[...selection]} open={trayOpen} onOpenChange={setTrayOpen} onExpand={() => inspected && setPreview(inspected.id)}
-            onFacet={(field, value, exclude) => { setFacet(field, value, exclude ? "out" : "in", !exclude && field !== "tags"); setActiveView(null); }}>
-            {inspected && <AssetInspector asset={inspected} active={!previewAsset && trayOpen}
+          {menu && <AssetContextMenu menu={menu} libraries={libraries} selectionSize={selection.size} offerTransfer={offerTransfer} onAction={(action, target) => menuActions[action](target)} onClose={() => setMenu(null)} />}
+          {tray && <PreviewTray asset={inspected} selected={[...selection]} open={trayOpen} onOpenChange={setTrayOpen} onExpand={() => inspected && setPreview(inspected.id)}>
+            {inspected && <AssetInspector asset={inspected}
               onOpen={() => setPreview(inspected.id)} onFavorite={() => toggleFavorite(inspected.id)}
-              onExport={() => openExport([inspected.id], undefined, kindOf(inspected))} onCollect={() => setCollectIds([inspected.id])}
-              onTransfer={offerTransfer ? (mode) => openTransfer(mode, [inspected.id]) : undefined} />}
+              onCollect={() => setCollectIds([inspected.id])}
+              onFacet={(field, value, exclude) => { setFacet(field, value, exclude ? "out" : "in", !exclude && field !== "tags"); setActiveView(null); }} />}
           </PreviewTray>}
       </Workbench>
       <Drawer open={compact&&filtersOpen} side="right" label="Filters" onClose={()=>setFiltersOpen(false)}>{filterPane(()=>setFiltersOpen(false))}</Drawer>

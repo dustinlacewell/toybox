@@ -74,6 +74,18 @@ export function parseQuery(input: string): ParsedQuery {
   return { terms, favorites, text: text.join(" ") };
 }
 
+/** The word being typed (the last one of `draft`): the field it is scoped to when it reads `field:part` with a known
+ *  field, the text after the colon, and whether it began with `-` (a value picked for it is left out). */
+export interface TypingTerm { field?: ExcludableField; part: string; exclude: boolean }
+
+export function typingTerm(draft: string): TypingTerm {
+  const last = draft.split(/\s+/).pop() ?? "";
+  const exclude = last.startsWith("-");
+  const scoped = /^-?([a-z]+):(.*)$/i.exec(last);
+  const field = scoped ? FIELD_OF.get(scoped[1].toLowerCase()) : undefined;
+  return field ? { field, part: scoped![2], exclude } : { part: last, exclude };
+}
+
 /** `filter` with the terms of `query` applied and its text as the search text. */
 export function applyQuery(filter: Filter, query: ParsedQuery): Filter {
   let next: Filter = { ...filter, text: query.text, favoritesOnly: filter.favoritesOnly || query.favorites };

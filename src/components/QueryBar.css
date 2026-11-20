@@ -17,19 +17,9 @@
 .query-chip__x { width: 20px; height: 20px; margin-right: 2px; display: grid; place-items: center; border: 0; border-radius: 4px; background: transparent; color: var(--text-2); cursor: pointer; }
 .query-chip__x:hover { background: var(--bg-2); color: var(--text-0); }
 
-.query-pop { position: absolute; z-index: 30; top: calc(100% + 6px); left: -1px; width: min(560px, 100%); max-height: 70vh; overflow-y: auto; background: var(--bg-1); border: 1px solid var(--border-strong); border-radius: var(--radius-2); box-shadow: 0 24px 60px -16px #000; padding: 6px; cursor: default; }
-.query-pop__label { padding: 8px 10px 4px; font-size: 12px; color: var(--text-2); }
-.query-pop__item { display: flex; align-items: center; gap: 10px; width: 100%; min-height: 32px; padding: 0 10px; border: 0; border-radius: 6px; background: transparent; color: var(--text-1); font: inherit; text-align: left; cursor: pointer; }
-.query-pop__item.is-active { background: var(--bg-3); color: var(--text-0); }
-.query-pop__item svg { color: var(--text-2); flex: none; }
-.query-pop__item kbd, .query-pop__footer kbd { margin-left: auto; font: inherit; font-size: 11px; color: var(--text-2); border: 1px solid var(--border); border-radius: 4px; padding: 0 4px; line-height: 16px; }
-.query-pop__value { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.query-pop__count { margin-left: auto; color: var(--text-2); font-size: var(--fs-sm); }
+/* The suggestion list (ds SuggestionList) under the bar. */
+.query-bar .query-pop { left: -1px; width: min(560px, 100%); max-height: 70vh; }
 .query-pop__dot { width: 6px; height: 6px; margin: 0 4px; border-radius: 50%; background: var(--text-2); flex: none; }
-.query-pop__empty { padding: 8px 10px; color: var(--text-2); }
-.query-pop__footer { display: flex; gap: 14px; flex-wrap: wrap; padding: 8px 10px 4px; margin-top: 4px; border-top: 1px solid var(--border); font-size: 12px; color: var(--text-2); }
-.query-pop__footer span { display: inline-flex; gap: 5px; align-items: center; }
-.query-pop__footer kbd { margin-left: 0; }
 
 .filter-toggle { flex: none; display: inline-flex; align-items: center; gap: 6px; height: 34px; padding: 0 10px; border: 1px solid var(--border); border-radius: var(--radius-1); background: var(--bg-1); color: var(--text-1); font: inherit; cursor: pointer; white-space: nowrap; }
 .filter-toggle:hover { color: var(--text-0); border-color: var(--border-strong); }

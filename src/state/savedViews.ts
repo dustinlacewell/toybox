@@ -4,7 +4,7 @@ import { create } from "zustand";
 import { persist } from "zustand/middleware";
 
 import type { Filter } from "../domain/facets";
-import { storeFilter, type SavedView } from "../domain/savedViews";
+import { readViews, storeFilter, type SavedView } from "../domain/savedViews";
 
 interface SavedViewsState {
   views: SavedView[];
@@ -22,8 +22,5 @@ export const useSavedViews = create(persist<SavedViewsState>((set) => ({
   remove: (id) => set((state) => ({ views: state.views.filter((view) => view.id !== id) })),
 }), {
   name: "toybox-saved-views",
-  merge: (saved, current) => {
-    const views = (saved as { views?: unknown } | undefined)?.views;
-    return { ...current, views: Array.isArray(views) ? views.filter((view): view is SavedView => !!view && typeof view.id === "string" && typeof view.name === "string" && typeof view.filter === "object") : [] };
-  },
+  merge: (saved, current) => ({ ...current, views: readViews((saved as { views?: unknown } | null | undefined)?.views) }),
 }));

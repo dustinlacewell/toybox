@@ -28,21 +28,41 @@ export function storeFilter(filter: Filter): StoredFilter {
 const strings = (value: unknown): string[] => (Array.isArray(value) ? value.filter((item): item is string => typeof item === "string") : []);
 const bound = (value: unknown): number | undefined => (typeof value === "number" && Number.isFinite(value) ? value : undefined);
 
-/** A stored filter read defensively (it lives in this computer's storage and may be from an older version). */
-export function readFilter(stored: StoredFilter): Filter {
-  const filter = emptyFilter(typeof stored.kind === "string" && stored.kind ? stored.kind : "model");
+/** Whether a JSON value is a plain object (not null, not an array). */
+export const isRecord = (value: unknown): value is Record<string, unknown> => typeof value === "object" && value !== null && !Array.isArray(value);
+
+/** Kinds and sort keys an older version could store that no longer mean anything ("All assets"). */
+const RETIRED_KINDS = new Set(["*"]);
+const RETIRED_SORTS = new Set(["type"]);
+
+/** A stored filter read defensively (it lives in this computer's storage and may be from an older version). Any
+ *  JSON value reads as a filter; what is not an object reads as the default one. */
+export function readFilter(value: unknown): Filter {
+  const stored: StoredFilter = isRecord(value) ? value : {};
+  const kind = typeof stored.kind === "string" && stored.kind && !RETIRED_KINDS.has(stored.kind) ? stored.kind : "model";
+  const filter = emptyFilter(kind);
   for (const field of SET_FIELDS) filter[field] = new Set(strings(stored[field]));
-  const exclude = (stored.exclude ?? {}) as Record<string, unknown>;
+  const exclude = isRecord(stored.exclude) ? stored.exclude : {};
   for (const field of EXCLUDABLE) filter.exclude[field] = new Set(strings(exclude[field]));
   filter.favoritesOnly = stored.favoritesOnly === true;
   filter.text = typeof stored.text === "string" ? stored.text : "";
   filter.tagsMatch = stored.tagsMatch === "any" ? "any" : "all";
-  const ranges = (stored.ranges ?? {}) as Record<string, { min?: unknown; max?: unknown }>;
-  for (const [path, value] of Object.entries(ranges)) {
-    const min = bound(value?.min), max = bound(value?.max);
+  const ranges = isRecord(stored.ranges) ? stored.ranges : {};
+  for (const [path, range] of Object.entries(ranges)) {
+    const min = isRecord(range) ? bound(range.min) : undefined, max = isRecord(range) ? bound(range.max) : undefined;
     if (min !== undefined || max !== undefined) filter.ranges[path] = { ...(min !== undefined && { min }), ...(max !== undefined && { max }) };
   }
-  const sort = stored.sort as { key?: unknown; descending?: unknown } | undefined;
-  filter.sort = typeof sort?.key === "string" ? { key: sort.key, descending: sort.descending === true } : NAME_ORDER;
+  const sort = isRecord(stored.sort) ? stored.sort : {};
+  filter.sort = typeof sort.key === "string" && !RETIRED_SORTS.has(sort.key) ? { key: sort.key, descending: sort.descending === true } : NAME_ORDER;
   return filter;
 }
+
+/** A stored view read defensively: null when it cannot be one (no id, no name, a filter that is not an object). */
+export function readView(value: unknown): SavedView | null {
+  if (!isRecord(value) || typeof value.id !== "string" || typeof value.name !== "string" || !isRecord(value.filter)) return null;
+  return { id: value.id, name: value.name, filter: value.filter, collection: typeof value.collection === "string" ? value.collection : null };
+}
+
+/** The stored views that can be read, from whatever the storage holds. */
+export const readViews = (value: unknown): SavedView[] =>
+  Array.isArray(value) ? value.map(readView).filter((view): view is SavedView => view !== null) : [];

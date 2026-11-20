@@ -428,7 +428,7 @@ the library only through Toybox.
 
 ## Deleting library items
 
-Select tiles and use **Delete** in the selection bar. After confirmation, Toybox
+Right-click a tile (or a tile of the selection) and use **Delete**. After confirmation, Toybox
 removes their rows (including variants) from `library.db` (the items, their derived
 asset rows, tags and rig links), and deletes their glTF, binary and texture files.
 Files referenced by surviving items or their variants are kept. Rescanning does not
