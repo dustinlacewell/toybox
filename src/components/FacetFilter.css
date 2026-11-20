@@ -1,70 +1,49 @@
-.facets {
-  width: 240px;
-  flex-shrink: 0;
-  background: var(--bg-1);
-  border-right: 1px solid var(--border);
-  overflow-y: auto;
-  padding: 0;
-}
+/* The filter pane (right side of the library). */
+.facets { width: 100%; height: 100%; display: flex; flex-direction: column; min-height: 0; background: var(--bg-1); }
+.facets__head { display: flex; align-items: center; gap: 8px; padding: 14px 14px 8px; flex: none; }
+.facets__head h2 { margin: 0; font-size: 13px; font-weight: 600; flex: 1; }
+.facets__link { border: 0; background: transparent; color: var(--text-2); font: inherit; font-size: 12px; cursor: pointer; padding: 2px 4px; }
+.facets__link:hover { color: var(--text-0); }
+.facets__close { width: 26px; height: 26px; display: grid; place-items: center; border: 0; border-radius: 6px; background: transparent; color: var(--text-1); cursor: pointer; }
+.facets__close:hover { background: var(--bg-2); }
+.facets__scroll { flex: 1; min-height: 0; overflow-y: auto; padding: 0 6px 16px; }
+.facets__foot { flex: none; border-top: 1px solid var(--border); padding: 10px 14px; display: flex; }
+.facets__foot > .ds-button { flex: 1; justify-content: center; }
 
-.facets__section {
-  padding: 10px 0 0;
-}
+.facets__favorites { display: flex; align-items: center; gap: 8px; width: 100%; height: 30px; padding: 0 8px; margin-bottom: 4px; border: 0; border-radius: 6px; background: transparent; color: var(--text-1); font: inherit; cursor: pointer; }
+.facets__favorites:hover { background: var(--bg-2); }
+.facets__favorites[aria-pressed="true"] { background: var(--bg-3); color: var(--text-0); }
+.facets__favorites[aria-pressed="true"] svg { color: var(--gold); fill: var(--gold); }
 
-.facets__title {
-  font-size: 12px;
-  color: var(--text-2);
-  padding: 0 10px;
-  margin-bottom: 4px;
-}
+.facets__section { border-top: 1px solid var(--border); padding: 8px 0 6px; }
+.facets__title { display: flex; align-items: center; gap: 6px; padding: 0 4px 4px; }
+.facets__toggle { display: inline-flex; align-items: center; gap: 4px; border: 0; background: transparent; color: var(--text-1); font: inherit; font-size: 12px; font-weight: 500; cursor: pointer; padding: 2px 4px; }
+.facets__toggle svg { color: var(--text-2); }
+.facets__mode { margin-left: auto; display: inline-flex; border: 1px solid var(--border); border-radius: 6px; overflow: hidden; }
+.facets__mode button { border: 0; background: transparent; color: var(--text-2); font: inherit; font-size: 11px; line-height: 18px; padding: 0 7px; cursor: pointer; }
+.facets__mode button[aria-checked="true"] { background: var(--bg-3); color: var(--text-0); }
+.facets__hint { margin: 0 8px 4px; font-size: 12px; color: var(--text-2); }
 
-.ds-button.facets__row {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  width: 100%;
-  min-height: 30px;
-  height: 30px;
-  padding: 0 10px;
-  gap: 8px;
-  border: 1px solid transparent;
-  text-align: left;
-  white-space: nowrap;
-  line-height: 20px;
-  color: var(--text-1);
-  user-select: none;
-}
+.facets__row { position: relative; display: flex; align-items: center; width: 100%; height: 28px; border-radius: 6px; color: var(--text-1); }
+button.facets__row { gap: 8px; padding: 0 8px; border: 0; background: transparent; font: inherit; cursor: pointer; text-align: left; }
+.facets__row:hover { background: var(--bg-2); }
+.facets__main { flex: 1; min-width: 0; height: 100%; display: flex; align-items: center; gap: 8px; padding: 0 8px; border: 0; background: transparent; color: inherit; font: inherit; text-align: left; cursor: pointer; user-select: none; }
+.facets__box { width: 16px; height: 16px; flex: none; border-radius: 4px; border: 1px solid var(--border-strong); display: grid; place-items: center; color: #fff; }
+.facets__row--in { color: var(--text-0); }
+.facets__row--in .facets__box { background: var(--accent); border-color: var(--accent); }
+.facets__row--out .facets__box { background: var(--danger); border-color: var(--danger); }
+.facets__row--out .facets__label { text-decoration: line-through; color: var(--text-2); }
+.facets__label { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.facets__count { flex: none; font-size: var(--fs-sm); color: var(--text-2); font-variant-numeric: tabular-nums; }
+.facets__acts { display: none; position: absolute; right: 6px; top: 4px; gap: 2px; }
+.facets__row:hover .facets__acts, .facets__row:focus-within .facets__acts { display: flex; }
+.facets__row:hover .facets__count, .facets__row:focus-within .facets__count { visibility: hidden; }
+.facets__acts button { height: 20px; padding: 0 6px; border-radius: 4px; border: 1px solid var(--border-strong); background: var(--bg-1); color: var(--text-1); font: inherit; font-size: 11px; cursor: pointer; }
+.facets__acts .facets__out { color: var(--danger); border-color: color-mix(in srgb, var(--danger) 50%, transparent); }
+.facets__tag-search { width: calc(100% - 16px); margin: 2px 8px 4px; }
+.facets__empty { display: block; padding: 4px 8px; color: var(--text-2); font-size: 12px; }
 
-.ds-button.facets__row[aria-pressed="true"] {
-  background: var(--bg-3);
-  box-shadow: inset 2px 0 var(--accent);
-  color: var(--text-0);
-}
-
-.facets__label { min-width: 0; overflow: hidden; text-overflow: ellipsis; }
-.facets__toolbar { display: flex; align-items: center; gap: 4px; margin-top: 8px; padding-top: 8px; border-top: 1px solid var(--border); }
-.ds-button.facets__favorites { flex: 1; width: auto; justify-content: flex-start; }
-.facets__favorites svg { flex-shrink: 0; }
-
-.facets__count {
-  flex-shrink: 0;
-  font-size: var(--fs-sm);
-  color: var(--text-2);
-  font-variant-numeric: tabular-nums;
-}
-
-.facets__tag-search {
-  width: 100%;
-  margin-bottom: 4px;
-}
-
-.ds-button.facets__more,
-.facets__empty {
-  color: var(--text-2);
-  font-size: 12px;
-}
-
-.facets__empty {
-  display: block;
-  padding: 4px 8px;
-}
+.facets__range { display: flex; flex-direction: column; gap: 4px; padding: 4px 8px 6px; }
+.facets__range-label { font-size: 12px; color: var(--text-1); }
+.facets__range-fields { display: flex; align-items: center; gap: 6px; color: var(--text-2); }
+.facets__range-fields .ds-input { height: 26px; padding: 2px 8px; }

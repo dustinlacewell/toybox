@@ -17,12 +17,15 @@ interface Props {
   onInspect?: (id: string) => void; onToggleSelect: (id: string, shiftKey?: boolean) => void;
   onAudition?: (id: string) => void;
   onToggleFavorite: (id: string) => void; onOpen: (id: string) => void;
+  /** Start the second line with the item's type (a list of several types). */
+  showType?: boolean;
 }
-export const AssetCard = memo(function AssetCard({ asset, selected, active = false, onInspect, onToggleSelect, onToggleFavorite, onOpen, onAudition, previewAspectRatio }: Props) {
+export const AssetCard = memo(function AssetCard({ asset, selected, active = false, onInspect, onToggleSelect, onToggleFavorite, onOpen, onAudition, previewAspectRatio, showType = false }: Props) {
+  const subtitle = asset.kind === "plugin" ? pluginSubtitle(asset) : asset.kind === "audio" ? `${formatTime(asset.audio.duration)} · ${asset.audio.format}` : asset.kind === "animation" ? `${asset.clip.sourceName} · ${asset.clip.duration.toFixed(1)} s` : sourceLabel(asset);
   const thumb = useThumbUrl(asset);
   const [hovered,setHovered]=useState(false);
   const fallback=thumb?<img src={thumb} alt="" loading="lazy"/>:<span>{asset.thumb.state==="rendering"?"Making preview…":asset.thumb.state==="error"?"Preview unavailable":"No preview"}</span>;
-  return <PreviewTile title={variantInfo(asset.name, asset.kind).base} subtitle={asset.kind === "plugin" ? pluginSubtitle(asset) : asset.kind === "audio" ? `${formatTime(asset.audio.duration)} · ${asset.audio.format}` : asset.kind === "animation" ? `${asset.clip.sourceName} · ${asset.clip.duration.toFixed(1)} s` : sourceLabel(asset)}
+  return <PreviewTile title={variantInfo(asset.name, asset.kind).base} subtitle={showType ? `${assetTypeEntry(asset.kind === "plugin" ? asset.type : asset.kind).singular} · ${subtitle}` : subtitle}
     active={active} selected={selected} onPress={() => onInspect ? onInspect(asset.id) : onOpen(asset.id)} onOpen={() => {setHovered(false);onOpen(asset.id);}}
     onPreviewHoverChange={asset.kind!=="audio"&&asset.kind!=="plugin"?setHovered:undefined}
     onSelectedChange={(_selected, shiftKey) => onToggleSelect(asset.id, shiftKey)}

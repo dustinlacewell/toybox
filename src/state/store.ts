@@ -10,12 +10,12 @@ import { create } from "zustand";
 import type {
   Asset,
   AssetKind,
-  Category,
   LibraryInfo,
   PackMeta,
   RigDefinition,
 } from "../domain/catalog";
-import { emptyFilter, type Filter } from "../domain/facets";
+import { emptyFilter, withFacet, NAME_ORDER, type FacetField, type Filter, type SortOrder } from "../domain/facets";
+import { applyQuery, parseQuery } from "../domain/query";
 import { patchCachedAsset, patchCachedHashes } from "./assetCache";
 
 /** The fields the host updates in place; common to every asset kind. */
@@ -62,20 +62,23 @@ interface AppState {
   /** Fingerprints computed after the list was loaded: `{ raw asset id: hash }` of one library. */
   applyContentHashes: (library: string, hashes: Record<string, string>) => void;
 
-  /** Switch the library to another asset kind. Categories differ per kind, so they reset. */
+  /** Switch the library to another asset kind (or every type). Categories and properties differ per kind, so they reset. */
   setKind: (kind: AssetKind) => void;
   setText: (text: string) => void;
-  /** Deselect active entries; otherwise select one, or add with additive selection. */
-  toggleLibrary: (library: string, additive?: boolean) => void;
+  /** Take the field terms out of typed query text into the filter; the rest becomes the search text. */
+  applyQueryText: (text: string) => void;
+  /** Choose a value of a field, leave it out, or neither; `only` makes it the field's one chosen value. */
+  setFacet: (field: FacetField, value: string, state: "in" | "out" | "off", only?: boolean) => void;
   /** Rewrite the selected libraries (e.g. when one is removed from the registry). */
   setFilterLibraries: (update: (libraries: Set<string>) => Set<string>) => void;
-  toggleSource: (source: string, additive?: boolean) => void;
-  togglePublisher: (publisher: string, additive?: boolean) => void;
-  toggleLicense: (license: string, additive?: boolean) => void;
-  toggleFormat: (format: string, additive?: boolean) => void;
-  toggleCategory: (category: Category, additive?: boolean) => void;
-  toggleTag: (tag:string, additive?: boolean) => void;
+  setTagsMatch: (match: Filter["tagsMatch"]) => void;
+  setSort: (sort: SortOrder) => void;
+  /** Bounds of a numeric property (`null`: no condition on it). */
+  setRange: (path: string, bounds: { min?: number; max?: number } | null) => void;
   toggleFavoritesOnly: () => void;
+  /** Replace the whole filter (a saved view). */
+  setFilter: (filter: Filter) => void;
+  /** Every condition off; the type and the order stay. */
   clearFilter: () => void;
 
   toggleSelected: (id: string) => void;
@@ -129,20 +132,35 @@ export const useStore = create<AppState>((set, get) => ({
   },
 
   setKind: (kind) =>
-    set((s) => ({ filter: { ...s.filter, kind, categories: new Set() }, selection: new Set(), previewId: null })),
+    set((s) => ({
+      filter: {
+        ...s.filter,
+        kind,
+        categories: new Set(),
+        exclude: { ...s.filter.exclude, categories: new Set() },
+        ranges: {},
+        sort: s.filter.sort.key.startsWith("prop:") ? NAME_ORDER : s.filter.sort,
+      },
+      selection: new Set(),
+      previewId: null,
+    })),
   setText: (text) => set((s) => ({ filter: { ...s.filter, text } })),
-  toggleLibrary: (library, additive) => set((s) => ({ filter: selectInSet(s.filter, "libraries", library, additive) })),
+  applyQueryText: (text) => set((s) => ({ filter: applyQuery(s.filter, parseQuery(text)) })),
+  setFacet: (field, value, state, only) => set((s) => ({ filter: withFacet(s.filter, field, value, state, only) })),
   setFilterLibraries: (update) => set((s) => ({ filter: { ...s.filter, libraries: update(s.filter.libraries) } })),
-  toggleSource: (source, additive) => set((s) => ({ filter: selectInSet(s.filter, "sources", source, additive) })),
-  togglePublisher: (publisher, additive) => set((s) => ({ filter: selectInSet(s.filter, "publishers", publisher, additive) })),
-  toggleLicense: (license, additive) => set((s) => ({ filter: selectInSet(s.filter, "licenses", license, additive) })),
-  toggleFormat: (format, additive) => set((s) => ({ filter: selectInSet(s.filter, "formats", format, additive) })),
-  toggleTag: (tag, additive) => set((s) => ({ filter: selectInSet(s.filter, "tags", tag, additive) })),
-  toggleCategory: (category, additive) =>
-    set((s) => ({ filter: selectInSet(s.filter, "categories", category, additive) })),
+  setTagsMatch: (tagsMatch) => set((s) => ({ filter: { ...s.filter, tagsMatch } })),
+  setSort: (sort) => set((s) => ({ filter: { ...s.filter, sort } })),
+  setRange: (path, bounds) =>
+    set((s) => {
+      const ranges = { ...s.filter.ranges };
+      if (bounds && (bounds.min !== undefined || bounds.max !== undefined)) ranges[path] = bounds;
+      else delete ranges[path];
+      return { filter: { ...s.filter, ranges } };
+    }),
   toggleFavoritesOnly: () =>
     set((s) => ({ filter: { ...s.filter, favoritesOnly: !s.filter.favoritesOnly } })),
-  clearFilter: () => set((s) => ({ filter: emptyFilter(s.filter.kind) })),
+  setFilter: (filter) => set({ filter, selection: new Set(), previewId: null }),
+  clearFilter: () => set((s) => ({ filter: { ...emptyFilter(s.filter.kind), sort: s.filter.sort } })),
 
   toggleSelected: (id) =>
     set((s) => {
@@ -164,14 +182,3 @@ export const useStore = create<AppState>((set, get) => ({
   patchAsset: (id, patch) => patchCachedAsset(id, patch),
 }));
 
-function selectInSet<K extends "libraries" | "sources" | "publishers" | "licenses" | "formats" | "categories" | "tags">(
-  filter: Filter,
-  key: K,
-  value: Filter[K] extends Set<infer V> ? V : never,
-  additive = false,
-): Filter {
-  const next = new Set(filter[key] as Set<typeof value>);
-  if (!additive && !next.has(value)) return { ...filter, [key]: new Set([value]) };
-  next.has(value) ? next.delete(value) : next.add(value);
-  return { ...filter, [key]: next };
-}

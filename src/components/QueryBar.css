@@ -1,0 +1,39 @@
+.searchrow { display: flex; align-items: flex-start; gap: 8px; padding: 0 20px 8px; flex: none; }
+.query-bar { position: relative; flex: 1; min-width: 0; min-height: 34px; display: flex; align-items: center; flex-wrap: wrap; gap: 4px; padding: 3px 6px 3px 10px; background: var(--bg-1); border: 1px solid var(--border); border-radius: var(--radius-1); color: var(--text-2); cursor: text; }
+.query-bar--focus { border-color: var(--accent); box-shadow: 0 0 0 3px var(--accent-soft); }
+.query-bar__icon { flex: none; margin-right: 2px; }
+.query-bar__input { flex: 1; min-width: 120px; height: 26px; border: 0; outline: none; background: transparent; color: var(--text-0); font: inherit; padding: 0 2px; }
+.query-bar__input::placeholder { color: var(--text-2); }
+
+.query-chip { display: inline-flex; align-items: center; height: 24px; border-radius: 6px; background: var(--bg-3); color: var(--text-0); font-size: var(--fs-sm); white-space: nowrap; border: 1px solid transparent; max-width: 100%; }
+.query-chip--in { background: var(--accent-soft); border-color: color-mix(in srgb, var(--accent) 45%, transparent); }
+.query-chip--out { background: color-mix(in srgb, var(--danger) 16%, transparent); border-color: color-mix(in srgb, var(--danger) 45%, transparent); }
+.query-chip__body { display: inline-flex; align-items: center; gap: 4px; height: 100%; padding: 0 2px 0 8px; border: 0; background: transparent; color: inherit; font: inherit; cursor: pointer; min-width: 0; }
+.query-chip__body:disabled { cursor: default; }
+.query-chip__field { color: var(--text-2); }
+.query-chip__op { color: var(--danger); font-size: 11px; padding: 0 4px; border-radius: 4px; background: var(--bg-2); }
+.query-chip__value { overflow: hidden; text-overflow: ellipsis; }
+.query-chip--out .query-chip__value { text-decoration: line-through; text-decoration-color: color-mix(in srgb, var(--danger) 70%, transparent); }
+.query-chip__x { width: 20px; height: 20px; margin-right: 2px; display: grid; place-items: center; border: 0; border-radius: 4px; background: transparent; color: var(--text-2); cursor: pointer; }
+.query-chip__x:hover { background: var(--bg-2); color: var(--text-0); }
+
+.query-pop { position: absolute; z-index: 30; top: calc(100% + 6px); left: -1px; width: min(560px, 100%); max-height: 70vh; overflow-y: auto; background: var(--bg-1); border: 1px solid var(--border-strong); border-radius: var(--radius-2); box-shadow: 0 24px 60px -16px #000; padding: 6px; cursor: default; }
+.query-pop__label { padding: 8px 10px 4px; font-size: 12px; color: var(--text-2); }
+.query-pop__item { display: flex; align-items: center; gap: 10px; width: 100%; min-height: 32px; padding: 0 10px; border: 0; border-radius: 6px; background: transparent; color: var(--text-1); font: inherit; text-align: left; cursor: pointer; }
+.query-pop__item.is-active { background: var(--bg-3); color: var(--text-0); }
+.query-pop__item svg { color: var(--text-2); flex: none; }
+.query-pop__item kbd, .query-pop__footer kbd { margin-left: auto; font: inherit; font-size: 11px; color: var(--text-2); border: 1px solid var(--border); border-radius: 4px; padding: 0 4px; line-height: 16px; }
+.query-pop__value { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.query-pop__count { margin-left: auto; color: var(--text-2); font-size: var(--fs-sm); }
+.query-pop__dot { width: 6px; height: 6px; margin: 0 4px; border-radius: 50%; background: var(--text-2); flex: none; }
+.query-pop__empty { padding: 8px 10px; color: var(--text-2); }
+.query-pop__footer { display: flex; gap: 14px; flex-wrap: wrap; padding: 8px 10px 4px; margin-top: 4px; border-top: 1px solid var(--border); font-size: 12px; color: var(--text-2); }
+.query-pop__footer span { display: inline-flex; gap: 5px; align-items: center; }
+.query-pop__footer kbd { margin-left: 0; }
+
+.filter-toggle { flex: none; display: inline-flex; align-items: center; gap: 6px; height: 34px; padding: 0 10px; border: 1px solid var(--border); border-radius: var(--radius-1); background: var(--bg-1); color: var(--text-1); font: inherit; cursor: pointer; white-space: nowrap; }
+.filter-toggle:hover { color: var(--text-0); border-color: var(--border-strong); }
+.filter-toggle.is-open { background: var(--bg-3); border-color: var(--border-strong); color: var(--text-0); }
+.filter-toggle__badge { min-width: 18px; height: 18px; padding: 0 5px; border-radius: 9px; background: var(--accent); color: #fff; font-size: 11px; display: grid; place-items: center; }
+
+@media (max-width: 600px) { .searchrow { padding: 0 12px 8px; } }

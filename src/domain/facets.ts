@@ -8,8 +8,22 @@ import type { Asset, AssetKind, Category, Pack } from "./catalog";
 // own by tests and tools). Mirrors `assetType` in ./catalog.
 const assetType = (a: Asset): AssetKind => (a.kind === "plugin" ? a.type : a.kind);
 
+/** `Filter.kind` when the library shows every type at once ("All assets"). */
+export const ALL_TYPES = "*";
+
+/** The fields whose values can be included or left out. */
+export const EXCLUDABLE = ["sources", "publishers", "licenses", "formats", "categories", "tags"] as const;
+export type ExcludableField = (typeof EXCLUDABLE)[number];
+/** Every field of the filter that holds a set of values. */
+export type FacetField = "libraries" | ExcludableField;
+
+/** The order of the list: `name`, `added`, `changed`, `publisher`, `source`, `format`, `type`, or `prop:<path>`
+ *  for a property a type declares (see `AssetTypeProperty`). */
+export interface SortOrder { key: string; descending: boolean }
+export const NAME_ORDER: SortOrder = { key: "name", descending: false };
+
 export interface Filter {
-  /** Which kind of asset the library shows. A mode, not a narrowing constraint. */
+  /** Which kind of asset the library shows, or `ALL_TYPES`. A mode, not a narrowing constraint. */
   kind: AssetKind;
   /** Library ids; empty means every library. */
   libraries: Set<string>;
@@ -23,7 +37,16 @@ export interface Filter {
   favoritesOnly: boolean;
   /** Case-insensitive substring over the asset name and tags. */
   text: string;
+  /** Values that take an item out of the list, per field. A value is never both chosen and left out. */
+  exclude: Record<ExcludableField, Set<string>>;
+  /** With several tags chosen: the item needs every one (`all`) or any one. */
+  tagsMatch: "all" | "any";
+  /** Numeric properties within bounds, by property path. */
+  ranges: Record<string, { min?: number; max?: number }>;
+  sort: SortOrder;
 }
+
+const noExclusions = (): Filter["exclude"] => ({ sources: new Set(), publishers: new Set(), licenses: new Set(), formats: new Set(), categories: new Set(), tags: new Set() });
 
 export const emptyFilter = (kind: AssetKind = "model"): Filter => ({
   kind,
@@ -36,6 +59,10 @@ export const emptyFilter = (kind: AssetKind = "model"): Filter => ({
   tags: new Set(),
   favoritesOnly: false,
   text: "",
+  exclude: noExclusions(),
+  tagsMatch: "all",
+  ranges: {},
+  sort: NAME_ORDER,
 });
 
 export const isFilterActive = (f: Filter): boolean =>
@@ -43,7 +70,44 @@ export const isFilterActive = (f: Filter): boolean =>
   f.categories.size > 0 ||
   f.tags.size > 0 ||
   f.favoritesOnly ||
-  f.text.trim().length > 0;
+  f.text.trim().length > 0 ||
+  EXCLUDABLE.some((field) => f.exclude[field].size > 0) ||
+  Object.keys(f.ranges).length > 0;
+
+/** Whether `value` of `field` is chosen (`in`), left out (`out`) or neither. */
+export function facetState(f: Filter, field: FacetField, value: string): "in" | "out" | "off" {
+  if (f[field].has(value)) return "in";
+  return field !== "libraries" && f.exclude[field].has(value) ? "out" : "off";
+}
+
+/** `f` with `value` of `field` chosen, left out or neither. Choosing a value takes it out of the excluded ones and the
+ *  other way round; `only` makes it the one chosen value of its field. */
+export function withFacet(f: Filter, field: FacetField, value: string, state: "in" | "out" | "off", only = false): Filter {
+  const chosen = only && state === "in" ? new Set<string>() : new Set(f[field]);
+  state === "in" ? chosen.add(value) : chosen.delete(value);
+  if (field === "libraries") return { ...f, libraries: chosen };
+  const excluded = new Set(f.exclude[field]);
+  state === "out" ? excluded.add(value) : excluded.delete(value);
+  return { ...f, [field]: chosen, exclude: { ...f.exclude, [field]: excluded } };
+}
+
+/** The value of `asset` that `field` looks at (tags are several: see `allTags`). */
+function fieldValue(asset: Asset, field: Exclude<ExcludableField, "tags">): string {
+  switch (field) {
+    case "sources": return provenanceValue(asset, "source");
+    case "publishers": return provenanceValue(asset, "publisher");
+    case "licenses": return provenanceValue(asset, "license");
+    case "formats": return assetFormat(asset);
+    case "categories": return asset.category;
+  }
+}
+
+/** A number at a dotted path of an asset record (what a range or a property sort reads). */
+export function propertyValue(asset: Asset, path: string): number | undefined {
+  let value: unknown = asset;
+  for (const part of path.split(".")) value = value && typeof value === "object" ? (value as Record<string, unknown>)[part] : undefined;
+  return typeof value === "number" && Number.isFinite(value) ? value : undefined;
+}
 
 /** The assets of one kind. */
 export const ofKind = (assets: Asset[], kind: AssetKind): Asset[] =>
@@ -56,7 +120,16 @@ export const ofKind = (assets: Asset[], kind: AssetKind): Asset[] =>
 export function applyFilter(assets: Asset[], f: Filter): Asset[] {
   const needle = f.text.trim().toLowerCase();
   return assets.filter((a) => {
-    if (assetType(a) !== f.kind) return false;
+    if (f.kind !== ALL_TYPES && assetType(a) !== f.kind) return false;
+    for (const field of EXCLUDABLE) {
+      const out = f.exclude[field];
+      if (!out.size) continue;
+      if (field === "tags" ? allTags(a).some((tag) => out.has(tag)) : out.has(fieldValue(a, field))) return false;
+    }
+    for (const [path, { min, max }] of Object.entries(f.ranges)) {
+      const value = propertyValue(a, path);
+      if (value === undefined || (min !== undefined && value < min) || (max !== undefined && value > max)) return false;
+    }
     if (f.libraries.size > 0 && !f.libraries.has(a.library)) return false;
     if (f.sources.size > 0 && !f.sources.has(provenanceValue(a,"source"))) return false;
     if (f.publishers.size > 0 && !f.publishers.has(provenanceValue(a,"publisher"))) return false;
@@ -64,7 +137,7 @@ export function applyFilter(assets: Asset[], f: Filter): Asset[] {
     if (f.formats.size > 0 && !f.formats.has(assetFormat(a))) return false;
     if (f.categories.size > 0 && !f.categories.has(a.category)) return false;
     if (f.favoritesOnly && !a.user.favorite) return false;
-    if (f.tags.size) { const own = allTags(a); if (![...f.tags].every(tag=>own.includes(tag))) return false; }
+    if (f.tags.size) { const own = allTags(a); const has = (tag: string) => own.includes(tag); if (!(f.tagsMatch === "any" ? [...f.tags].some(has) : [...f.tags].every(has))) return false; }
     if (needle && ![a.name,...allTags(a)].some(value=>value.toLowerCase().includes(needle))) return false;
     return true;
   });

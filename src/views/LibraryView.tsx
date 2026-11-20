@@ -9,6 +9,11 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 
 import type { AssetKind } from "../domain/catalog";
 import { NO_RULES, filterSignature, toBrowseFilter } from "../domain/browseQuery";
+import { ALL_TYPES } from "../domain/facets";
+import { filterChips } from "../domain/query";
+import { readFilter, type SavedView } from "../domain/savedViews";
+import { useSavedViews } from "../state/savedViews";
+import { usePreviewPreferences } from "../state/previewPreferences";
 import { withAssetTypesInUse } from "../services/assetTypes";
 import { assetTypeEntry } from "../state/assetTypes";
 import { getAssets, queryIds, setCollection } from "../services/browse";
@@ -37,6 +42,10 @@ import { ImportDrawer } from "../components/ImportDrawer";
 import { FacetFilter } from "../components/FacetFilter";
 import { LibraryPicker } from "../components/LibraryPicker";
 import { LibraryToolbar } from "../components/LibraryToolbar";
+import { QueryBar } from "../components/QueryBar";
+import { COMMON_SORTS, ResultLine, type SortChoice } from "../components/ResultLine";
+import { PreviewTray } from "../components/PreviewTray";
+import { SaveViewDialog } from "../components/SaveViewDialog";
 import { SettingsModal } from "../components/SettingsModal";
 import { ThumbStatusBar } from "../components/ThumbStatusBar";
 import { useThumbGeneration } from "../components/useThumbGeneration";
@@ -72,13 +81,12 @@ export function LibraryView() {
     setLoading,
     setError,
     setText,
-    toggleLibrary,
-    toggleSource,
-    togglePublisher,
-    toggleLicense,
-    toggleFormat,
-    toggleCategory,
-    toggleTag,
+    applyQueryText,
+    setFacet,
+    setTagsMatch,
+    setSort,
+    setRange,
+    setFilter,
     toggleFavoritesOnly,
     clearFilter,
     setSelection,
@@ -98,7 +106,12 @@ export function LibraryView() {
   const [deleteIds, setDeleteIds] = useState<string[]>();
   const [transfer, setTransfer] = useState<{ mode: TransferMode; ids: string[] }>();
   const [exportIds, setExportIds] = useState<string[]>([]);
-  const [propertiesOpen,setPropertiesOpen]=useState(false);
+  const [filtersOpen, setFiltersOpen] = useState(true);
+  const [savingView, setSavingView] = useState(false);
+  const [activeView, setActiveView] = useState<string | null>(null);
+  const views = useSavedViews((state) => state.views);
+  const trayOpen = usePreviewPreferences((state) => state.trayOpen);
+  const setTrayOpen = usePreviewPreferences((state) => state.setTrayOpen);
   const [exportSetup, setExportSetup] = useState<string>();
   const [importOpen, setImportOpen] = useState(false);
   const [settingsOpen, setSettingsOpen] = useState(false);
@@ -112,7 +125,8 @@ export function LibraryView() {
   const compact=narrow||maximized;
   useEffect(()=>{if(!compact)setNavigationOpen(false);},[compact]);
   const icons=useMemo(()=>pluginTypeIcons(registry.importers,registry.types),[registry.importers,registry.types]);
-  const changeKind=(kind:typeof filter.kind)=>{setKind(kind);clearFilter();setCollectionName(null);setExportOpen(false);setNavigationOpen(false);};
+  const changeKind=(kind:typeof filter.kind)=>{setKind(kind);clearFilter();setCollectionName(null);setActiveView(null);setExportOpen(false);setNavigationOpen(false);};
+  const openView=(view:SavedView)=>{setFilter(readFilter(view.filter));setCollectionName(view.collection);setActiveView(view.id);setExportOpen(false);setNavigationOpen(false);};
   const changeFavorites=()=>{setCollectionName(null);toggleFavoritesOnly();setExportOpen(false);setNavigationOpen(false);};
 
   const deps = { setLibraries, setLoading, setError, setPickMode };
@@ -136,7 +150,15 @@ export function LibraryView() {
   const types=useMemo(()=>withAssetTypesInUse(registry.types,typeCounts?[...typeCounts].filter(([,count])=>count>0).map(([id])=>id):[],registry.hiddenTypes),[registry.types,typeCounts,registry.hiddenTypes]);
   // Turning a plugin off can remove the section being shown; fall back to one
   // that still exists.
-  useEffect(()=>{ if(typeCounts&&!types.some(type=>type.id===filter.kind)) setKind(types[0]?.id??"model"); },[types,typeCounts,filter.kind,setKind]);
+  useEffect(()=>{ if(typeCounts&&filter.kind!==ALL_TYPES&&!types.some(type=>type.id===filter.kind)) setKind(types[0]?.id??"model"); },[types,typeCounts,filter.kind,setKind]);
+  const every = filter.kind === ALL_TYPES;
+  const typeEntry = every ? undefined : assetTypeEntry(filter.kind, types);
+  const properties = useMemo(() => typeEntry?.properties ?? [], [typeEntry]);
+  const sortChoices = useMemo((): SortChoice[] => [
+    ...COMMON_SORTS,
+    ...(every ? [{ key: "type", label: "Type", directions: ["A → Z", "Z → A"] as [string, string] }] : []),
+    ...properties.filter((property) => property.sort).map((property) => ({ key: `prop:${property.path}`, label: property.label, directions: ["Smallest first", "Largest first"] as [string, string], descending: true, group: typeEntry?.label })),
+  ], [every, properties, typeEntry]);
 
   // The list: the filter settles a moment after it stops changing, then a page of the list is asked for as rows
   // scroll into view. The same item in several libraries is shown once (the libraries rank, see `domain/duplicates`);
@@ -192,15 +214,42 @@ export function LibraryView() {
   const tagItems = useAssets(tagIds).assets;
   const tagCopies = useElsewhere(tagIds ?? NO_IDS);
 
+  // "All assets" exports one type at a time: the type of the selection, when the items at hand share one.
+  const selectionSample = useMemo(() => (every ? [...selection].slice(0, 500) : undefined), [every, selection]);
+  const sampled = useAssets(selectionSample).assets;
+  const selectionKind = useMemo((): AssetKind | undefined => {
+    if (!every) return filter.kind;
+    const kinds = new Set(sampled.map((asset) => (asset.kind === "plugin" ? asset.type : asset.kind)));
+    return kinds.size === 1 && sampled.length === selection.size ? [...kinds][0] : undefined;
+  }, [every, filter.kind, sampled, selection.size]);
+  const kindOf = (asset: { kind: string; type?: string }): AssetKind => (asset.kind === "plugin" ? asset.type ?? "plugin" : asset.kind);
+
+  // What the header, the result line and the tray say.
+  const totalOfKind = every ? [...(typeCounts?.values() ?? [])].reduce((sum, count) => sum + count, 0) : typeCounts?.get(filter.kind) ?? 0;
+  const activeViewName = views.find((view) => view.id === activeView)?.name;
+  const chips = filterChips(filter, properties);
+  const leftOutChips = chips.filter((chip) => chip.exclude);
+  const leftOut = leftOutChips.length ? `Leaving out ${leftOutChips.slice(0, 3).map((chip) => chip.text).join(", ")}${leftOutChips.length > 3 ? ` and ${leftOutChips.length - 3} more` : ""}` : undefined;
+  const keepAll = () => { for (const chip of leftOutChips) setFacet(chip.field!, chip.value!, "off"); };
+  const noun = every ? (visibleCount === 1 ? "item" : "items") : (visibleCount === 1 ? typeEntry!.singular : typeEntry!.label).toLowerCase();
+  const summary = list.total === null ? "Loading…" : `${visibleCount.toLocaleString()}${list.exact ? "" : "+"} ${noun}${collection ? ` in ${collection}` : ""}`;
+  const suggestedViewName = chips.filter((chip) => !chip.exclude).map((chip) => chip.text).concat(filter.text ? [`“${filter.text}”`] : []).slice(0, 3).join(", ") || (every ? "All assets" : typeEntry!.label);
+  const tray = !!inspected || selection.size > 1;
+  const filterPane = (onClose?: () => void) => <FacetFilter counts={facets} rules={rules} filter={filter} libraries={libraries} types={types} typeCounts={typeCounts}
+    properties={properties.filter((property) => property.range)}
+    onFacet={(field, value, state, only) => setFacet(field, value, state, only)} onTagsMatch={setTagsMatch} onRange={setRange}
+    onFavorites={() => { setCollectionName(null); toggleFavoritesOnly(); }} onKind={(kind) => setKind(kind)}
+    onClear={() => { clearFilter(); setCollectionName(null); setActiveView(null); }} onSaveView={() => setSavingView(true)} onClose={onClose} />;
+
   const rescan = () => void initCatalog(deps, true);
-  const openExport = (ids: string[], setupId?: string, kind: AssetKind = filter.kind) => { setExportIds(ids); setExportSetup(setupId); setExportKind(kind); setReturnToExports(false); setExportOpen(true); };
+  const openExport = (ids: string[], setupId?: string, kind: AssetKind = filter.kind) => { setExportIds(ids); setExportSetup(setupId); setExportKind(kind === ALL_TYPES ? selectionKind ?? "model" : kind); setReturnToExports(false); setExportOpen(true); };
   const manageExports = () => { setNavigationOpen(false); setExportsManagerOpen(true); };
 
   const renderSidebar = () => <LibrarySidebar
         typeCounts={typeCounts} filter={filter} collections={collections} collection={collection} onCollection={(name) => { setCollectionName(name); setExportOpen(false);setNavigationOpen(false); }}
         icons={icons} types={types} onMaximize={()=>{setMaximized(true);setNavigationOpen(false);}}
         onKind={changeKind}
-        filters={<FacetFilter counts={facets} rules={rules} filter={filter} libraries={libraries} onToggleLibrary={toggleLibrary} onToggleSource={toggleSource} onTogglePublisher={togglePublisher} onToggleLicense={toggleLicense} onToggleFormat={toggleFormat} onToggleCategory={toggleCategory} onToggleTag={toggleTag} onToggleFavoritesOnly={()=>{setCollectionName(null);toggleFavoritesOnly();}} onClear={()=>{clearFilter();setCollectionName(null);}}/>}
+        views={views} activeView={activeView} onView={openView} onRemoveView={(view)=>{useSavedViews.getState().remove(view.id);if(activeView===view.id)setActiveView(null);}} onSaveView={()=>setSavingView(true)}
         onExports={manageExports}
         onSettings={() => {setNavigationOpen(false);setSettingsOpen(true);}}
       />;
@@ -246,25 +295,21 @@ export function LibraryView() {
 
   return (
     <>
-      <Workbench className={`library-workbench${compact?" is-compact":""}`} navigation={!compact&&renderSidebar()} header={<>
+      <Workbench className={`library-workbench${compact?" is-compact":""}${tray?" has-tray":""}${tray&&trayOpen?" is-tray-open":""}`} navigation={!compact&&renderSidebar()} header={<>
         {compact&&<CompactLibraryNavigation kind={filter.kind} types={types} icons={icons} favorites={filter.favoritesOnly} onKind={changeKind} onFavorites={changeFavorites} onExports={manageExports} onSettings={()=>setSettingsOpen(true)} narrow={narrow} onRestore={()=>{if(narrow)setNavigationOpen(true);else setMaximized(false);}}/>}
         <LibraryToolbar
-            title={assetTypeEntry(filter.kind,types).label}
-            searchText={filter.text}
-            onSearchChange={setText}
+            title={activeViewName ?? (every ? "All assets" : typeEntry!.label)}
             visibleCount={visibleCount}
             visibleApproximate={!list.exact}
-            totalCount={typeCounts?.get(filter.kind) ?? 0}
-            selectedCount={selection.size}
-            onClearSelection={clearSelection}
-            onExport={() => openExport([...selection])}
+            totalCount={totalOfKind}
             onImport={() => setImportOpen(true)}
-            filtersOpen={navigationOpen} onToggleFilters={compact?()=>setNavigationOpen(open=>!open):undefined}
-            propertiesOpen={propertiesOpen} onToggleProperties={()=>setPropertiesOpen(open=>!open)}
-          /></>} inspector={propertiesOpen&&inspected && <AssetInspector asset={inspected} active={!previewAsset}
-            onOpen={() => setPreview(inspected.id)} onFavorite={() => toggleFavorite(inspected.id)}
-            onExport={() => openExport([inspected.id])} onCollect={() => setCollectIds([inspected.id])}
-            onTransfer={offerTransfer ? (mode) => openTransfer(mode, [inspected.id]) : undefined} />}>
+          />
+        <QueryBar filter={filter} counts={facets} rules={rules} properties={properties} placeholder={every ? "Search every type, or type tag: publisher: …" : `Search ${typeEntry!.label.toLowerCase()}, or type tag: publisher: …`}
+          filtersOpen={filtersOpen} onToggleFilters={() => setFiltersOpen((open) => !open)}
+          onText={setText} onQuery={applyQueryText} onFacet={(field, value, state) => setFacet(field, value, state)}
+          onRange={(path) => setRange(path, null)} onFavorites={toggleFavoritesOnly} />
+        <ResultLine summary={summary} leftOut={leftOut} onKeepAll={leftOut ? keepAll : undefined} sort={filter.sort} choices={sortChoices} onSort={setSort} />
+        </>} inspector={!compact && filtersOpen && filterPane(() => setFiltersOpen(false))}>
           {list.error ? (
             <Stack grow align="center" justify="center" gap={12}>
               <span style={{ color: "var(--danger)" }}>{list.error}</span>
@@ -295,10 +340,21 @@ export function LibraryView() {
               onOpen={setPreview}
               onInspect={setInspectedId}
               inspectedId={inspected?.id}
+              showType={every}
             />
           )}
-          {selection.size > 0 && <SelectionBar label={`${selection.size} selected`}><Button variant="ghost" onClick={clearSelection}>Clear</Button><Button variant="ghost" onClick={() => setCollectIds([...selection])}>Add to collection</Button><Button variant="ghost" onClick={() => setTagIds([...selection])}>Tag…</Button>{offerTransfer && <><Button variant="ghost" onClick={() => openTransfer("copy", [...selection])}>Copy to library…</Button><Button variant="ghost" onClick={() => openTransfer("move", [...selection])}>Move to library…</Button></>}<Button variant="ghost" disabled={!!selectionLocked} title={selectionLocked} onClick={() => setDeleteIds([...selection])}>Delete</Button><Button variant="primary" onClick={() => openExport([...selection])}>Export</Button></SelectionBar>}
+          {selection.size > 0 && <SelectionBar label={`${selection.size} selected`}><Button variant="ghost" onClick={clearSelection}>Clear</Button><Button variant="ghost" onClick={() => setCollectIds([...selection])}>Add to collection</Button><Button variant="ghost" onClick={() => setTagIds([...selection])}>Tag…</Button>{offerTransfer && <><Button variant="ghost" onClick={() => openTransfer("copy", [...selection])}>Copy to library…</Button><Button variant="ghost" onClick={() => openTransfer("move", [...selection])}>Move to library…</Button></>}<Button variant="ghost" disabled={!!selectionLocked} title={selectionLocked} onClick={() => setDeleteIds([...selection])}>Delete</Button><Button variant="primary" disabled={!selectionKind} title={selectionKind ? undefined : "Several types are selected: export one type at a time"} onClick={() => openExport([...selection], undefined, selectionKind)}>Export</Button></SelectionBar>}
+          {tray && <PreviewTray asset={inspected} selected={[...selection]} open={trayOpen} onOpenChange={setTrayOpen} onExpand={() => inspected && setPreview(inspected.id)}
+            onFacet={(field, value, exclude) => { setFacet(field, value, exclude ? "out" : "in", !exclude && field !== "tags"); setActiveView(null); }}>
+            {inspected && <AssetInspector asset={inspected} active={!previewAsset && trayOpen}
+              onOpen={() => setPreview(inspected.id)} onFavorite={() => toggleFavorite(inspected.id)}
+              onExport={() => openExport([inspected.id], undefined, kindOf(inspected))} onCollect={() => setCollectIds([inspected.id])}
+              onTransfer={offerTransfer ? (mode) => openTransfer(mode, [inspected.id]) : undefined} />}
+          </PreviewTray>}
       </Workbench>
+      <Drawer open={compact&&filtersOpen} side="right" label="Filters" onClose={()=>setFiltersOpen(false)}>{filterPane(()=>setFiltersOpen(false))}</Drawer>
+      {savingView && <SaveViewDialog names={views.map((view) => view.name)} suggestion={views.find((view) => view.id === activeView)?.name ?? suggestedViewName} onClose={() => setSavingView(false)}
+        onSave={(name) => { useSavedViews.getState().save(name, filter, collection); setActiveView(useSavedViews.getState().views.find((view) => view.name === name)?.id ?? null); }} />}
       {Object.keys(libraryErrors).length > 0 && <p className="library-notice" role="alert">{Object.entries(libraryErrors).map(([id, message]) => `${libraries.find(l => l.id === id)?.name ?? id}: ${message}`).join(" · ")}</p>}
       <OfflineNotice libraries={libraries} />
       <ThumbStatusBar progress={progress} error={thumbnailError} onStart={()=>void startThumbs()} onPause={pauseThumbs}/>

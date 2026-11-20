@@ -110,10 +110,12 @@ test("the rows on screen follow the scroll position", () => {
 });
 
 test("the filter is sent as sorted lists, and equal filters have equal signatures", () => {
-  const filter = { kind: "model", libraries: new Set(["b", "a"]), sources: new Set(), publishers: new Set(), licenses: new Set(), formats: new Set(), categories: new Set(["x"]), tags: new Set(["t2", "t1"]), favoritesOnly: false, text: "  rock " };
+  const filter = { kind: "model", libraries: new Set(["b", "a"]), sources: new Set(), publishers: new Set(), licenses: new Set(), formats: new Set(), categories: new Set(["x"]), tags: new Set(["t2", "t1"]), favoritesOnly: false, text: "  rock ",
+    exclude: { sources: new Set(), publishers: new Set(["p2", "p1"]), licenses: new Set(), formats: new Set(), categories: new Set(), tags: new Set() }, tagsMatch: "all", ranges: {}, sort: { key: "name", descending: false } };
   const a = query.toBrowseFilter(filter, "Zoo", query.NO_RULES);
   assert.deepEqual(a.libraries, ["a", "b"]);
   assert.deepEqual(a.tags, ["t1", "t2"]);
+  assert.deepEqual(a.exclude.publishers, ["p1", "p2"]);
   assert.equal(a.text, "rock");
   assert.equal(a.collection, "Zoo");
   const b = query.toBrowseFilter({ ...filter, libraries: new Set(["a", "b"]) }, "Zoo", query.NO_RULES);

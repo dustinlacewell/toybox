@@ -29,3 +29,15 @@
 .asset-inspector .ds-pane__footer { flex-wrap: wrap; }
 .asset-inspector__transfer { flex: 1 0 100%; display: flex; gap: 8px; }
 .asset-inspector__transfer > * { flex: 1; justify-content: center; }
+.library-view-item { position: relative; }
+.library-view-item__remove { position: absolute; right: 6px; top: 50%; transform: translateY(-50%); width: 22px; height: 22px; display: none; place-items: center; border: 0; border-radius: 5px; background: var(--bg-3); color: var(--text-1); cursor: pointer; }
+.library-view-item:hover .library-view-item__remove, .library-view-item:focus-within .library-view-item__remove { display: grid; }
+.library-view-save { display: flex; align-items: center; gap: 8px; width: 100%; min-height: 30px; padding: 5px 10px; border: 0; border-radius: 8px; background: transparent; color: var(--text-2); font: inherit; text-align: left; cursor: pointer; }
+.library-view-save:hover { background: var(--bg-2); color: var(--text-1); }
+/* Room under the grid for the preview tray and the selection bar above it. */
+.library-workbench { --tray-space: 0px; }
+.library-workbench.has-tray { --tray-space: 49px; }
+.library-workbench.has-tray.is-tray-open { --tray-space: 322px; }
+.library-workbench .grid-scroll { padding-bottom: calc(var(--tray-space) + 90px); }
+.library-workbench .ds-selection-bar { bottom: calc(var(--tray-space) + 14px); }
+.library-workbench > .ds-workbench__inspector { width: 280px; }

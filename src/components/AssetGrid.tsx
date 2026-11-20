@@ -53,6 +53,8 @@ interface Props {
   onSelectionChange: (ids: string[]) => void;
   onToggleFavorite: (id: string) => void;
   onOpen: (id: string) => void;
+  /** Name each tile's type (the list shows several). */
+  showType?: boolean;
 }
 
 export function AssetGrid({
@@ -69,6 +71,7 @@ export function AssetGrid({
   onOpen,
   onInspect,
   inspectedId,
+  showType = false,
 }: Props) {
   const scrollRef = useRef<HTMLDivElement>(null);
   const cardSize=usePreviewPreferences(state=>state.cardSize);
@@ -189,6 +192,7 @@ export function AssetGrid({
                 <AssetCard
                   key={asset.id}
                   asset={asset}
+                  showType={showType}
                   previewAspectRatio={previewAspectRatio}
                   selected={selection.has(asset.id)}
                   active={asset.id === inspectedId}
