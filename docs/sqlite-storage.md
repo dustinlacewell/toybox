@@ -480,9 +480,22 @@ transaction (a snapshot of each attached database).
 | `delete_assets` | `{ deleted: [ids], summary }`; `merge_seed_entries` returns the summary |
 
 The filter is `{ kind, libraries, sources, publishers, licenses, formats, categories, tags, favoritesOnly,
-collection, text, visibility }`; `visibility` is the hidden-plugin rule as lists (`hiddenTypes, pluginsOff,
+collection, text, visibility, exclude, tagsAny, ranges, sort }`; `visibility` is the hidden-plugin rule as lists (`hiddenTypes, pluginsOff,
 pluginsOn, retiredOn, retiredOff, ownerOff`, made by `pluginVisibility`). Removed from the window's path:
 `load_catalog`, `save_catalog`, `list_pending_thumbs`.
+
+* `kind: "*"` lists every type ("All assets"); `facet_counts`, `search_tags` and `list_collections` take it too
+  (each type's numbers added up).
+* `exclude` holds, per field (`sources, publishers, licenses, formats, categories, tags`), values that take an item
+  out (`NOT IN`, and `NOT EXISTS` over library and personal tags). Exclusions never drive and never narrow the counts.
+* `tagsAny`: with several tags, any one is enough (one `EXISTS … IN` instead of one per tag; the tag no longer drives).
+* `ranges`: `[{ path, min, max }]`, a number of the stored record (`json_extract(asset, '$.<path>')`) within bounds;
+  `path` must be words of letters, digits and `_` (`json_path`), anything else is refused. The paths come from the
+  types' declared `properties` ([Asset types](asset-types.md#properties-sorting-and-range-filters)).
+* `sort`: `{ key, descending }`, `key` one of `name` (default), `added` (`ord`), `changed` (`revision`), `publisher`,
+  `source`, `license`, `format`, `category`, `type` or `prop:<path>`. A key other than the name is a column of each
+  arm (`s`, with `z` = "has none", so items without it go last either way), then name, id, library; only the name
+  order is served by the browse index, the others sort the matches of each page's query.
 
 ### The list
 

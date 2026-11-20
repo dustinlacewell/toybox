@@ -1,6 +1,8 @@
 # Finding assets: filter, search, sort and explore
 
-A concept for how people find things in a Toybox library of any size and any asset type. It replaces the include-only facet rail and the name search with one query that can include and exclude, a sort control and grid zoom, an "All assets" view across types, saved views, and an Explore page. Nothing here is built yet.
+A concept for how people find things in a Toybox library of any size and any asset type. It replaces the include-only facet rail and the name search with one query that can include and exclude, a sort control and grid zoom, an "All assets" view across types, saved views, and an Explore page.
+
+**Status.** Built: the query bar with chips and suggestions (sections 1), include/exclude filters with Any/All for tags and type ranges (2), sort keys and the zoom (3), All assets and multi-select (4), saved views (5, kept on this computer, not yet in `user.db`), the preview tray (7) with *Find more by*, and the plugin contract for properties (`AssetTypeDeclaration.properties`, see [Asset types](../../asset-types.md#properties-sorting-and-range-filters)). Not built: the Explore page and *More like this* (6), Relevance and Shuffle in the sort menu, assets in the suggestions, the shared query syntax in `tbx`, and indexes for the new sort keys.
 
 ## What is there today
 
