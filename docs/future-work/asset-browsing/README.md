@@ -39,7 +39,7 @@ The search field becomes a full-width **query bar** under the page title. It hol
 
 ### 2. Filters with include and exclude
 
-The rail moves out of the navigation sidebar into its own **Filters pane** (the existing "Filter" button toggles it; on narrow windows it stays the existing drawer).
+The rail moves out of the navigation sidebar into its own **Filters pane on the right edge** of the window. Its **Filters** button sits at the end of the search row, beside the query bar, with a badge for the number of conditions; on narrow windows the pane stays the existing drawer. The left sidebar keeps only navigation: types, collections, saved views.
 
 - Every row has three states: off, **include** (✓), **exclude** (−). Hovering a row shows *Only* and *Exclude*; click toggles include, Alt-click excludes.
 - Each group has a match mode where it makes sense: Publishers *Any*, Tags *All / Any*. Exclusions always apply (an item with an excluded tag is gone, whatever else matches).
@@ -50,11 +50,11 @@ The rail moves out of the navigation sidebar into its own **Filters pane** (the 
 
 ### 3. Sort and group
 
-A **Sort** button next to Filters opens:
+Sorting is part of the content, not the page header: the **result line** under the search bar holds the count and what is hidden, then **Sort** and **Group** buttons and the grid/list switch. Sort opens:
 
 - Sort by: Relevance (only while searching), Name, Date added, Recently changed, Publisher, Source, File size, Format, and keys the type's plugin declares (Triangles, Materials used, Clip length, Duration, Resolution).
 - Direction, worded for the key ("Newest first", "A → Z", "Largest first").
-- Group by: None, Publisher, Source, Library, Type, Category, or a tag prefix (`biome:`). Each group has a header with its count and *Only this* / *Exclude*, and can collapse.
+- Group (its own button): None, Publisher, Source, Library, Type, Category, or a tag prefix (`biome:`). Each group has a header with its count and *Only this* / *Exclude*, and can collapse.
 - Shuffle: a new random order, for browsing.
 
 The sort is remembered per type.
@@ -85,6 +85,16 @@ And from any asset: right-click a tile's publisher/source for *Show only* / *Hid
 ![Explore](screens/explore.png)
 
 ![Pivoting from an asset](screens/related.png)
+
+### 7. Preview tray
+
+The inspector pane on the right is replaced by a **preview tray** at the bottom of the content, between the two side bars, so the right side is free for filters.
+
+- **Collapsed**: one line with the thumbnail, name, publisher and type, and buttons to open the tray or the full view.
+- **Open**: preview, properties, *Find more by* chips and the actions (favourite, add to collection, export). Everything the inspector shows today (viewers, variants, lighting, plugin panels, transfer) moves into it.
+- **Expanded**: opens the existing full view of the asset.
+
+The tray floats over the grid, and the grid keeps bottom padding equal to the tray's height, so scrolling still reaches the last row.
 
 ## Data model
 
