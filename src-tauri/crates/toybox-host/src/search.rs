@@ -62,6 +62,7 @@ impl ItemFilter {
             collection: self.collection.clone(),
             text: self.text.clone(),
             visibility: visibility.clone(),
+            ..BrowseFilter::default()
         }
     }
 }

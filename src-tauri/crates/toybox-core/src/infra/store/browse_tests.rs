@@ -6,7 +6,7 @@ use std::collections::{BTreeMap, HashMap, HashSet};
 
 use serde_json::{json, Value};
 
-use super::browse::{BrowseFilter, Session, Source, Visibility};
+use super::browse::{BrowseFilter, PropertyRange, Session, SortOrder, Source, Visibility, EVERY_TYPE};
 use super::tests::Tmp;
 use super::Store;
 use crate::domain::catalog_model::{Asset, Catalog};
@@ -239,26 +239,66 @@ impl Reference<'_> {
 
     fn list(&self, f: &BrowseFilter) -> Vec<Key> {
         let needle = f.text.trim().to_lowercase();
-        let mut rows: Vec<(String, String, usize, Key)> = self
+        let mut rows: Vec<(Option<Key2>, String, String, usize, Key)> = self
             .deduped(&f.visibility, &f.libraries)
             .into_iter()
             .filter(|(_, a)| {
-                type_of(a) == f.kind
+                let x = &f.exclude;
+                let tags = all_tags(a);
+                (f.kind == EVERY_TYPE || type_of(a) == f.kind)
+                    && !x.sources.contains(&provenance_value(a, "source"))
+                    && !x.publishers.contains(&provenance_value(a, "publisher"))
+                    && !x.licenses.contains(&provenance_value(a, "license"))
+                    && !x.formats.contains(&format_of(a))
+                    && !x.categories.contains(&a.category)
+                    && !x.tags.iter().any(|tag| tags.contains(tag))
+                    && f.ranges.iter().all(|r| property(a, &r.path).is_some_and(|v| r.min.is_none_or(|m| v >= m) && r.max.is_none_or(|m| v <= m)))
                     && (f.sources.is_empty() || f.sources.contains(&provenance_value(a, "source")))
                     && (f.publishers.is_empty() || f.publishers.contains(&provenance_value(a, "publisher")))
                     && (f.licenses.is_empty() || f.licenses.contains(&provenance_value(a, "license")))
                     && (f.formats.is_empty() || f.formats.contains(&format_of(a)))
                     && (f.categories.is_empty() || f.categories.contains(&a.category))
                     && (!f.favorites_only || a.user.favorite)
-                    && f.tags.iter().all(|tag| all_tags(a).contains(tag))
+                    && (if f.tags_any && f.tags.len() > 1 { f.tags.iter().any(|tag| tags.contains(tag)) } else { f.tags.iter().all(|tag| tags.contains(tag)) })
                     && (needle.is_empty() || std::iter::once(a.name.clone()).chain(all_tags(a)).any(|v| v.to_lowercase().contains(&needle)))
                     && f.collection.as_ref().is_none_or(|c| a.user.collections.contains(c))
             })
-            .map(|(i, a)| (a.name.to_lowercase(), a.id.clone(), i, (self.libs[i].id.to_string(), a.id.clone())))
+            .map(|(i, a)| (sort_key(a, &f.sort), a.name.to_lowercase(), a.id.clone(), i, (self.libs[i].id.to_string(), a.id.clone())))
             .collect();
-        rows.sort_by(|x, y| (&x.0, &x.1, x.2).cmp(&(&y.0, &y.1, y.2)));
-        rows.into_iter().map(|row| row.3).collect()
+        // The sort key first, items without one last either way; then name, id and library, ascending.
+        rows.sort_by(|x, y| {
+            let by_key = match (&x.0, &y.0) {
+                (Some(p), Some(q)) => if f.sort.descending { q.partial_cmp(p) } else { p.partial_cmp(q) }.unwrap_or(std::cmp::Ordering::Equal),
+                (Some(_), None) => std::cmp::Ordering::Less,
+                (None, Some(_)) => std::cmp::Ordering::Greater,
+                (None, None) => std::cmp::Ordering::Equal,
+            };
+            by_key.then_with(|| (&x.1, &x.2, x.3).cmp(&(&y.1, &y.2, y.3)))
+        });
+        rows.into_iter().map(|row| row.4).collect()
     }
+}
+
+/// A sortable value of the item for a sort key other than the name (strings compared without case).
+#[derive(PartialEq, PartialOrd)]
+enum Key2 {
+    Number(f64),
+    Text(String),
+}
+
+fn sort_key(asset: &Asset, sort: &SortOrder) -> Option<Key2> {
+    match sort.key.as_str() {
+        "" | "name" => Some(Key2::Text(String::new())),
+        "type" => Some(Key2::Text(type_of(asset))),
+        "category" => Some(Key2::Text(asset.category.to_lowercase())),
+        key => property(asset, key.strip_prefix("prop:").unwrap_or(key)).map(Key2::Number),
+    }
+}
+
+/// A number at a dotted path of the stored record.
+fn property(asset: &Asset, path: &str) -> Option<f64> {
+    let value = serde_json::to_value(asset).unwrap();
+    value.pointer(&format!("/{}", path.replace('.', "/"))).and_then(Value::as_f64)
 }
 
 fn filter(kind: &str) -> BrowseFilter {
@@ -344,6 +384,68 @@ fn the_list_matches_the_rules_of_the_window() {
         edit(&mut f);
         check(&libs, &f, what);
     }
+    // Leaving things out, any of several tags, every type, property ranges and sort keys.
+    for (what, kind, edit) in [
+        ("exclude a tag", "audio", (|f: &mut BrowseFilter| f.exclude.tags = vec!["loud".into()]) as fn(&mut BrowseFilter)),
+        ("exclude a personal tag", "audio", |f| f.exclude.tags = vec!["mine".into()]),
+        ("exclude a source", "audio", |f| f.exclude.sources = vec!["Pack A".into()]),
+        ("exclude no source", "audio", |f| f.exclude.sources = vec![String::new()]),
+        ("exclude a category and a license", "audio", |f| {
+            f.exclude.categories = vec!["laser".into()];
+            f.exclude.licenses = vec!["MIT".into()];
+        }),
+        ("include one tag, exclude another", "audio", |f| {
+            f.tags = vec!["loud".into()];
+            f.exclude.tags = vec!["mine".into()];
+        }),
+        ("exclude with text", "audio", |f| {
+            f.text = "bo".into();
+            f.exclude.categories = vec!["misc".into()];
+        }),
+        ("any of two tags", "audio", |f| {
+            f.tags = vec!["buzz".into(), "mine".into()];
+            f.tags_any = true;
+        }),
+        ("any of one tag", "audio", |f| {
+            f.tags = vec!["loud".into()];
+            f.tags_any = true;
+        }),
+        ("every type", EVERY_TYPE, |_| {}),
+        ("every type with a tag", EVERY_TYPE, |f| f.tags = vec!["warm".into()]),
+        ("every type, one category", EVERY_TYPE, |f| f.categories = vec!["sky".into()]),
+        ("every type, text", EVERY_TYPE, |f| f.text = "dus".into()),
+        ("every type, favourites", EVERY_TYPE, |f| f.favorites_only = true),
+        ("every type, a library", EVERY_TYPE, |f| f.libraries = vec!["b".into()]),
+        ("a duration range", "audio", |f| f.ranges = vec![PropertyRange { path: "audio.duration".into(), min: Some(0.5), max: Some(2.0) }]),
+        ("an empty range", "audio", |f| f.ranges = vec![PropertyRange { path: "audio.duration".into(), min: Some(5.0), max: None }]),
+        ("a property only some types have", EVERY_TYPE, |f| f.ranges = vec![PropertyRange { path: "audio.duration".into(), min: None, max: None }]),
+        ("by type", EVERY_TYPE, |f| f.sort = SortOrder { key: "type".into(), descending: false }),
+        ("by type, descending", EVERY_TYPE, |f| f.sort = SortOrder { key: "type".into(), descending: true }),
+        ("by category", "audio", |f| f.sort = SortOrder { key: "category".into(), descending: false }),
+        ("by a property, missing last", EVERY_TYPE, |f| f.sort = SortOrder { key: "prop:audio.duration".into(), descending: true }),
+        ("by category with a tag", "audio", |f| {
+            f.tags = vec!["loud".into()];
+            f.sort = SortOrder { key: "category".into(), descending: true };
+        }),
+    ] {
+        let mut f = filter(kind);
+        edit(&mut f);
+        check(&libs, &f, what);
+    }
+    // Added and changed order keep the same items.
+    for key in ["added", "changed"] {
+        let mut f = filter("audio");
+        f.sort.key = key.into();
+        let mut got = page_all(&libs, &f);
+        let mut expected = Reference { libs: &libs }.list(&filter("audio"));
+        got.sort();
+        expected.sort();
+        assert_eq!(got, expected, "sorted by {key}");
+    }
+    // A property path that is not one is refused.
+    let mut f = filter("audio");
+    f.ranges = vec![PropertyRange { path: "audio.duration') OR 1=1 --".into(), min: Some(0.0), max: None }];
+    assert!(session(&libs, &f).page(&f, false, 0, 10).is_err());
     // A switched-off type hides its items, and they no longer hide copies.
     let mut f = filter("skybox");
     f.visibility.hidden_types = vec!["skybox".into()];
@@ -391,8 +493,8 @@ fn counts_agree_with_the_grid() {
         }
         let counts: BTreeMap<String, i64> = session.type_counts(&visibility).unwrap().into_iter().map(|c| (c.value, c.count)).collect();
         assert_eq!(counts, per_type, "type counts");
-        for kind in ["audio", "skybox"] {
-            let of_kind: Vec<&(usize, &Asset)> = unique.iter().filter(|(_, a)| type_of(a) == kind).collect();
+        for kind in ["audio", "skybox", EVERY_TYPE] {
+            let of_kind: Vec<&(usize, &Asset)> = unique.iter().filter(|(_, a)| kind == EVERY_TYPE || type_of(a) == kind).collect();
             let facets = session.facet_counts(kind, &visibility, 100, &[]).unwrap();
             assert_eq!(facets.total, of_kind.len() as i64, "total of {kind}");
             let tally = |field: &dyn Fn(&Asset) -> String| {
@@ -422,7 +524,7 @@ fn counts_agree_with_the_grid() {
             // Every copy per library, visible ones.
             let mut per_library: BTreeMap<String, i64> = libs.iter().map(|lib| (lib.id.to_string(), 0)).collect();
             for (i, a) in reference.visible(&visibility) {
-                if type_of(a) == kind {
+                if kind == EVERY_TYPE || type_of(a) == kind {
                     *per_library.entry(libs[i].id.to_string()).or_insert(0) += 1;
                 }
             }
@@ -437,6 +539,14 @@ fn counts_agree_with_the_grid() {
         }
         let got: BTreeMap<String, i64> = session.collections("audio", &visibility).unwrap().into_iter().map(|c| (c.name, c.count)).collect();
         assert_eq!(got, names, "collections");
+        let mut every: BTreeMap<String, i64> = BTreeMap::new();
+        for (_, a) in &unique {
+            for name in &a.user.collections {
+                *every.entry(name.clone()).or_insert(0) += 1;
+            }
+        }
+        let got: BTreeMap<String, i64> = session.collections(EVERY_TYPE, &visibility).unwrap().into_iter().map(|c| (c.name, c.count)).collect();
+        assert_eq!(got, every, "collections of every type");
     }
 }
 
