@@ -73,8 +73,47 @@ pub struct Visibility {
     pub owner_off: Vec<String>,
 }
 
-/// The filter of the library view. Empty sets constrain nothing.
+/// Values that take an item out of the list, per field (the rail's "exclude" state). An item with any of them
+/// is not listed, whatever else it matches.
 #[derive(Debug, Clone, Default, Serialize, Deserialize, PartialEq, Eq)]
+#[serde(rename_all = "camelCase", default)]
+pub struct Excluded {
+    pub sources: Vec<String>,
+    pub publishers: Vec<String>,
+    pub licenses: Vec<String>,
+    pub formats: Vec<String>,
+    pub categories: Vec<String>,
+    /// Library or personal tags.
+    pub tags: Vec<String>,
+}
+
+impl Excluded {
+    pub fn is_empty(&self) -> bool {
+        self.sources.is_empty() && self.publishers.is_empty() && self.licenses.is_empty() && self.formats.is_empty() && self.categories.is_empty() && self.tags.is_empty()
+    }
+}
+
+/// A numeric property of the asset record within bounds. `path` is a dotted path into the record a type
+/// declares (`audio.duration`, `meta.width`; see `docs/asset-types.md`); an item without the property is left out.
+#[derive(Debug, Clone, Default, Serialize, Deserialize, PartialEq)]
+#[serde(rename_all = "camelCase", default)]
+pub struct PropertyRange {
+    pub path: String,
+    pub min: Option<f64>,
+    pub max: Option<f64>,
+}
+
+/// The order of the list. `key`: `name` (or empty), `added`, `changed`, `publisher`, `source`, `license`,
+/// `format`, `category`, `type`, or `prop:<path>` for a property a type declares. Ties are ordered by name.
+#[derive(Debug, Clone, Default, Serialize, Deserialize, PartialEq, Eq)]
+#[serde(rename_all = "camelCase", default)]
+pub struct SortOrder {
+    pub key: String,
+    pub descending: bool,
+}
+
+/// The filter of the library view. Empty sets constrain nothing.
+#[derive(Debug, Clone, Default, Serialize, Deserialize, PartialEq)]
 #[serde(rename_all = "camelCase", default)]
 pub struct BrowseFilter {
     /// The asset type shown (`model`, `skybox`, ...).
@@ -93,6 +132,49 @@ pub struct BrowseFilter {
     /// Case-insensitive substring of the name or of a tag.
     pub text: String,
     pub visibility: Visibility,
+    /// What takes an item out of the list.
+    pub exclude: Excluded,
+    /// With more than one tag: an item needs any of them instead of every one.
+    pub tags_any: bool,
+    /// Numeric properties, each within its bounds.
+    pub ranges: Vec<PropertyRange>,
+    pub sort: SortOrder,
+}
+
+impl BrowseFilter {
+    /// Every chosen tag is required (the default), or there is at most one.
+    fn tags_all(&self) -> bool {
+        !self.tags_any || self.tags.len() <= 1
+    }
+
+    /// The list is in name order.
+    fn by_name(&self) -> bool {
+        matches!(self.sort.key.as_str(), "" | "name")
+    }
+}
+
+/// `$.a.b` for a property path (`a.b`: words of letters, digits and `_`, not starting with a digit), else `None`.
+pub fn json_path(path: &str) -> Option<String> {
+    let word = |part: &str| {
+        let mut chars = part.chars();
+        chars.next().is_some_and(|c| c.is_ascii_alphabetic() || c == '_') && chars.all(|c| c.is_ascii_alphanumeric() || c == '_')
+    };
+    (path.len() <= 64 && path.split('.').all(word)).then(|| format!("$.{path}"))
+}
+
+/// What the list is ordered by before the name (`a` is the asset row), or `None` for name order. A property's
+/// path goes into `p`; an unknown key orders by name.
+fn sort_column(sort: &SortOrder, p: &mut Vec<Value>) -> Option<String> {
+    match sort.key.as_str() {
+        "" | "name" => None,
+        "added" => Some("a.ord".into()),
+        "changed" => Some("a.revision".into()),
+        "publisher" | "source" | "license" | "format" | "category" => Some(format!("a.{} COLLATE NOCASE", sort.key)),
+        key => key.strip_prefix("prop:").and_then(json_path).map(|path| {
+            p.push(Value::Text(path));
+            "json_extract(a.asset, ?)".to_string()
+        }),
+    }
 }
 
 /// A value and how many items have it.
@@ -345,6 +427,9 @@ impl Session {
     /// The list of a type with no other constraint: what the index serves directly (every library, or one).
     fn plain(&self, f: &BrowseFilter) -> bool {
         self.ix.as_ref().is_some_and(|ix| ix.all || self.arms.len() == 1)
+            && f.by_name()
+            && f.exclude.is_empty()
+            && f.ranges.is_empty()
             && f.text.trim().is_empty()
             && f.tags.is_empty()
             && !f.favorites_only
@@ -506,7 +591,7 @@ impl Session {
             q.extend(values.iter().map(|value| text_value(value)));
             consider(size, What::Field(field), format!("SELECT rowid FROM {l}.assets WHERE type = ? AND {field} IN ({})", marks(values.len())), q, true);
         }
-        if let Some(tag) = f.tags.first() {
+        if let (Some(tag), true) = (f.tags.first(), f.tags_all()) {
             let library: i64 = self.conn.query_row(&format!("SELECT COALESCE(SUM(n), 0) FROM {l}.facets WHERE type = ? AND field = 'tag' AND value = ?"), params_from_iter([text_value(&f.kind), text_value(tag)].iter()), |row| row.get(0))?;
             let personal = self.bounded_count(&format!("{u}.user_tags WHERE tag = ?"), &[text_value(tag)])?;
             consider(
@@ -575,13 +660,47 @@ impl Session {
                 p.extend(values.iter().map(|value| text_value(value)));
             }
         }
-        for (index, tag) in f.tags.iter().enumerate() {
-            if index == 0 && driven == Some(What::Tag) {
-                continue;
+        let has_tag = |values: &[String], p: &mut Vec<Value>| {
+            p.extend(values.iter().map(|value| text_value(value)));
+            p.extend(values.iter().map(|value| text_value(value)));
+            format!(
+                "(EXISTS (SELECT 1 FROM {l}.asset_tags t WHERE t.asset_id = a.id AND t.tag IN ({m})) OR EXISTS (SELECT 1 FROM {u}.user_tags t WHERE t.asset_id = a.id AND t.tag IN ({m})))",
+                m = marks(values.len())
+            )
+        };
+        if f.tags_all() {
+            for (index, tag) in f.tags.iter().enumerate() {
+                if index == 0 && driven == Some(What::Tag) {
+                    continue;
+                }
+                conds.push(has_tag(std::slice::from_ref(tag), &mut p));
             }
-            conds.push(format!("(EXISTS (SELECT 1 FROM {l}.asset_tags t WHERE t.asset_id = a.id AND t.tag = ?) OR EXISTS (SELECT 1 FROM {u}.user_tags t WHERE t.asset_id = a.id AND t.tag = ?))"));
-            p.push(text_value(tag));
-            p.push(text_value(tag));
+        } else {
+            conds.push(has_tag(&f.tags, &mut p));
+        }
+        for (column, values) in [("source", &f.exclude.sources), ("publisher", &f.exclude.publishers), ("license", &f.exclude.licenses), ("format", &f.exclude.formats), ("category", &f.exclude.categories)] {
+            if !values.is_empty() {
+                conds.push(format!("a.{column} NOT IN ({})", marks(values.len())));
+                p.extend(values.iter().map(|value| text_value(value)));
+            }
+        }
+        if !f.exclude.tags.is_empty() {
+            let tagged = has_tag(&f.exclude.tags, &mut p);
+            conds.push(format!("NOT {tagged}"));
+        }
+        for range in &f.ranges {
+            let path = json_path(&range.path).ok_or_else(|| AppError::msg(format!("'{}' is not a property path", range.path)))?;
+            // Only a number is in range: SQLite orders any text above every number.
+            conds.push("json_type(a.asset, ?) IN ('integer', 'real')".into());
+            p.push(Value::Text(path.clone()));
+            if let Some(min) = range.min {
+                conds.push("json_extract(a.asset, ?) >= ?".into());
+                p.extend([Value::Text(path.clone()), Value::Real(min)]);
+            }
+            if let Some(max) = range.max {
+                conds.push("json_extract(a.asset, ?) <= ?".into());
+                p.extend([Value::Text(path), Value::Real(max)]);
+            }
         }
         if f.favorites_only && driven != Some(What::Favorites) {
             conds.push(format!("EXISTS (SELECT 1 FROM {u}.user_assets x WHERE x.asset_id = a.id AND x.favorite = 1)"));
@@ -673,7 +792,7 @@ impl Session {
     /// publishers, licenses or formats), read from the counts the libraries keep minus the hidden rows
     /// (remembered per revision), so it does not walk the list. `None` for any other filter.
     fn counted(&self, f: &BrowseFilter) -> AppResult<Option<i64>> {
-        if !f.text.trim().is_empty() || f.favorites_only || f.collection.is_some() || f.tags.len() > 1 {
+        if !f.text.trim().is_empty() || f.favorites_only || f.collection.is_some() || f.tags.len() > 1 || !f.exclude.is_empty() || !f.ranges.is_empty() {
             return Ok(None);
         }
         let groups: Vec<(&str, &Vec<String>)> = [("source", &f.sources), ("publisher", &f.publishers), ("license", &f.licenses), ("format", &f.formats), ("category", &f.categories)]
@@ -722,20 +841,31 @@ impl Session {
         if self.arms.is_empty() || limit <= 0 {
             return Ok(Vec::new());
         }
+        let descending = descending != f.sort.descending;
         if self.plain(f) {
             return self.page_from_index(f, descending, offset, limit);
         }
-        let order = if descending { "n DESC, i DESC, o DESC" } else { "n, i, o" };
         let mut sql = String::new();
         let mut p: Vec<Value> = Vec::new();
+        let mut sorted = false;
         for arm in 0..self.arms.len() {
             let (from, arm_params) = self.arm_from(arm, f, true, true)?;
             if arm > 0 {
                 sql.push_str(" UNION ALL ");
             }
-            sql.push_str(&format!("SELECT a.name COLLATE NOCASE AS n, a.id AS i, {arm} AS o {from}"));
+            // A sort key comes first; items without it go last whichever way the list runs.
+            // (A compound query orders by its columns only, so "has no value" is a column of its own; the key's
+            // parameter, if any, is the same for both.)
+            let key = sort_column(&f.sort, &mut p).map(|column| {
+                sorted = true;
+                let _ = sort_column(&f.sort, &mut p);
+                format!(", {column} AS s, ({column}) IS NULL AS z")
+            });
+            sql.push_str(&format!("SELECT a.name COLLATE NOCASE AS n, a.id AS i, {arm} AS o{} {from}", key.unwrap_or_default()));
             p.extend(arm_params);
         }
+        let dir = if descending { " DESC" } else { "" };
+        let order = if sorted { format!("z, s{dir}, n, i, o") } else { format!("n{dir}, i{dir}, o{dir}") };
         sql.push_str(&format!(" ORDER BY {order} LIMIT ? OFFSET ?"));
         p.push(Value::Integer(limit));
         p.push(Value::Integer(offset.max(0)));

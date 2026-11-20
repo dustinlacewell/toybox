@@ -4,7 +4,8 @@
   "version": "3.0.0",
   "entry": "dist/index.js",
   "assetTypes": [
-    { "id": "model", "label": "Models", "singular": "Model", "icon": "icons/model.svg", "implementation": "native", "order": 10 }
+    { "id": "model", "label": "Models", "singular": "Model", "icon": "icons/model.svg", "implementation": "native", "order": 10,
+      "properties": [{ "id": "clips", "label": "Animation clips", "path": "animation.clipCount" }] }
   ],
   "icon": "icons/model.svg",
   "assetIcons": {"model":"icons/model.svg"},

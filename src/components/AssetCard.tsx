@@ -17,15 +17,18 @@ interface Props {
   onInspect?: (id: string) => void; onToggleSelect: (id: string, shiftKey?: boolean) => void;
   onAudition?: (id: string) => void;
   onToggleFavorite: (id: string) => void; onOpen: (id: string) => void;
+  onContextMenu?: (asset: Asset, point: { x: number; y: number }) => void;
 }
-export const AssetCard = memo(function AssetCard({ asset, selected, active = false, onInspect, onToggleSelect, onToggleFavorite, onOpen, onAudition, previewAspectRatio }: Props) {
+export const AssetCard = memo(function AssetCard({ asset, selected, active = false, onInspect, onToggleSelect, onToggleFavorite, onOpen, onAudition, onContextMenu, previewAspectRatio }: Props) {
+  const subtitle = asset.kind === "plugin" ? pluginSubtitle(asset) : asset.kind === "audio" ? `${formatTime(asset.audio.duration)} · ${asset.audio.format}` : asset.kind === "animation" ? `${asset.clip.sourceName} · ${asset.clip.duration.toFixed(1)} s` : sourceLabel(asset);
   const thumb = useThumbUrl(asset);
   const [hovered,setHovered]=useState(false);
   const fallback=thumb?<img src={thumb} alt="" loading="lazy"/>:<span>{asset.thumb.state==="rendering"?"Making preview…":asset.thumb.state==="error"?"Preview unavailable":"No preview"}</span>;
-  return <PreviewTile title={variantInfo(asset.name, asset.kind).base} subtitle={asset.kind === "plugin" ? pluginSubtitle(asset) : asset.kind === "audio" ? `${formatTime(asset.audio.duration)} · ${asset.audio.format}` : asset.kind === "animation" ? `${asset.clip.sourceName} · ${asset.clip.duration.toFixed(1)} s` : sourceLabel(asset)}
+  return <PreviewTile title={variantInfo(asset.name, asset.kind).base} subtitle={subtitle}
     active={active} selected={selected} onPress={() => onInspect ? onInspect(asset.id) : onOpen(asset.id)} onOpen={() => {setHovered(false);onOpen(asset.id);}}
     onPreviewHoverChange={asset.kind!=="audio"&&asset.kind!=="plugin"?setHovered:undefined}
     onSelectedChange={(_selected, shiftKey) => onToggleSelect(asset.id, shiftKey)}
+    onContextMenu={onContextMenu && ((point) => onContextMenu(asset, point))}
     previewAspectRatio={previewAspectRatio}
     preview={asset.kind === "plugin" ? <span className="asset-card__still">{fallback}</span> : asset.kind === "audio" ? <div className="asset-card__audio-waveform"><Waveform peaks={asset.audio.peaks}/></div> : asset.kind==="animation"?<AnimationTilePreview asset={asset} active={hovered} fallback={fallback}/>:<StaticTilePreview asset={asset} active={hovered} fallback={fallback}/>}
     badge={asset.kind === "animation" || (asset.kind === "model" && asset.animation.clipCount > 0) ? <Film size={13} /> : undefined}

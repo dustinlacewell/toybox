@@ -5,7 +5,7 @@
  */
 
 import type { AssetKind } from "./catalog";
-import type { Filter } from "./facets";
+import type { ExcludableField, Filter, SortOrder } from "./facets";
 
 /** Which items are hidden because their plugin is switched off (made by `pluginVisibility`). */
 export interface VisibilityRules {
@@ -33,6 +33,13 @@ export interface BrowseFilter {
   collection: string | null;
   text: string;
   visibility: VisibilityRules;
+  /** Values that take an item out, per field. */
+  exclude: Record<ExcludableField, string[]>;
+  /** Several tags: any one of them is enough. */
+  tagsAny: boolean;
+  /** Numeric properties within bounds, by path, in path order. */
+  ranges: { path: string; min: number | null; max: number | null }[];
+  sort: SortOrder;
 }
 
 const list = (values: ReadonlySet<string>): string[] => [...values].sort();
@@ -51,6 +58,19 @@ export function toBrowseFilter(filter: Filter, collection: string | null, visibi
     collection,
     text: filter.text.trim(),
     visibility,
+    exclude: {
+      sources: list(filter.exclude.sources),
+      publishers: list(filter.exclude.publishers),
+      licenses: list(filter.exclude.licenses),
+      formats: list(filter.exclude.formats),
+      categories: list(filter.exclude.categories),
+      tags: list(filter.exclude.tags),
+    },
+    tagsAny: filter.tagsMatch === "any" && filter.tags.size > 1,
+    ranges: Object.entries(filter.ranges)
+      .sort(([a], [b]) => a.localeCompare(b))
+      .map(([path, { min, max }]) => ({ path, min: min ?? null, max: max ?? null })),
+    sort: { key: filter.sort.key, descending: filter.sort.descending },
   };
 }
 

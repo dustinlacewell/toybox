@@ -120,5 +120,3 @@ export class HoverScenePreview {
   dispose(){this.stop();clearTimeout(this.idle);this.cache.forEach(entry=>entry.scene.dispose());this.cache=[];this.destroyStage();}
 }
 export const hoverScenePreview=new HoverScenePreview();
-/** A selected item's persistent preview must not compete with card hovers. */
-export const inspectorScenePreview=new HoverScenePreview({delayMs:0});

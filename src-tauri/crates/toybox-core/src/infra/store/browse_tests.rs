@@ -6,7 +6,7 @@ use std::collections::{BTreeMap, HashMap, HashSet};
 
 use serde_json::{json, Value};
 
-use super::browse::{BrowseFilter, Session, Source, Visibility};
+use super::browse::{BrowseFilter, PropertyRange, Session, SortOrder, Source, Visibility};
 use super::tests::Tmp;
 use super::Store;
 use crate::domain::catalog_model::{Asset, Catalog};
@@ -239,26 +239,65 @@ impl Reference<'_> {
 
     fn list(&self, f: &BrowseFilter) -> Vec<Key> {
         let needle = f.text.trim().to_lowercase();
-        let mut rows: Vec<(String, String, usize, Key)> = self
+        let mut rows: Vec<(Option<Key2>, String, String, usize, Key)> = self
             .deduped(&f.visibility, &f.libraries)
             .into_iter()
             .filter(|(_, a)| {
+                let x = &f.exclude;
+                let tags = all_tags(a);
                 type_of(a) == f.kind
+                    && !x.sources.contains(&provenance_value(a, "source"))
+                    && !x.publishers.contains(&provenance_value(a, "publisher"))
+                    && !x.licenses.contains(&provenance_value(a, "license"))
+                    && !x.formats.contains(&format_of(a))
+                    && !x.categories.contains(&a.category)
+                    && !x.tags.iter().any(|tag| tags.contains(tag))
+                    && f.ranges.iter().all(|r| property(a, &r.path).is_some_and(|v| r.min.is_none_or(|m| v >= m) && r.max.is_none_or(|m| v <= m)))
                     && (f.sources.is_empty() || f.sources.contains(&provenance_value(a, "source")))
                     && (f.publishers.is_empty() || f.publishers.contains(&provenance_value(a, "publisher")))
                     && (f.licenses.is_empty() || f.licenses.contains(&provenance_value(a, "license")))
                     && (f.formats.is_empty() || f.formats.contains(&format_of(a)))
                     && (f.categories.is_empty() || f.categories.contains(&a.category))
                     && (!f.favorites_only || a.user.favorite)
-                    && f.tags.iter().all(|tag| all_tags(a).contains(tag))
+                    && (if f.tags_any && f.tags.len() > 1 { f.tags.iter().any(|tag| tags.contains(tag)) } else { f.tags.iter().all(|tag| tags.contains(tag)) })
                     && (needle.is_empty() || std::iter::once(a.name.clone()).chain(all_tags(a)).any(|v| v.to_lowercase().contains(&needle)))
                     && f.collection.as_ref().is_none_or(|c| a.user.collections.contains(c))
             })
-            .map(|(i, a)| (a.name.to_lowercase(), a.id.clone(), i, (self.libs[i].id.to_string(), a.id.clone())))
+            .map(|(i, a)| (sort_key(a, &f.sort), a.name.to_lowercase(), a.id.clone(), i, (self.libs[i].id.to_string(), a.id.clone())))
             .collect();
-        rows.sort_by(|x, y| (&x.0, &x.1, x.2).cmp(&(&y.0, &y.1, y.2)));
-        rows.into_iter().map(|row| row.3).collect()
+        // The sort key first, items without one last either way; then name, id and library, ascending.
+        rows.sort_by(|x, y| {
+            let by_key = match (&x.0, &y.0) {
+                (Some(p), Some(q)) => if f.sort.descending { q.partial_cmp(p) } else { p.partial_cmp(q) }.unwrap_or(std::cmp::Ordering::Equal),
+                (Some(_), None) => std::cmp::Ordering::Less,
+                (None, Some(_)) => std::cmp::Ordering::Greater,
+                (None, None) => std::cmp::Ordering::Equal,
+            };
+            by_key.then_with(|| (&x.1, &x.2, x.3).cmp(&(&y.1, &y.2, y.3)))
+        });
+        rows.into_iter().map(|row| row.4).collect()
     }
+}
+
+/// A sortable value of the item for a sort key other than the name (strings compared without case).
+#[derive(PartialEq, PartialOrd)]
+enum Key2 {
+    Number(f64),
+    Text(String),
+}
+
+fn sort_key(asset: &Asset, sort: &SortOrder) -> Option<Key2> {
+    match sort.key.as_str() {
+        "" | "name" => Some(Key2::Text(String::new())),
+        "category" => Some(Key2::Text(asset.category.to_lowercase())),
+        key => property(asset, key.strip_prefix("prop:").unwrap_or(key)).map(Key2::Number),
+    }
+}
+
+/// A number at a dotted path of the stored record; any other value is none.
+fn property(asset: &Asset, path: &str) -> Option<f64> {
+    let value = serde_json::to_value(asset).unwrap();
+    value.pointer(&format!("/{}", path.replace('.', "/"))).and_then(Value::as_f64)
 }
 
 fn filter(kind: &str) -> BrowseFilter {
@@ -344,6 +383,62 @@ fn the_list_matches_the_rules_of_the_window() {
         edit(&mut f);
         check(&libs, &f, what);
     }
+    // Leaving things out, any of several tags, property ranges and sort keys.
+    for (what, kind, edit) in [
+        ("exclude a tag", "audio", (|f: &mut BrowseFilter| f.exclude.tags = vec!["loud".into()]) as fn(&mut BrowseFilter)),
+        ("exclude a personal tag", "audio", |f| f.exclude.tags = vec!["mine".into()]),
+        ("exclude a source", "audio", |f| f.exclude.sources = vec!["Pack A".into()]),
+        ("exclude no source", "audio", |f| f.exclude.sources = vec![String::new()]),
+        ("exclude a category and a license", "audio", |f| {
+            f.exclude.categories = vec!["laser".into()];
+            f.exclude.licenses = vec!["MIT".into()];
+        }),
+        ("include one tag, exclude another", "audio", |f| {
+            f.tags = vec!["loud".into()];
+            f.exclude.tags = vec!["mine".into()];
+        }),
+        ("exclude with text", "audio", |f| {
+            f.text = "bo".into();
+            f.exclude.categories = vec!["misc".into()];
+        }),
+        ("any of two tags", "audio", |f| {
+            f.tags = vec!["buzz".into(), "mine".into()];
+            f.tags_any = true;
+        }),
+        ("any of one tag", "audio", |f| {
+            f.tags = vec!["loud".into()];
+            f.tags_any = true;
+        }),
+        ("a duration range", "audio", |f| f.ranges = vec![PropertyRange { path: "audio.duration".into(), min: Some(0.5), max: Some(2.0) }]),
+        ("an empty range", "audio", |f| f.ranges = vec![PropertyRange { path: "audio.duration".into(), min: Some(5.0), max: None }]),
+        ("a property with no bounds", "audio", |f| f.ranges = vec![PropertyRange { path: "audio.duration".into(), min: None, max: None }]),
+        ("a property the type does not have", "skybox", |f| f.ranges = vec![PropertyRange { path: "audio.duration".into(), min: None, max: None }]),
+        ("by category", "audio", |f| f.sort = SortOrder { key: "category".into(), descending: false }),
+        ("by a property", "audio", |f| f.sort = SortOrder { key: "prop:audio.duration".into(), descending: true }),
+        ("by a property, missing last", "skybox", |f| f.sort = SortOrder { key: "prop:audio.duration".into(), descending: true }),
+        ("by category with a tag", "audio", |f| {
+            f.tags = vec!["loud".into()];
+            f.sort = SortOrder { key: "category".into(), descending: true };
+        }),
+    ] {
+        let mut f = filter(kind);
+        edit(&mut f);
+        check(&libs, &f, what);
+    }
+    // Added and changed order keep the same items.
+    for key in ["added", "changed"] {
+        let mut f = filter("audio");
+        f.sort.key = key.into();
+        let mut got = page_all(&libs, &f);
+        let mut expected = Reference { libs: &libs }.list(&filter("audio"));
+        got.sort();
+        expected.sort();
+        assert_eq!(got, expected, "sorted by {key}");
+    }
+    // A property path that is not one is refused.
+    let mut f = filter("audio");
+    f.ranges = vec![PropertyRange { path: "audio.duration') OR 1=1 --".into(), min: Some(0.0), max: None }];
+    assert!(session(&libs, &f).page(&f, false, 0, 10).is_err());
     // A switched-off type hides its items, and they no longer hide copies.
     let mut f = filter("skybox");
     f.visibility.hidden_types = vec!["skybox".into()];
@@ -351,6 +446,50 @@ fn the_list_matches_the_rules_of_the_window() {
     let mut f = filter("audio");
     f.visibility.plugins_off = vec!["gone".into()];
     check(&libs, &f, "a plugin that is off");
+}
+
+/// One library of skyboxes whose `meta.size` is a number, text, or absent.
+fn sized_fixture(tmp: &Tmp) -> Vec<Lib> {
+    let sized = |id: &str, name: &str, size: Option<Value>| {
+        let mut value = audio(id, name, "sky", Some(id), &[], &[], false, &[], None, "skybox");
+        if let Some(size) = size {
+            value["meta"] = json!({ "size": size });
+        }
+        value
+    };
+    vec![library(
+        tmp,
+        "a",
+        0,
+        vec![sized("s1", "Five", Some(json!(5))), sized("s2", "Text", Some(json!("n/a"))), sized("s3", "Three", Some(json!(3.5))), sized("s4", "None", None)],
+    )]
+}
+
+#[test]
+fn a_range_never_matches_a_value_that_is_not_a_number() {
+    let tmp = Tmp::new("browse-ranges");
+    let libs = sized_fixture(&tmp);
+    let text = ("a".to_string(), "s2".to_string());
+    for (what, min, max) in [("min only", Some(1.0), None), ("max only", None, Some(10.0)), ("both bounds", Some(1.0), Some(10.0)), ("no bounds", None, None)] {
+        let mut f = filter("skybox");
+        f.ranges = vec![PropertyRange { path: "meta.size".into(), min, max }];
+        check(&libs, &f, what);
+        let got = page_all(&libs, &f);
+        assert!(!got.contains(&text), "{what}: the text value is out");
+        assert_eq!(got.len(), 2, "{what}: the two numbers are in");
+    }
+}
+
+#[test]
+fn an_unknown_sort_key_orders_by_name() {
+    let tmp = Tmp::new("browse-unknown-sort");
+    let libs = fixture(&tmp);
+    for kind in ["audio", "skybox"] {
+        let by_name = page_all(&libs, &filter(kind));
+        let mut f = filter(kind);
+        f.sort = SortOrder { key: "type".into(), descending: false };
+        assert_eq!(page_all(&libs, &f), by_name, "{kind}");
+    }
 }
 
 #[test]

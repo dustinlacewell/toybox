@@ -1,0 +1,15 @@
+/* Collapsed: one line. Open: the inspector laid out across the width. The library sets --tray-space to match. */
+.preview-tray { position: absolute; left: 0; right: 0; bottom: 0; z-index: 6; display: flex; flex-direction: column; background: var(--floating-surface); backdrop-filter: blur(16px); border-top: 1px solid var(--border-strong); box-shadow: 0 -16px 40px -16px #000; }
+.preview-tray__bar { display: flex; align-items: center; gap: 8px; height: 48px; padding: 0 12px 0 20px; flex: none; min-width: 0; }
+.preview-tray__mini { width: 30px; height: 30px; flex: none; border-radius: 6px; border: 1px solid var(--border); background: var(--bg-0); overflow: hidden; display: grid; place-items: center; }
+.preview-tray__mini img { width: 100%; height: 100%; object-fit: contain; }
+.preview-tray__stack { display: flex; flex: none; }
+.preview-tray__stack .preview-tray__mini { margin-left: -10px; box-shadow: 0 0 0 2px var(--bg-1); }
+.preview-tray__stack .preview-tray__mini:first-child { margin-left: 0; }
+.preview-tray__name { display: flex; flex-direction: column; min-width: 0; line-height: 1.25; }
+.preview-tray__name b { font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.preview-tray__name span { color: var(--text-2); font-size: var(--fs-sm); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.preview-tray__spacer { flex: 1; }
+
+/* Room for the name, the fields and two lines of tags (keep --tray-space in step: this + 50px). */
+.preview-tray__body { height: 168px; min-height: 0; border-top: 1px solid var(--border); }

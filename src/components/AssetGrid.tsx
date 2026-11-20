@@ -53,6 +53,8 @@ interface Props {
   onSelectionChange: (ids: string[]) => void;
   onToggleFavorite: (id: string) => void;
   onOpen: (id: string) => void;
+  /** A tile asked for its context menu at a point. */
+  onContextMenu?: (asset: Asset, point: { x: number; y: number }) => void;
 }
 
 export function AssetGrid({
@@ -68,6 +70,7 @@ export function AssetGrid({
   onToggleFavorite,
   onOpen,
   onInspect,
+  onContextMenu,
   inspectedId,
 }: Props) {
   const scrollRef = useRef<HTMLDivElement>(null);
@@ -196,6 +199,7 @@ export function AssetGrid({
                   onToggleFavorite={onToggleFavorite}
                   onOpen={(id)=>{stopAudioAudition();onOpen(id);}}
                   onAudition={onInspect}
+                  onContextMenu={onContextMenu}
                   onInspect={() => { stopAudioAudition();select(asset, index, "replace"); onInspect?.(asset.id); }}
                 />
               );

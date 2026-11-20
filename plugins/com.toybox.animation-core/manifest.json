@@ -4,7 +4,8 @@
   "version": "1.0.0",
   "dependencies": { "com.toybox.model-core": "^3.0.0" },
   "assetTypes": [
-    { "id": "animation", "label": "Animations", "singular": "Animation", "icon": "icons/animation.svg", "implementation": "native", "order": 30 }
+    { "id": "animation", "label": "Animations", "singular": "Animation", "icon": "icons/animation.svg", "implementation": "native", "order": 30,
+      "properties": [{ "id": "length", "label": "Length", "path": "clip.duration", "unit": "s" }] }
   ],
   "icon": "icons/animation.svg",
   "assetIcons": {"animation":"icons/animation.svg"},
