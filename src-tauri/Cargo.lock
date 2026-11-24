@@ -5355,7 +5355,7 @@ checksum = "8df9b6e13f2d32c91b9bd719c00d1958837bc7dec474d94952798cc8e69eeec3"
 
 [[package]]
 name = "toybox-cli"
-version = "0.6.0"
+version = "0.7.0"
 dependencies = [
  "axum",
  "clap",
@@ -5375,7 +5375,7 @@ dependencies = [
 
 [[package]]
 name = "toybox-client"
-version = "0.6.0"
+version = "0.7.0"
 dependencies = [
  "image",
  "semver",
@@ -5394,7 +5394,7 @@ dependencies = [
 
 [[package]]
 name = "toybox-core"
-version = "0.6.0"
+version = "0.7.0"
 dependencies = [
  "fs4",
  "image",
@@ -5408,7 +5408,7 @@ dependencies = [
 
 [[package]]
 name = "toybox-host"
-version = "0.6.0"
+version = "0.7.0"
 dependencies = [
  "dirs",
  "image",
@@ -5425,7 +5425,7 @@ dependencies = [
 
 [[package]]
 name = "toybox-remote"
-version = "0.6.0"
+version = "0.7.0"
 dependencies = [
  "axum",
  "keyring",
@@ -5442,7 +5442,7 @@ dependencies = [
 
 [[package]]
 name = "toybox-script"
-version = "0.6.0"
+version = "0.7.0"
 dependencies = [
  "rquickjs",
  "serde",
@@ -5452,7 +5452,7 @@ dependencies = [
 
 [[package]]
 name = "toybox-server"
-version = "0.6.0"
+version = "0.7.0"
 dependencies = [
  "axum",
  "base64 0.22.1",

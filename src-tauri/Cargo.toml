@@ -20,7 +20,7 @@ default-members = [".", "crates/toybox-core"]
 [workspace.package]
 # The one version of the app, the server and `tbx`: they are released together and must match.
 # `node scripts/set-version.mjs <version>` changes it everywhere; `scripts/check-release.mjs` checks it.
-version = "0.6.0"
+version = "0.7.0"
 
 [workspace.dependencies]
 serde = { version = "1", features = ["derive"] }
