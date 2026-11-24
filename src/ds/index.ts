@@ -24,6 +24,7 @@ export { Toast } from "./Toast";
 export { Checkbox } from "./Checkbox";
 export { Stack } from "./Stack";
 export { TextInput } from "./TextInput";
+export { Slider } from "./Slider";
 export { Select, type SelectOption } from "./Select";
 export { Spinner } from "./Spinner";
 export { Drawer } from "./Drawer";

@@ -136,6 +136,12 @@ fn parse_single(a: &Value) -> AppResult<SeedEntry> {
         }
     }
     entry.origin = crate::domain::catalog_model::AssetOrigin::from_entry(a);
+    // `origin.derivedFrom` names the asset this one was made from: an id, so a string when present.
+    match a.get("origin").and_then(|origin| origin.get("derivedFrom")) {
+        None | Some(Value::Null) => {}
+        Some(Value::String(id)) if !id.trim().is_empty() && !id.contains("::") => {}
+        Some(_) => return Err(AppError::msg(format!("asset {}: origin.derivedFrom must be the id of an asset of this library", entry.id))),
+    }
     if let Some(origin) = entry.origin.as_mut().filter(|origin| !origin.files.is_empty()) {
         // Source files live in the asset's own folder, so only a kind stored
         // as a folder can keep them: a material (beside its maps) or a model

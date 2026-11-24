@@ -89,6 +89,8 @@ pub fn run() {
             plugins::plugin_exists,
             plugins::plugin_read_dir,
             plugins::plugin_read_bytes,
+            plugins::plugin_hash_file,
+            plugins::plugin_file_size,
             plugins::plugin_copy_file,
             plugins::plugin_image_thumb,
             plugins::plugin_write_bytes,

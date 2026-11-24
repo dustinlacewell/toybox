@@ -61,11 +61,18 @@ export interface AssetViewBase {
  *  every item that keeps the same file (`library/<type>/_sources/<sha256>/<name>`).
  *  A path in `files` does not lie in the item's own folder, and its last segment is
  *  the file's original name: find a file by that name (or by `meta`), never by where
- *  it sits. The path is stable while any item keeps the file. */
+ *  it sits. The path is stable while any item keeps the file.
+ *
+ *  `derivedFrom` is the id of the item this one was made from, in the same library
+ *  (a material rendered from a substance, say). It is a soft link: deleting that
+ *  item leaves this one as it is, with a link that no longer leads anywhere, so
+ *  a plugin must cope with a parent that is not found. The host lists the items
+ *  made from one with `SlotHost.getDerivedAssets`. */
 export interface AssetOrigin {
   plugin: string;
   meta?: Record<string, unknown>;
   files?: string[];
+  derivedFrom?: string;
 }
 
 /** What an importer may record on an entry it commits. The host fills in
@@ -82,11 +89,17 @@ export interface AssetOrigin {
  *
  *  An importer may name another plugin in `plugin` when that plugin is on and
  *  directly depends on the importer (a format plugin of `model-core`): the
- *  host keeps the name only then, and stamps its own id otherwise. */
+ *  host keeps the name only then, and stamps its own id otherwise.
+ *
+ *  `derivedFrom` names the item the entry was made from (see `AssetOrigin`): an
+ *  item in the same library, by the id the plugin was handed (qualified) or by
+ *  its raw id; it may also be another entry of the same commit. It changes
+ *  neither the entry's id nor where its files are stored. */
 export interface SeedOrigin {
   plugin?: string;
   meta?: Record<string, unknown>;
   files?: string[];
+  derivedFrom?: string;
 }
 
 export interface ModelAssetView extends AssetViewBase {
@@ -321,13 +334,22 @@ export interface CliCommandSpec {
  *  a flag, or a list of these for `multiple`. */
 export type CliValue = string | number | boolean | string[] | number[];
 
+/** The host a command-line run receives: the panel host, plus what only `tbx` offers. */
+export interface CliHost extends SlotHost {
+  /** Make these items' files (and those of the items they were made from)
+   *  available on this computer: a download for a remote library, nothing for a
+   *  local one. Optional because an older `tbx` lacks it; without it only the
+   *  command's own selection is guaranteed to be downloaded. */
+  ensureAssetFiles?(ids: string[]): Promise<void>;
+}
+
 /** What both kinds of run have in common. `host`, `fs` and `services` are the
  *  app's own interfaces with the plugin's permissions; there are no dialogs
  *  (`pickDirectory` and `pickSaveFile` reject). */
 export interface CliRunBase {
   /** The library the command acts on. */
   library: { id: string; name: string };
-  host: SlotHost;
+  host: CliHost;
   fs: FsApi;
   services: PluginServices;
   extensions: ExtensionLookup;
@@ -539,6 +561,13 @@ export interface DirEntry {
 export interface FsApi {
   readDir(sourceRoot: string, path: string): Promise<DirEntry[]>;
   readBytes(sourceRoot: string, path: string): Promise<Uint8Array>;
+  /** The SHA-256 of the file at `path`, as 64 lower-case hex digits, computed
+   *  natively without passing the file through the plugin (fine for files of
+   *  hundreds of megabytes). Jailed like `readBytes`; gated by `fsRead`. */
+  hashFile(sourceRoot: string, path: string): Promise<string>;
+  /** The size of the file at `path` in bytes, from its metadata: the file is
+   *  not read. Jailed like `readBytes`; gated by `fsRead`. */
+  fileSize(sourceRoot: string, path: string): Promise<number>;
   /** PNG bytes of the image at `path`, scaled down to fit `maxSize` × `maxSize`
    *  (aspect kept, never enlarged). Cheaper than `readBytes` for previews.
    *  Gated by `fsRead`. */
@@ -698,9 +727,22 @@ export interface SlotHost {
   getSelectedAssetsAsync(): Promise<AssetView[]>;
   /** `getAsset`, fetched by id when the host has not loaded the item. */
   getAssetAsync(id: string): Promise<AssetView | undefined>;
+  /** The items made from the item `id` (qualified, as the host hands ids out):
+   *  those whose `origin.derivedFrom` is `id`, of any type, from its library.
+   *  Items the user has hidden (their plugin is switched off) are left out. Ask
+   *  again after a `commit` that adds or changes such items. */
+  getDerivedAssets(id: string): Promise<AssetView[]>;
+  /** Show the item `id` in the full view, in place of whatever is shown there
+   *  (an asset viewer that calls it is replaced by the new item's viewer). An id
+   *  that is not in a library is ignored. The command line has no viewer: there
+   *  it does nothing. */
+  openAsset(id: string): void;
   /** The root of the library this panel works in, or null if none: the library an
    *  import was sent into (see `ImportPanelCtx.library`), or that of an asset
-   *  panel's asset. Where an importer writes. */
+   *  panel's asset. Where an importer writes. For a remote library it is the
+   *  folder this computer keeps the library's downloaded files in: an item's
+   *  files are there, under their library-relative paths, once they have been
+   *  downloaded (see `AssetViewerCtx.ensureFiles`). */
   getLibraryRoot(): Promise<string | null>;
   /** Convert one `.fbx` into loose glTF under `library/<pack>/<category>/`,
    *  returning the library-relative paths written (`.gltf` first). Shells the
@@ -738,9 +780,22 @@ export interface MaterialPreviewProps {
   sourceKey?: string;
 }
 
+/** Props of the host's library thumbnail of one item. */
+export interface AssetThumbnailProps {
+  /** The item's id, qualified, as the host hands ids out. Any library. */
+  id: string;
+  /** Width and height in CSS pixels. Defaults to 64. */
+  size?: number;
+  /** Text alternative of the picture. Defaults to none (the picture is decorative). */
+  alt?: string;
+}
+
 /** Host-built components a panel can mount. */
 export interface PanelWidgets {
   MaterialPreview: ComponentType<MaterialPreviewProps>;
+  /** The picture the library grid shows for an item, or what the grid shows
+   *  while there is none ("Making preview…"). */
+  AssetThumbnail: ComponentType<AssetThumbnailProps>;
 }
 
 /** Context for an importer's `importPanel`. Unlike an exporter (whose fs fires
@@ -798,6 +853,31 @@ export interface AssetFilesApi {
   readFile(asset: PluginAssetView, file?: string): Promise<Uint8Array>;
 }
 
+/** A set of material maps the host can draw, and where their files are fetched from. */
+export interface MaterialSphereInput {
+  maps: MaterialMapInput[];
+  /** The normal map uses the DirectX convention (green flipped). */
+  flipNormalGreen?: boolean;
+  /** A URL the webview can load one of the maps' `file`s from (`files.fileUrl` of the asset, say). */
+  resolveUrl(file: string): string | Promise<string>;
+}
+
+/** What the host offers a type's `renderThumbnail` (its fourth argument). The
+ *  pictures are drawn by the same code, scene, lighting and shape preference as
+ *  the thumbnails of the library's own materials, on the host's shared
+ *  thumbnail renderer (no WebGL context of the plugin's own). */
+export interface ThumbnailTools {
+  /** PNG bytes of the material `input` on the host's material preview shape, `size` pixels square. */
+  materialSphere(input: MaterialSphereInput, size: number): Promise<Uint8Array>;
+  /** The thumbnail of a library material (`id` qualified, or raw in the same
+   *  library as the asset being drawn), rendered from its stored maps exactly
+   *  as its own thumbnail is. On a remote library only the maps are downloaded.
+   *  Undefined when it is not found, is not a material or its maps cannot be had. */
+  assetThumbnail(id: string, size: number): Promise<Uint8Array | undefined>;
+  /** The items made from the item `id`, as `SlotHost.getDerivedAssets`. */
+  derivedAssets(id: string): Promise<AssetView[]>;
+}
+
 /** One row of the inspector's property list. */
 export interface AssetProperty {
   label: string;
@@ -805,14 +885,30 @@ export interface AssetProperty {
 }
 
 /** Context of a type's full-view `Viewer`. The host supplies the surrounding
- *  frame (title, details, favourite, export); the component fills the stage. */
-export interface AssetViewerCtx {
+ *  frame (title, details, favourite, export); the component fills the stage.
+ *
+ *  Everything an asset panel has is here too, bound to the plugin that declares
+ *  the type and its permissions: `host.getLibraryRoot()` is the asset's library,
+ *  and `commit` adds entries to that library exactly as an asset panel does (an
+ *  entry that reuses `asset.id` replaces the item). After a commit — and after
+ *  any other change to the libraries' contents — the host hands the viewer a new
+ *  `ctx` with the item as it is now and a higher `dataVersion`. */
+export interface AssetViewerCtx extends AssetPanelCtx {
   asset: PluginAssetView;
   files: AssetFilesApi;
   /** Controls for the frame's side panel; clear them when unmounting. */
   setSidebar(content: ReactNode): void;
   /** Controls for the frame's footer; clear them when unmounting. */
   setFooter(content: ReactNode): void;
+  /** Make sure the item's files are on this computer, under `host.getLibraryRoot()`
+   *  at their paths in `asset.files`. For a remote library they are downloaded
+   *  (they can be large; show that something is happening); for a local library
+   *  it resolves at once. A type with `needsFiles` has them before its viewer mounts. */
+  ensureFiles(): Promise<void>;
+  /** Moves whenever the contents of the libraries change (a commit, an import,
+   *  a delete). Use it as a dependency of anything the viewer looks up, such as
+   *  `host.getDerivedAssets`, so the lookup is made again. */
+  dataVersion: number;
 }
 
 /** Everything a plugin implements for one of its declared types. All members
@@ -820,8 +916,20 @@ export interface AssetViewerCtx {
 export interface AssetTypeImplementation {
   /** Full-view stage for one asset. */
   Viewer?: ComponentType<SlotComponentProps<AssetViewerCtx>>;
-  /** A square PNG thumbnail for the library grid. */
-  renderThumbnail?(asset: PluginAssetView, files: AssetFilesApi, size: number): Promise<Uint8Array>;
+  /** The viewer reads the item's files from disk (through `ctx.fs`, or hands
+   *  them to a program), not only through `ctx.files`: on a remote library the
+   *  host downloads them before it mounts the viewer. Default false: the viewer
+   *  mounts at once, and fetches what it needs with `ctx.files` or `ctx.ensureFiles()`. */
+  needsFiles?: boolean;
+  /** A square PNG thumbnail for the library grid. `tools` (optional for
+   *  backwards compatibility: a renderer may ignore it) lets the picture be the
+   *  host's own material sphere. Throwing marks the thumbnail as failed. */
+  renderThumbnail?(asset: PluginAssetView, files: AssetFilesApi, size: number, tools: ThumbnailTools): Promise<Uint8Array>;
+  /** Raise it when the type's thumbnails change look: on its next start the
+   *  host redraws, once per library, every stored thumbnail of the type made
+   *  under a lower version (keeping the old picture until the new one is
+   *  saved). Default 0. */
+  thumbnailVersion?: number;
   /** Type-specific rows of the inspector's property list. */
   properties?(asset: PluginAssetView): AssetProperty[];
   /** Second line of a library tile. Defaults to the source title. */

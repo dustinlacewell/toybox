@@ -31,3 +31,5 @@ mod incremental_tests;
 mod library_tests;
 #[cfg(test)]
 mod source_tests;
+#[cfg(test)]
+mod substance_tests;

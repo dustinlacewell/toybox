@@ -1,18 +1,19 @@
 /**
- * Import Substance archives as materials. Pick a folder of `.sbsar` files,
- * choose a preset and adjust the parameters of each with a live preview, then
- * render them at full size into the library. The archive is stored in each
- * material's folder, so it can be rendered again later with other settings.
+ * Import Substance archives. Pick a folder of `.sbsar` files, choose a preset
+ * and adjust the parameters of each with a live preview, then render them at
+ * full size into the library. Each archive is added as a substance (once per
+ * library, whatever folder it comes from) with a material rendered from it; the
+ * substance's viewer makes more materials from it later.
  */
 
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { Button, Checkbox, Pane, Select, Stack, TextInput, Workbench } from "@ldlework/toybox-sdk/ui";
 import { defineImportPanel, validSegment, type ImportPanelCtx } from "@ldlework/toybox-sdk";
 
-import { clearScratch, Substance, type Env } from "../lib/engine.js";
+import { Substance, tidyScratch, type Env } from "../lib/engine.js";
 import { DEFAULT_SIZE, presetValues, SIZES, sizeOf, type Value } from "../lib/graph.js";
 import { findArchives, importArchives, stemOf, type ArchiveConfig as Config } from "../lib/import.js";
-import { Parameters } from "./Parameters.js";
+import { Parameters, useParameterView } from "./Parameters.js";
 import { useLoaded, usePreview } from "./useSubstance.js";
 
 const message = (failure: unknown) => (failure instanceof Error ? failure.message : String(failure));
@@ -32,7 +33,8 @@ export default defineImportPanel(function SbsarImport({ ctx }: { ctx: ImportPane
   const [warnings, setWarnings] = useState<string[]>([]);
 
   useEffect(() => {
-    void clearScratch(env).catch(() => undefined);
+    // Only empties the scratch folder when no render of this session is in use (see `tidyScratch`).
+    void tidyScratch(env).catch(() => undefined);
     void env.services.settings.get().then((settings) => setSize(String(sizeOf(settings.size, DEFAULT_SIZE))), () => undefined);
   }, [env]);
 
@@ -44,13 +46,17 @@ export default defineImportPanel(function SbsarImport({ ctx }: { ctx: ImportPane
     if (!active || !substance || configs.has(active)) return;
     setConfigs((current) => new Map(current).set(active, { preset: null, values: presetValues(substance.graph, null), everyPreset: false }));
   }, [active, substance, configs]);
-  const { preview, rendering, error: previewError } = usePreview(env, busy ? undefined : substance, config?.values);
+  const { preview, rendering, error: previewError } = usePreview(env, substance, config?.values, busy);
   const graph = preview?.graph ?? substance?.graph;
 
-  const edit = (change: (config: Config) => Config) => {
+  const edit = useCallback((change: (config: Config) => Config) => {
     if (!active) return;
     setConfigs((current) => { const existing = current.get(active); return existing ? new Map(current).set(active, change(existing)) : current; });
-  };
+  }, [active]);
+  const setValue = useCallback((identifier: string, value: Value) => edit((current) => ({ ...current, values: { ...current.values, [identifier]: value } })), [edit]);
+  const base = useMemo(() => (graph && config ? presetValues(graph, config.preset) : undefined), [graph, config?.preset]); // eslint-disable-line react-hooks/exhaustive-deps
+  const resetAll = useCallback(() => { if (graph) edit((current) => ({ ...current, values: presetValues(graph, current.preset) })); }, [edit, graph]);
+  const [view, setView] = useParameterView();
 
   const choose = async () => {
     const folder = await ctx.fs.pickDirectory();
@@ -72,16 +78,20 @@ export default defineImportPanel(function SbsarImport({ ctx }: { ctx: ImportPane
       const root = await ctx.host.getLibraryRoot();
       if (!root) throw new Error("Choose a library first");
       const chosen = archives.filter((path) => selected.has(path));
-      const { entries, problems } = await importArchives({
+      const library = ctx.library?.id;
+      const { entries, problems, substances } = await importArchives({
         env, libraryRoot: root, source, archives: chosen, category, size: sizeOf(size), progress: setStatus,
+        // Ids are qualified with their library in the window; a substance already there is not stored again.
+        lookup: (id) => ctx.host.getAssetAsync(library ? `${library}::${id}` : id),
         open: async (path) => (path === active && substance ? substance : Substance.open(env, `${source}/${path}`)),
         configOf: (path) => configs.get(path),
       });
       setWarnings(problems);
       if (!entries.length) throw new Error(problems.length ? "Nothing could be rendered." : "Nothing is selected.");
-      setStatus("Adding materials to the library…");
+      setStatus("Adding to the library…");
       await ctx.commit(entries);
-      setStatus(`Added ${entries.length} ${entries.length === 1 ? "material" : "materials"}.`);
+      const materials = entries.length - substances.length;
+      setStatus(`Added ${materials} ${materials === 1 ? "material" : "materials"}${substances.length ? ` and ${substances.length} ${substances.length === 1 ? "substance" : "substances"}` : ""}.`);
     } catch (failure) { setError(message(failure)); setStatus(""); }
     finally { setBusy(false); }
   };
@@ -104,7 +114,7 @@ export default defineImportPanel(function SbsarImport({ ctx }: { ctx: ImportPane
     {!validSegment(category) && <p role="alert" style={{ color: "var(--danger)", margin: 0 }}>Enter a category name without slashes or other reserved characters.</p>}
     <label>Texture size<Select value={size} disabled={busy} options={SIZES.map(({ value, label }) => ({ value, label: `${label} × ${label}` }))} onChange={setSize} /></label>
     <p style={hint}>Each archive is rendered by Adobe's Substance engine into colour, normal, roughness, metal, shadowing and height maps. The preview is 512 pixels; the import uses the size above.</p>
-    <p style={hint}>The archive is stored with each material, so it can be changed later from its own page.</p>
+    <p style={hint}>Each archive is added to the library as a substance, with a material rendered from it. Open the substance later to change that material or make more from it. An archive the library already has is not stored twice.</p>
     {source && <p style={{ ...hint, overflowWrap: "anywhere" }}>{source}</p>}
   </Stack></Pane>} inspector={active && <Pane><Stack gap={12} style={{ padding: 16 }}>
     <strong style={{ overflowWrap: "anywhere" }}>{stemOf(active)}</strong>
@@ -123,9 +133,7 @@ export default defineImportPanel(function SbsarImport({ ctx }: { ctx: ImportPane
           onChange={(checked) => { if (!busy) edit((current) => ({ ...current, everyPreset: checked })); }} />
       </>}
       {config.everyPreset ? <p style={hint}>Each preset is imported as the archive's author made it.</p>
-        : <Parameters graph={graph} values={config.values} disabled={busy}
-            onChange={(identifier: string, value: Value) => edit((current) => ({ ...current, values: { ...current.values, [identifier]: value } }))} />}
-      {!config.everyPreset && <Button variant="ghost" disabled={busy} onClick={() => edit((current) => ({ ...current, values: presetValues(graph, current.preset) }))}>Reset parameters</Button>}
+        : base && <Parameters graph={graph} values={config.values} base={base} disabled={busy} onChange={setValue} onResetAll={resetAll} view={view} onView={setView} />}
     </>}
   </Stack></Pane>}>
     <Stack grow style={{ overflow: "hidden" }}>

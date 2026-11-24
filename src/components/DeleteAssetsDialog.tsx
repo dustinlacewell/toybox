@@ -1,8 +1,9 @@
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import { ConfirmationDialog } from "@ldlework/toybox-sdk/ui";
 import { File } from "lucide-react";
 import type { Asset, LibraryInfo } from "../domain/catalog";
 import { librariesHolding, type AlsoIn } from "../domain/duplicates";
+import { countOf, useDerivedAssets } from "../state/derived";
 import { useThumbUrl } from "./useThumbUrl";
 
 function ItemPreview({ asset }: { asset: Asset }) {
@@ -25,6 +26,9 @@ function copiesNote(assets: Asset[], libraries: LibraryInfo[], alsoIn: ReadonlyM
   return `Only deletes from ${[...from].map(name).join(", ")}; the copy in ${[...kept].map(name).join(", ")} stays.`;
 }
 
+/** Items made from a deleted item stay (the link is soft). Looked up for a small selection only. */
+const DERIVED_CHECKED = 20;
+
 /** At most this many items are listed in the dialog (a selection can be hundreds of thousands). */
 const LISTED = 200;
 
@@ -33,6 +37,10 @@ export function DeleteAssetsDialog({ assets, count = assets.length, libraries = 
   assets: Asset[]; /** How many items are selected in all. */ count?: number; libraries?: LibraryInfo[]; alsoIn?: ReadonlyMap<string, AlsoIn[]>; onClose: () => void; onDelete: () => Promise<void>;
 }) {
   const copies = copiesNote(assets, libraries, alsoIn);
+  const checked = useMemo(() => (count <= DERIVED_CHECKED ? assets.map((asset) => asset.id) : []), [assets, count]);
+  const deleted = useMemo(() => new Set(checked), [checked]);
+  const kept = (useDerivedAssets(checked) ?? []).filter((asset) => !deleted.has(asset.id));
+  const derived = kept.length ? `${countOf(kept)} ${kept.length === 1 ? "was" : "were"} made from ${count === 1 ? "it" : "them"}; ${kept.length === 1 ? "it stays" : "they stay"}.` : "";
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string>();
   const label = `${count} ${count === 1 ? "item" : "items"}`;
@@ -40,7 +48,7 @@ export function DeleteAssetsDialog({ assets, count = assets.length, libraries = 
   return <ConfirmationDialog title={`Delete ${label}?`} onClose={onClose}
     description="Delete these items and their files, including all variants?"
     items={listed.map(asset => ({ id: asset.id, label: asset.name, detail: asset.pack.replace(/_/g, " "), preview: <ItemPreview asset={asset} /> }))}
-    note={`${copies ? copies + " " : ""}This cannot be undone. Files shared with other library items will be kept.`}
+    note={`${copies ? copies + " " : ""}${derived ? derived + " " : ""}This cannot be undone. Files shared with other library items will be kept.`}
     confirmLabel={`Delete ${label}`} busyLabel="Deleting…" busy={busy} disabled={!count} error={error} onConfirm={async () => {
       setBusy(true); setError(undefined);
       try { await onDelete(); onClose(); } catch (e) { setError(String(e)); } finally { setBusy(false); }

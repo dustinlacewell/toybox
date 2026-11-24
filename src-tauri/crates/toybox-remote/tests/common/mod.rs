@@ -222,7 +222,7 @@ pub fn standard_content(tag: &str) -> (Vec<(&'static str, Vec<u8>)>, Vec<Value>)
     for name in ["Stone", "Stone_1K"] {
         files.push((leak(format!("library/{pack}/materials/{name}/color.png")), [png(), name.as_bytes().to_vec()].concat()));
     }
-    files.push((leak(format!("library/{pack}/materials/Stone/stone.sbsar")), b"archive".to_vec()));
+    files.push((leak(format!("library/{pack}/materials/Stone/stone.src")), b"archive".to_vec()));
     files.push((leak(format!("library/{pack}/sounds/click.wav")), wav()));
     files.push((leak(format!("library/{pack}/skybox/Night/px.png")), png()));
     files.push((leak(format!("library/{pack}/skybox/Night/nx.png")), png()));
@@ -233,7 +233,7 @@ pub fn standard_content(tag: &str) -> (Vec<(&'static str, Vec<u8>)>, Vec<Value>)
             "variants":[{"id":"uid://crate_lod","pack":pack,"category":"props","file":"Crate_LOD1.gltf","format":"obj","origin":origin("Crate_LOD1"),"tags":["low detail"]}]}),
         json!({"id":"uid://barrel","pack":pack,"category":"props","file":"Barrel.gltf"}),
         json!({"id":"uid://stone","kind":"material","pack":pack,"category":"stone","name":"Stone","maps":[{"role":"albedo","file":"color.png"}],
-            "origin":{"plugin":"com.example.sbsar","files":["stone.sbsar"],"meta":{"preset":"Green"}},
+            "origin":{"plugin":"com.example.src","files":["stone.src"],"meta":{"preset":"Green"}},
             "variants":[{"id":"uid://stone_small","kind":"material","pack":pack,"category":"stone","name":"Stone_1K","maps":[{"role":"albedo","file":"color.png"}]}]}),
         json!({"id":"uid://click","kind":"audio","pack":pack,"category":"sounds","file":"click.wav","tags":["click","ui"],"provenance":{"publisher":"Sound Co","url":"https://example.test/clicks"}}),
         json!({"id":"uid://night","kind":"plugin","type":"skybox","pack":pack,"category":"night","name":"Night","files":["px.png","nx.png"],"meta":{"layout":"cubemap"}}),

@@ -295,6 +295,8 @@ pub(crate) struct RowIn {
     clip_source: String,
     /// The plugin that imported the asset (empty when none is recorded).
     plugin: String,
+    /// `origin.derivedFrom`: the id of the asset this one was made from (empty when none).
+    derived_from: String,
     /// The ids of the asset's variants (their personal rows go with it).
     pub(crate) variant_ids: Vec<String>,
     /// Library-relative files of the asset and its variants; `true` for kept source files.
@@ -452,6 +454,7 @@ pub(crate) fn row_in(asset: &Asset, item_id: Option<String>, content_hash: Optio
         publisher: provenance_value(asset, &public.publisher, "publisher"),
         license: provenance_value(asset, &public.license, "license"),
         plugin: asset.origin.as_ref().map(|origin| origin.plugin.clone()).unwrap_or_default(),
+        derived_from: asset.origin.as_ref().and_then(|origin| origin.derived_from.clone()).unwrap_or_default(),
         hash_key,
         content_hash,
         blob: serde_json::to_string(&blob)?,
@@ -505,8 +508,8 @@ pub(crate) fn delete_asset_row(tx: &Connection, id: &str, rowid: i64, revision: 
 pub(crate) fn write_row(tx: &Transaction, row: &RowIn, old: Option<&Old>, ord: i64, revision: i64, hash_ok: bool, fts: bool) -> AppResult<bool> {
     let rowid = match old {
         None => {
-            tx.prepare_cached("INSERT INTO assets(id,item_id,ord,kind,type,name,pack,category,format,source,publisher,license,content_hash,hash_key,asset,revision,rel_path,thumb_name,clip_source,plugin) VALUES(?1,?2,?3,?4,?5,?6,?7,?8,?9,?10,?11,?12,?13,?14,?15,?16,?17,?18,?19,?20)")?
-                .execute(params![row.id, row.item_id, ord, row.kind, row.type_id, row.name, row.pack, row.category, row.format, row.source, row.publisher, row.license, row.content_hash, row.hash_key, row.blob, revision, row.rel_path, crate::infra::appdata::sanitize_id(&row.id), row.clip_source, row.plugin])?;
+            tx.prepare_cached("INSERT INTO assets(id,item_id,ord,kind,type,name,pack,category,format,source,publisher,license,content_hash,hash_key,asset,revision,rel_path,thumb_name,clip_source,plugin,derived_from) VALUES(?1,?2,?3,?4,?5,?6,?7,?8,?9,?10,?11,?12,?13,?14,?15,?16,?17,?18,?19,?20,?21)")?
+                .execute(params![row.id, row.item_id, ord, row.kind, row.type_id, row.name, row.pack, row.category, row.format, row.source, row.publisher, row.license, row.content_hash, row.hash_key, row.blob, revision, row.rel_path, crate::infra::appdata::sanitize_id(&row.id), row.clip_source, row.plugin, row.derived_from])?;
             tx.last_insert_rowid()
         }
         Some(previous) => {
@@ -519,8 +522,8 @@ pub(crate) fn write_row(tx: &Transaction, row: &RowIn, old: Option<&Old>, ord: i
                 }
                 return Ok(false);
             }
-            tx.prepare_cached("UPDATE assets SET item_id=?2,ord=?3,kind=?4,type=?5,name=?6,pack=?7,category=?8,format=?9,source=?10,publisher=?11,license=?12,content_hash=?13,hash_key=?14,asset=?15,revision=?16,rel_path=?17,thumb_name=?18,clip_source=?19,plugin=?20 WHERE id=?1")?
-                .execute(params![row.id, row.item_id, ord, row.kind, row.type_id, row.name, row.pack, row.category, row.format, row.source, row.publisher, row.license, row.content_hash, row.hash_key, row.blob, revision, row.rel_path, crate::infra::appdata::sanitize_id(&row.id), row.clip_source, row.plugin])?;
+            tx.prepare_cached("UPDATE assets SET item_id=?2,ord=?3,kind=?4,type=?5,name=?6,pack=?7,category=?8,format=?9,source=?10,publisher=?11,license=?12,content_hash=?13,hash_key=?14,asset=?15,revision=?16,rel_path=?17,thumb_name=?18,clip_source=?19,plugin=?20,derived_from=?21 WHERE id=?1")?
+                .execute(params![row.id, row.item_id, ord, row.kind, row.type_id, row.name, row.pack, row.category, row.format, row.source, row.publisher, row.license, row.content_hash, row.hash_key, row.blob, revision, row.rel_path, crate::infra::appdata::sanitize_id(&row.id), row.clip_source, row.plugin, row.derived_from])?;
             tx.execute("DELETE FROM asset_tags WHERE asset_id=?1", [&row.id])?;
             tx.execute("DELETE FROM asset_files WHERE asset_id=?1", [&row.id])?;
             tx.execute("DELETE FROM rig_uses WHERE asset_id=?1", [&row.id])?;

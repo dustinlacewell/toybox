@@ -29,7 +29,7 @@ const OP = { addClient: 10, load: 20, update: 24, render: 25 } as const;
 
 /** The settings key of the engine program (see `manifest.json`). */
 const ENGINE_SETTING = "engine";
-export const SETTINGS_HINT = "Check the Substance engine under Settings → Plugins → Substance materials (on the command line: tbx sbsar engine --start; set it with tbx plugin settings com.toybox.material-sbsar engine <path>).";
+export const SETTINGS_HINT = "Check the Substance engine under Settings → Plugins → Substances (on the command line: tbx sbsar engine --start; set it with tbx plugin settings com.toybox.material-sbsar engine <path>).";
 
 const wait = (ms: number) => new Promise<void>((resolve) => setTimeout(resolve, ms));
 
@@ -53,8 +53,16 @@ let registered = false;
 let runs = 0;
 /** What the engine said when this plugin introduced itself, if anything: the nearest it has to a version. */
 let hello: unknown;
-/** The render folders this process created in the scratch folder, for `cleanupRenders`. */
+/** The render folders this process created in the scratch folder and has not released yet (their files may still
+ *  be read): `cleanupRenders` removes them, and the scratch folder is never emptied while there are any. */
 const made: { scratch: string; folder: string }[] = [];
+/** Render folders released where they cannot be removed one by one (the app's `fs` has no `removeTree`): they go
+ *  when the scratch folder is next emptied. */
+let released = 0;
+/** The scratch folder was emptied once by this process (of what earlier sessions left behind). */
+let swept = false;
+/** Released folders that may pile up before the scratch folder is emptied again. */
+const SWEEP_AFTER = 8;
 
 function exclusive<T>(work: () => Promise<T>): Promise<T> {
   const next = queue.then(work, work);
@@ -134,7 +142,15 @@ export interface Rendering {
 
 /** One archive loaded into the engine. */
 export class Substance {
-  private constructor(private env: Env, private uuid: string, public graph: Graph, private sent: Values) {}
+  /** `graphs`: every graph of the archive as first loaded (the one being rendered is `graph`). `family`: the
+   *  instance of each graph of this one load, so choosing another graph of the archive never loads it again. */
+  private constructor(private env: Env, private uuid: string, public graph: Graph, private sent: Values, public readonly graphs: Graph[], private family: Map<number, Substance>) {
+    family.set(graph.index, this);
+  }
+
+  private static defaults(graph: Graph): Values {
+    return Object.fromEntries(graph.inputs.map((input) => [input.identifier, input.value]));
+  }
 
   /** Load `file` (absolute path) into the engine. */
   static open(env: Env, file: string, graphChoice: number | string = 0): Promise<Substance> {
@@ -146,8 +162,16 @@ export class Substance {
       const graphs = readGraphs(reply);
       const graph = chooseGraph(graphs, graphChoice);
       if (typeof data.uuid !== "string" || !graph) throw new Error("The Substance engine loaded the file but reported no graph in it.");
-      return new Substance(env, data.uuid, graph, Object.fromEntries(graph.inputs.map((input) => [input.identifier, input.value])));
+      return new Substance(env, data.uuid, graph, Substance.defaults(graph), graphs, new Map());
     });
+  }
+
+  /** The same loaded archive rendering another of its graphs (by index or label): the engine renders any graph of
+   *  a loaded archive, so nothing is loaded again. Each graph keeps its own parameter state. Throws, listing the
+   *  graphs, when none matches. */
+  withGraph(choice: number | string): Substance {
+    const graph = chooseGraph(this.graphs, choice);
+    return this.family.get(graph.index) ?? new Substance(this.env, this.uuid, graph, Substance.defaults(graph), this.graphs, this.family);
   }
 
   /** Every graph of the archive at `file` (absolute path), with its inputs,
@@ -248,8 +272,18 @@ export class Substance {
   }
 }
 
-/** Empty the scratch folder of earlier renders. Call when a panel opens. */
-export const clearScratch = (env: Env): Promise<string> => exclusive(() => env.services.scratchDir(true));
+/** Empty the scratch folder, but only at a moment when that cannot take a file from under a reader: in the engine
+ *  queue (so no render is being written) and with no render of this process unreleased (so none is being read).
+ *  It empties once per session (what an earlier session left, e.g. after a crash) and then whenever enough
+ *  released folders have piled up that could not be removed one by one. Panels call it when they open. */
+export function tidyScratch(env: Env): Promise<void> {
+  return exclusive(async () => {
+    if (made.length || (swept && released < SWEEP_AFTER)) return;
+    await env.services.scratchDir(true);
+    swept = true;
+    released = 0;
+  });
+}
 
 /** Remove the render folders this process made in the scratch folder (also after a failure). Folders of other
  *  processes, such as the app's previews, are never touched. Needs `fs.removeTree`, which only `tbx` has; elsewhere it does nothing. */
@@ -259,12 +293,22 @@ export async function cleanupRenders(env: Env): Promise<void> {
   for (const { scratch, folder } of mine) await env.fs.removeTree(scratch, folder).catch(() => undefined);
 }
 
-/** Remove one render's folder as soon as its maps are copied. */
+/** Done with one render (its maps are copied or read): remove its folder. Where the host cannot remove a folder
+ *  (the app) it is counted, and the scratch folder is emptied by `tidyScratch` once nothing is in use. Releasing
+ *  a render twice does nothing. */
 export async function releaseRender(env: Env, rendering: Rendering): Promise<void> {
   const at = made.findIndex((item) => item.folder === rendering.folder && item.scratch === rendering.scratch);
-  if (at >= 0) made.splice(at, 1);
-  await env.fs.removeTree?.(rendering.scratch, rendering.folder).catch(() => undefined);
+  if (at < 0) return;
+  made.splice(at, 1);
+  if (env.fs.removeTree) { await env.fs.removeTree(rendering.scratch, rendering.folder).catch(() => undefined); return; }
+  released++;
+  // Not awaited: a caller inside the engine queue would wait on itself.
+  if (released >= SWEEP_AFTER) void tidyScratch(env).catch(() => undefined);
 }
+
+/** How many renders of this process are not released yet, and how many released ones wait for the scratch folder
+ *  to be emptied (for tests). */
+export const renderBookkeeping = (): { unreleased: number; released: number; swept: boolean } => ({ unreleased: made.length, released, swept });
 
 export interface EngineStatus {
   /** The program the "Substance engine" setting points at. */

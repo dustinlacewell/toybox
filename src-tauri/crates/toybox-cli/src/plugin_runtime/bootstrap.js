@@ -31,9 +31,15 @@ const parseQualified = (id) => {
 };
 const qualifyId = (library, id) => (parseQualified(id) ? id : `${library}${SEP}${id}`);
 const unqualify = (library, id) => (id.startsWith(`${library}${SEP}`) ? id.slice(library.length + SEP.length) : id);
+/** The id and the references to other items of an entry (`origin.derivedFrom`), raw again. */
+const unqualifyItem = (library, item) => {
+  const out = { ...item, id: unqualify(library, item.id) };
+  if (typeof item.origin?.derivedFrom === "string") out.origin = { ...item.origin, derivedFrom: unqualify(library, item.origin.derivedFrom) };
+  return out;
+};
 const unqualifyEntry = (library, entry) => {
-  const out = { ...entry, id: unqualify(library, entry.id) };
-  if (entry.variants) out.variants = entry.variants.map((variant) => ({ ...variant, id: unqualify(library, variant.id) }));
+  const out = unqualifyItem(library, entry);
+  if (entry.variants) out.variants = entry.variants.map((variant) => unqualifyItem(library, variant));
   return out;
 };
 
@@ -43,9 +49,13 @@ const withOrigin = (entry, pluginId, attributable = []) => {
   if (!pluginId) return entry;
   const meta = entry.origin?.meta;
   const files = entry.origin?.files;
+  const derivedFrom = entry.origin?.derivedFrom;
   const named = entry.origin?.plugin;
   const plugin = named && attributable.includes(named) ? named : pluginId;
-  const result = { ...entry, origin: { plugin, ...(meta && Object.keys(meta).length ? { meta } : {}), ...(files?.length ? { files } : {}) } };
+  const result = {
+    ...entry,
+    origin: { plugin, ...(meta && Object.keys(meta).length ? { meta } : {}), ...(files?.length ? { files } : {}), ...(typeof derivedFrom === "string" && derivedFrom ? { derivedFrom } : {}) },
+  };
   if (entry.variants) result.variants = entry.variants.map((variant) => withOrigin(variant, pluginId, attributable));
   return result;
 };
@@ -104,6 +114,8 @@ const buildFs = (pluginId, perms) => {
   return {
     readDir: read(async (root, path) => call("fs.readDir", root, path)),
     readBytes: read(async (root, path) => call("fs.readBytes", root, path)),
+    hashFile: read(async (root, path) => call("fs.hashFile", root, path)),
+    fileSize: read(async (root, path) => call("fs.fileSize", root, path)),
     readImageThumb: read(async (root, path, max) => call("fs.readImageThumb", root, path, max)),
     copyFile: read(write(async (root, path, authorized, target) => call("fs.copyFile", root, path, authorized, target, jail()))),
     writeBytes: write(async (root, path, bytes) => call("fs.writeBytes", root, path, bytes, jail())),
@@ -153,6 +165,21 @@ const buildSlotHost = (pluginId, perms) => {
   const convert = gate(pluginId, "rustConvert", perms.rustConvert);
   return {
     ...readSide(),
+    /** The assets made from `id` (their `origin.derivedFrom` is it), as views with qualified ids. */
+    getDerivedAssets: async (id) => {
+      if (!run) return [];
+      const found = call("assets.derived", run.library.id, qualifyId(run.library.id, id));
+      remember(found);
+      return found;
+    },
+    /** Make these items' files (with what they keep and the assets they were made from) available on
+     * this computer: a download for a remote library, nothing for a local one. */
+    ensureAssetFiles: async (ids) => {
+      if (!run) return;
+      call("assets.ensureFiles", run.library.id, (Array.isArray(ids) ? ids : [ids]).map((id) => qualifyId(run.library.id, id)));
+    },
+    /** Showing an asset is the window's business; on the command line there is no viewer. */
+    openAsset: () => {},
     getLibraryRoot: async () => (run ? call("library.info", run.library.id).root ?? null : null),
     convertToGltf: convert(async (src, pack, category, stem) => {
       if (!run) throw new Error("no library configured");

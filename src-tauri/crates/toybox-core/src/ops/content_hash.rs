@@ -82,6 +82,8 @@ fn managed_rel(rel: &str) -> bool {
 pub struct ContentHasher {
     root: PathBuf,
     shared: Arc<Mutex<HashMap<String, String>>>,
+    /// Digests the caller already knows (a file named by its content), so it is not read.
+    known: HashMap<String, String>,
     buffer: Vec<u8>,
 }
 
@@ -99,13 +101,22 @@ impl ContentHasher {
     }
 
     fn with_shared(root: &Path, shared: SharedDigests) -> Self {
-        ContentHasher { root: root.to_path_buf(), shared, buffer: vec![0; 256 * 1024] }
+        ContentHasher { root: root.to_path_buf(), shared, known: HashMap::new(), buffer: vec![0; 256 * 1024] }
+    }
+
+    /// Take `digest` as `D(rel)` instead of reading the file: for a file whose SHA-256 is already known
+    /// (it is stored under a path named by it), so a large archive is not read again.
+    pub fn assume_digest(&mut self, rel: &str, digest: &str) {
+        self.known.insert(rel.to_string(), digest.to_string());
     }
 
     /// `D(file)`: SHA-256 of a library-relative file, read in chunks.
     pub fn file_digest(&mut self, rel: &str) -> AppResult<String> {
         if !managed_rel(rel) {
             return Err(AppError::msg(format!("not a library file: {rel}")));
+        }
+        if let Some(digest) = self.known.get(rel) {
+            return Ok(digest.clone());
         }
         let shared = rel.contains("/_resources/");
         if shared {

@@ -17,5 +17,6 @@ pub mod retention;
 pub mod settings;
 pub mod source_migration;
 pub mod store;
+pub mod substance_migration;
 pub mod storage;
 pub(crate) mod trace;

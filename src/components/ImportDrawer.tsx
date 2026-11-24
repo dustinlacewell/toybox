@@ -9,13 +9,14 @@ import { acceptsKind, importersFor, type LoadedImporter, type PluginLoadError } 
 import { buildPluginBase } from "../services/pluginCtx";
 import { declaresTypes, isImporter } from "../services/pluginCapabilities";
 import { mergeSeedEntries, onLibraryProgress } from "../services/tauriApi";
-import { unqualifyEntry } from "../domain/libraryId";
+import { invalidateParentThumbs } from "../services/pluginCommit";
+import { qualify, unqualifyEntry } from "../domain/libraryId";
 import { libraryLabel, progressLine } from "../domain/remoteLibrary";
 import { syncLibrary } from "../services/libraries";
 import { unwritableReason, writableLibraries } from "../domain/transfer";
 import { useStore } from "../state/store";
 import { stopAudioAudition } from "../services/audioAudition";
-import { MaterialPreviewWidget } from "./plugin-ui/MaterialPreviewWidget";
+import { PANEL_WIDGETS } from "./plugin-ui/panelWidgets";
 import { PluginSlot } from "./plugin-ui/PluginSlot";
 import { PluginPicker } from "./PluginPicker";
 import "./ImportScreen.css";
@@ -78,12 +79,12 @@ function ImportSession({ importers: all, kind, pluginErrors, onClose, onCommitte
       fs,
       services: base.services,
       extensions: base.extensions,
-      widgets: { MaterialPreview: MaterialPreviewWidget }, setActions,
+      widgets: PANEL_WIDGETS, setActions,
       commit: async (entries: SeedEntryInput[]) => {
         setError(undefined);
         const target=libraryRef.current;
         setUploading(undefined);setCommitting(true);
-        try { await mergeSeedEntries(target, entries.map(entry=>unqualifyEntry(target,withOrigin(withImportProvenance(entry,provenanceRef.current),active?.manifest.id ?? "",active?.manifest.requiredBy ?? [])))); onCommitted(target); }
+        try { const raw=entries.map(entry=>unqualifyEntry(target,withOrigin(withImportProvenance(entry,provenanceRef.current),active?.manifest.id ?? "",active?.manifest.requiredBy ?? []))); await mergeSeedEntries(target, raw); await invalidateParentThumbs(raw.map(entry=>({...entry,id:qualify(target,entry.id)}))); onCommitted(target); }
         catch (e) {
           setError(String(e).replace(/^Error: /,""));
           // A server may have taken some of the items before it refused others.

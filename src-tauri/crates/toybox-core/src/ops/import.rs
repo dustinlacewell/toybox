@@ -132,6 +132,7 @@ fn merge_locked(handle: &LibraryHandle, canonical: &std::path::Path, incoming: V
     let mut trace = crate::infra::trace::Trace::new("import");
     let root = handle.root_str();
     let store = Store::for_handle(handle);
+    convert_archives_about_to_go(handle, canonical, &store, &incoming)?;
     let expect = store::manifest_revision(canonical)?;
 
     let mut upserts = plan_upsert(&store, incoming)?;
@@ -245,6 +246,41 @@ fn merge_locked(handle: &LibraryHandle, canonical: &std::path::Path, incoming: V
     let written: HashSet<&str> = stored_entries.iter().filter_map(|entry| entry["id"].as_str()).collect();
     let removed = removed.into_iter().filter(|id| !written.contains(id.as_str())).collect();
     Ok(Merged { assets, removed })
+}
+
+/// Library migration step 6 turns each Substance archive a material keeps into a substance asset. A
+/// replacement derived from such a substance (`origin.derivedFrom`, the new plugin's shape) that arrives
+/// while the old material still lists the archive and the substance does not exist yet (the conversion
+/// was skipped, or an older client committed the old material through this host) would leave the archive
+/// listed by nothing, and the commit would remove it: the only copy. Convert it first.
+fn convert_archives_about_to_go(handle: &LibraryHandle, canonical: &std::path::Path, store: &Store, incoming: &[Value]) -> AppResult<()> {
+    use crate::infra::substance_migration::{sbsar_source, substance_id, convert_before_replacement};
+    let derived: BTreeSet<String> = incoming
+        .iter()
+        .flat_map(|entry| std::iter::once(entry).chain(entry["variants"].as_array().into_iter().flatten()))
+        .filter_map(|item| item["origin"]["derivedFrom"].as_str().filter(|id| id.starts_with("uid://substance_")).map(String::from))
+        .collect();
+    if derived.is_empty() {
+        return Ok(());
+    }
+    // From the entries, not the derived rows (which may be stale).
+    let present: HashSet<String> = store.load_entries(&derived.iter().cloned().collect::<Vec<_>>())?.iter().filter_map(|entry| entry["id"].as_str().map(String::from)).collect();
+    if derived.iter().all(|id| present.contains(id)) {
+        return Ok(());
+    }
+    // What the commit replaces (read only: planned again after the conversion).
+    let upserts = plan_upsert(store, incoming.to_vec())?;
+    let kept = shared_sources_of(upserts.entries.values());
+    for archive in shared_sources_of(upserts.before.values()).difference(&kept) {
+        let Some((sha, _)) = sbsar_source(archive) else { continue };
+        let substance = substance_id(sha);
+        if !derived.contains(&substance) || present.contains(&substance) || !paths::abs_under_root(&handle.root_str(), archive).is_file() {
+            continue;
+        }
+        let ids: Vec<String> = upserts.before.iter().filter(|(_, entry)| shared_sources_of(std::iter::once(*entry)).contains(archive)).map(|(id, _)| id.clone()).collect();
+        convert_before_replacement(canonical, &handle.cache_path, store, archive, &ids)?;
+    }
+    Ok(())
 }
 
 fn collect_rig_ids(asset: &Asset, out: &mut Vec<String>) {

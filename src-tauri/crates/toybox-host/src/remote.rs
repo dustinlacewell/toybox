@@ -35,7 +35,8 @@ impl Host {
 
     /// Make the files of these items available on this computer (a no-op for a
     /// local library). `include_sources` also fetches the source files kept with an
-    /// item (for example the archive a material was rendered from).
+    /// item, and the files of the asset it was made from (`origin.derivedFrom`: the
+    /// substance whose archive a material was rendered from).
     pub fn ensure_asset_files(&self, library: &str, asset_ids: &[String], include_sources: bool) -> AppResult<()> {
         let handle = self.resolve(library)?;
         if !handle.is_remote() {
@@ -57,6 +58,20 @@ impl Host {
                 }
             }
             handle.ensure_files(&sources)?;
+            let mut parents: Vec<String> = Vec::new();
+            for asset in &assets {
+                for item in std::iter::once(asset).chain(&asset.variants) {
+                    if let Some(parent) = item.origin.as_ref().and_then(|origin| origin.derived_from.clone()) {
+                        if !parents.contains(&parent) && !asset_ids.contains(&parent) {
+                            parents.push(parent);
+                        }
+                    }
+                }
+            }
+            if !parents.is_empty() {
+                // A parent that is not in the library (the link dangles) has nothing to fetch.
+                handle.ensure_assets(&store.load_assets(&parents)?)?;
+            }
         }
         Ok(())
     }

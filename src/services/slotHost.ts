@@ -7,8 +7,10 @@
  */
 
 import type { PluginPermissions, SlotHost } from "@ldlework/toybox-sdk";
+import { cacheAssets } from "../state/assetCache";
 import { useStore } from "../state/store";
 import { gate, catalogAsset, fetchAsset, loadSelectedAssets, selectedAssets } from "./pluginHost";
+import { derivedAssets } from "./browse";
 import { convertToGltf, listLibraries } from "./tauriApi";
 import { pickDirectory } from "./pickDirectory";
 import { pickSaveFile } from "./pickSaveFile";
@@ -39,6 +41,13 @@ export function buildSlotHost(
     getAsset: (id) => catalogAsset(id),
     getSelectedAssetsAsync: () => loadSelectedAssets([...useStore.getState().selection]),
     getAssetAsync: (id) => fetchAsset(id),
+    getDerivedAssets: async (id) => {
+      const found = await derivedAssets(id);
+      cacheAssets(found);
+      return found;
+    },
+    // Shown once it is known to be there: an unknown id leaves the view as it is.
+    openAsset: (id) => void fetchAsset(id).then((asset) => { if (asset) useStore.getState().setPreview(asset.id); }, () => undefined),
     getLibraryRoot: async () => (await resolveLibrary(library))?.root ?? null,
     convertToGltf: gatedConvert(
       async (srcPath: string, pack: string, category: string, stem: string) => {

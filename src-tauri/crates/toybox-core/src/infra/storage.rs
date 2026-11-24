@@ -226,13 +226,8 @@ impl Plan {
         let type_root = format!("library/{}", type_folder(entry)?);
         // The immutable set key includes identity, declaration and file contents.
         // Updating an item publishes new paths instead of modifying live files.
-        let mut key = Sha256::new();
-        key.update(parsed.id.as_bytes());
-        // Library tags are descriptive metadata that change after the fact, so they
-        // are not part of the set's identity: editing them never moves a file.
-        // (Provenance is part of it: it is written into the entry when the item is
-        // first stored, and an item that is stored already is never keyed again.)
-        key.update(serde_json::to_vec(&without_source_files(tags::without_tags(entry)))?);
+        // The digests of the set's files, in order (see `set_key`).
+        let mut key: Vec<String> = Vec::new();
         let mut doc = None;
         let mut dependencies = Vec::new();
         // Source files the importing plugin keeps with the item (a material's archive) are stored once
@@ -265,7 +260,7 @@ impl Plan {
                                 continue;
                             };
                             let hash = self.digest(root, &source)?;
-                            key.update(hash.as_bytes());
+                            key.push(hash.clone());
                             dependencies.push((field, index, source, hash));
                         }
                     }
@@ -285,27 +280,27 @@ impl Plan {
                         scene["extensions"]["TOYBOX_library"] = json!({"sourcePath":gltf_rel});
                     }
                 }
-                key.update(self.digest(root, gltf_rel)?.as_bytes());
+                key.push(self.digest(root, gltf_rel)?);
                 doc = Some(scene);
             }
             SeedContent::Material { material } => {
                 for file in material.textures() {
-                    key.update(self.digest(root, &file)?.as_bytes());
+                    key.push(self.digest(root, &file)?);
                     dependencies.push(("maps", 0, file.clone(), String::new()));
                 }
             }
             SeedContent::Audio { file } => {
-                key.update(self.digest(root, file)?.as_bytes());
+                key.push(self.digest(root, file)?);
                 dependencies.push(("audio", 0, file.clone(), String::new()));
             }
             SeedContent::Plugin { files, .. } => {
                 for file in files {
-                    key.update(self.digest(root, file)?.as_bytes());
+                    key.push(self.digest(root, file)?);
                     dependencies.push(("files", 0, file.clone(), String::new()));
                 }
             }
         }
-        let folder = format!("{type_root}/{:x}", key.finalize());
+        let folder = format!("{type_root}/{}", set_key(&parsed.id, entry, &key)?);
         let mut local = HashMap::new();
         let mut context = HashMap::new();
         if let Some(mut scene) = doc {
@@ -404,16 +399,49 @@ impl Plan {
     }
 }
 
-/// The entry without the list of kept source files (of the item and its variants). Where a source is
-/// stored (staged next to the item, or already in shared storage) says nothing about the item.
+/// The name of the immutable folder of a stored item: its identity, its declaration and its files'
+/// contents (`digests`: the sha256 of each file, in the order the entry lists them). Library tags are
+/// descriptive metadata that change after the fact, so they are not part of the set's identity: editing
+/// them never moves a file. (Provenance is part of it: it is written into the entry when the item is
+/// first stored, and an item that is stored already is never keyed again.) Kept sources and the
+/// `derivedFrom` link are not either (see [`without_source_files`]).
+fn set_key(id: &str, entry: &Value, digests: &[String]) -> AppResult<String> {
+    let mut key = Sha256::new();
+    key.update(id.as_bytes());
+    key.update(serde_json::to_vec(&without_source_files(tags::without_tags(entry)))?);
+    for digest in digests {
+        key.update(digest.as_bytes());
+    }
+    Ok(format!("{:x}", key.finalize()))
+}
+
+/// The storage folder (`library/<type>/<key>`) a commit gives a new folder-stored entry (a material or a
+/// plugin-defined type) whose files have these sha256 `digests`, in the order the entry lists them: the
+/// same computation as [`ItemPlan::new`], for code that places the files itself (library migration step
+/// 6 moves an archive rather than copying it). `entry` has no `storagePath` yet.
+pub fn planned_folder(entry: &Value, digests: &[String]) -> AppResult<String> {
+    let mut entry = entry.clone();
+    tags::normalize_entry(&mut entry);
+    let parsed = seed::parse_entry(&entry)?;
+    if entry.get("storagePath").is_some_and(|path| !path.is_null()) {
+        return Err(AppError::msg("The entry is stored already"));
+    }
+    Ok(format!("library/{}/{}", type_folder(&entry)?, set_key(&parsed.id, &entry, digests)?))
+}
+
+/// The entry without the list of kept source files and the `derivedFrom` link (of the item and its
+/// variants). Where a source is stored (staged next to the item, or already in shared storage) says
+/// nothing about the item, and neither does which asset it was made from: re-linking never re-keys.
 fn without_source_files(mut entry: Value) -> Value {
     if let Some(origin) = entry.get_mut("origin").and_then(Value::as_object_mut) {
         origin.remove("files");
+        origin.remove("derivedFrom");
     }
     if let Some(variants) = entry.get_mut("variants").and_then(Value::as_array_mut) {
         for variant in variants {
             if let Some(origin) = variant.get_mut("origin").and_then(Value::as_object_mut) {
                 origin.remove("files");
+                origin.remove("derivedFrom");
             }
         }
     }
@@ -753,6 +781,19 @@ pub fn recover(root: &Path, cache: &Path) -> AppResult<()> {
     let _process_guard = process_lock(&root)?;
     recover_inner(&root, cache)
 }
+/// Finish an interrupted publication (either journal) of the library at the canonical `root`. For
+/// code that already holds the storage locks (inside [`exclusive`]) and must know that no publication
+/// is left to replay before it decides anything from the database: library migration step 6 decides
+/// whether to undo its file moves by whether its commit landed. An error leaves the journal in place.
+pub(crate) fn settle(root: &Path, cache: &Path) -> AppResult<()> {
+    recover_inner(root, cache)
+}
+
+/// Whether a publication journal is waiting to be finished.
+pub(crate) fn publication_pending(root: &Path) -> bool {
+    root.join(PENDING_ITEMS).exists() || root.join(PENDING).exists()
+}
+
 fn recover_inner(root: &Path, cache: &Path) -> AppResult<()> {
     let items_path = root.join(PENDING_ITEMS);
     if items_path.exists() {
@@ -838,6 +879,13 @@ fn finish(root: &Path, cache: &Path, transaction: Transaction, expect: Option<i6
 
 // ---- publishing some items --------------------------------------------------
 
+#[cfg(test)]
+thread_local! {
+    /// Test hook: the next this-many item publications fail at their database transaction, after
+    /// their journal was written (as SQLITE_FULL on a full disk would).
+    pub(crate) static FAIL_APPLY: std::cell::Cell<u32> = const { std::cell::Cell::new(0) };
+}
+
 const PENDING_ITEMS: &str = "_library_config/storage-pending-items.json";
 
 /// The journal of a publication of some items: only what the commit touches.
@@ -863,6 +911,8 @@ pub struct ItemPlan {
     staging_dirs: Vec<String>,
     /// Files and documents this plan created (removed again by `discard`).
     created: Vec<PathBuf>,
+    /// Whether this plan's commit wrote its journal (from then on the journal decides, not `discard`).
+    journaled: bool,
 }
 
 impl ItemPlan {
@@ -880,7 +930,7 @@ impl ItemPlan {
         for entry in entries.iter_mut() {
             plan.entry(root, entry)?;
         }
-        Ok(ItemPlan { root: root.to_path_buf(), plan, entries, staging_dirs, created: Vec::new() })
+        Ok(ItemPlan { root: root.to_path_buf(), plan, entries, staging_dirs, created: Vec::new(), journaled: false })
     }
 
     /// The entries as they will be stored (with their `storagePath`).
@@ -959,9 +1009,13 @@ impl ItemPlan {
     /// commit's items), put it into the databases in one transaction, then retire
     /// the staged originals. `before` holds the entries of the touched items as
     /// they were. A failure before the journal is written removes the placed files.
+    ///
+    /// Refused while the journal of an earlier publication is still there (one whose database
+    /// transaction failed after it was written, in this same locked run): that journal is the only record
+    /// of a change that the next open still finishes, so it is never overwritten.
     pub fn commit(mut self, cache: &Path, before: BTreeMap<String, Value>, mut delta: Delta) -> AppResult<()> {
         let result = self.commit_inner(cache, before, &mut delta);
-        if result.is_err() && !self.root.join(PENDING_ITEMS).exists() {
+        if result.is_err() && !self.journaled {
             self.discard();
         }
         result
@@ -969,6 +1023,9 @@ impl ItemPlan {
 
     fn commit_inner(&mut self, cache: &Path, before: BTreeMap<String, Value>, delta: &mut Delta) -> AppResult<()> {
         let root = self.root.clone();
+        if publication_pending(&root) {
+            return Err(AppError::msg("An earlier publication of this library is not finished; it is finished when the library is opened again"));
+        }
         // The library must still be as it was planned against; checked before anything is journaled.
         if let Some(expected) = delta.expect_manifest_revision {
             if store::manifest_revision(&root)? != expected {
@@ -1000,6 +1057,7 @@ impl ItemPlan {
         };
         fsio::write_bytes(&backup.join("transaction.json"), &serde_json::to_vec_pretty(&transaction)?)?;
         fsio::write_bytes_atomic(&root.join(PENDING_ITEMS), &serde_json::to_vec_pretty(&transaction)?)?;
+        self.journaled = true;
         finish_items(&root, cache, transaction, delta.expect_manifest_revision)?;
         prune_snapshots(&root);
         Ok(())
@@ -1038,6 +1096,10 @@ fn finish_items(root: &Path, cache: &Path, transaction: ItemsTransaction, expect
     // leaves the derived rows to the rescan that its next write will start.
     delta.skip_catalog = !store.catalog_ready();
     let started = std::time::Instant::now();
+    #[cfg(test)]
+    if FAIL_APPLY.with(|left| left.get() > 0 && { left.set(left.get() - 1); true }) {
+        return Err(AppError::msg("database or disk is full (injected)"));
+    }
     store.apply(&delta)?;
     let applied = started.elapsed();
     retire(root, &transaction.files, &transaction.legacy_dirs, &transaction.archive)?;

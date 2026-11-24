@@ -30,7 +30,7 @@ manifests and extension points.
 | **glTF models** | `com.toybox.model-gltf` | 1.0.0 | model-core `^3.0.0` | The glTF and GLB model format. |
 | **Animations** | `com.toybox.animation-core` | 1.0.0 | model-core `^3.0.0` | The Animations type and its importer. |
 | **Materials** | `com.toybox.material-core` | 2.0.0 | | The Materials type and the texture-folder importer. |
-| **Substance materials (.sbsar)** | `com.toybox.material-sbsar` | 1.0.0 | material-core `^2.0.0` | Renders Substance archives into materials. |
+| **Substances (.sbsar)** | `com.toybox.material-sbsar` | 2.0.0 | material-core `^2.0.0` | The Substances type (Substance archives as assets, with a viewer that edits the materials made from them) and its importer, which renders archives into materials. |
 | **Audio** | `com.toybox.audio-core` | 2.0.0 | | The Audio type and the audio file importer. |
 | **Skyboxes** | `com.toybox.skybox-core` | 2.0.0 | | The Skyboxes type and its importer. |
 | **Synty Polygon rig** | `com.toybox.rig-synty-polygon` | 1.0.0 | model-core `^3.0.0` | The Synty Polygon bone names. |
@@ -39,7 +39,7 @@ manifests and extension points.
 | **Quaternius Humanoid rig** | `com.toybox.rig-quaternius` | 1.0.0 | model-core `^3.0.0` | The Quaternius humanoid bone names. |
 | **Placer** | `com.toybox.placer` | | | Exports models to a game project. A development plugin: it is not bundled with the app. |
 
-**Substance materials** is installed switched off (`OFF_BY_DEFAULT` in the same file): it does nothing without
+**Substances** is installed switched off (`OFF_BY_DEFAULT` in the same file): it does nothing without
 Adobe's Substance 3D Integration Tools, which Toybox does not ship, so a new install lists it unticked until the
 user turns it on. Only the first installation sets the switch; an install that already has the plugin keeps its
 choice.
@@ -133,6 +133,21 @@ fails, or an activation that throws becomes an error entry for that plugin.
 The other plugins load as usual.
 
 With several libraries (see [Libraries](libraries.md)) an `AssetView` carries a qualified, opaque `id` and a `library` field. Pass ids back to the host unchanged. `host.getLibraryRoot()` is the root of the library the panel works in: the library an import is going into, or the library of an asset panel's asset. An asset panel that commits an entry with `asset.id` replaces that item in its own library.
+
+`host` also lists the items made from one (`getDerivedAssets(id)`, see
+[Asset types](asset-types.md#items-made-from-other-items)) and shows an item in
+the full view (`openAsset(id)`; on the command line it does nothing). `fs`
+reads, writes and copies under the roots it is given, and `hashFile(root, path)`
+returns a file's SHA-256 as lower-case hex without passing the file through the
+plugin, and `fileSize(root, path)` returns its size in bytes from its metadata
+without reading it; the reads need `permissions.fsRead`.
+
+The design system (`@ldlework/toybox-sdk/ui`) includes `Slider`: a labelled
+range with a number box (`label`, `value`, `min`, `max`, `step`, `disabled`).
+`onChange` fires continuously while the handle is dragged; `onCommit` fires once
+a change is finished: the handle let go, a key press, or a number typed and
+confirmed with Enter or by leaving the box. Arrow keys in the box step the value
+(Shift for ten steps); Escape there drops what was typed.
 
 `PluginCtx` is `{ id, host, fs, services, extensions }`, limited to that
 plugin's permissions. A function the module hands out, such as an extension

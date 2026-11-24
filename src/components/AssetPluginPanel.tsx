@@ -7,24 +7,24 @@
 
 import { useEffect, useMemo, useState, type ReactNode } from "react";
 
-import type { AssetPanelCtx, SeedEntryInput } from "@ldlework/toybox-sdk";
+import type { AssetPanelCtx } from "@ldlework/toybox-sdk";
 
 import type { Asset } from "../domain/catalog";
-import { qualify, unqualifyEntry } from "../domain/libraryId";
 import { unwritableReason } from "../domain/transfer";
-import { withOrigin } from "../domain/origin";
+import { commitToLibrary } from "../services/pluginCommit";
+import { showsAssetPanel } from "../services/pluginCapabilities";
 import { buildPluginBase } from "../services/pluginCtx";
-import { ensureAssetFiles, invalidateThumb, mergeSeedEntries, type PluginManifestDto } from "../services/tauriApi";
+import { ensureAssetFiles, type PluginManifestDto } from "../services/tauriApi";
 import { usePlugins } from "../state/plugins";
 import { useStore } from "../state/store";
-import { MaterialPreviewWidget } from "./plugin-ui/MaterialPreviewWidget";
+import { PANEL_WIDGETS } from "./plugin-ui/panelWidgets";
 import { PluginSlot } from "./plugin-ui/PluginSlot";
 
 /** The enabled plugin that imported `asset` and ships a panel for it. An item
- *  imported by a retired plugin belongs to the plugin that replaced it. */
+ *  imported by a retired plugin belongs to the plugin that replaced it; an item
+ *  of a type the plugin declares gets no panel (its Viewer is the plugin's UI). */
 export function useAssetPanelPlugin(asset: Asset): PluginManifestDto | undefined {
-  const origin = asset.origin?.plugin;
-  return usePlugins((state) => (origin ? state.enabled.find((plugin) => plugin.ui?.assetPanel && (plugin.id === origin || plugin.replaces?.includes(origin))) : undefined));
+  return usePlugins((state) => state.enabled.find((plugin) => showsAssetPanel(plugin, asset)));
 }
 
 export function AssetPluginPanel({ asset, plugin }: { asset: Asset; plugin: PluginManifestDto }): ReactNode {
@@ -44,17 +44,9 @@ export function AssetPluginPanel({ asset, plugin }: { asset: Asset; plugin: Plug
   const ctx = useMemo<AssetPanelCtx>(() => ({
     asset,
     ...buildPluginBase(plugin.id, plugin.permissions, asset.library),
-    widgets: { MaterialPreview: MaterialPreviewWidget },
-    commit: async (entries: SeedEntryInput[]) => {
-      // The item stays in its own library; a plugin that reuses `asset.id` (qualified) replaces it in place.
-      const library = asset.library;
-      const raw = entries.map((entry) => unqualifyEntry(library, withOrigin(entry, plugin.id)));
-      await mergeSeedEntries(library, raw);
-      // An item replaced in place has new files behind its old picture; the thumbnail jobs make the new one.
-      const changed = raw.map((entry) => qualify(library, entry.id));
-      await Promise.all(changed.map((id) => invalidateThumb(id).catch(() => undefined)));
-      useStore.getState().bumpData();
-    },
+    widgets: PANEL_WIDGETS,
+    // The item stays in its own library.
+    commit: (entries) => commitToLibrary(asset.library, plugin.id, entries),
   }), [asset, plugin]);
   if (files === "loading") return <p className="viewer-panel-subtitle" role="status">Downloading this item's files…</p>;
   if (files !== "ready") return <p className="viewer-panel-subtitle" role="alert">{files}</p>;

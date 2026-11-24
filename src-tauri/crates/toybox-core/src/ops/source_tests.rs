@@ -1,5 +1,6 @@
 //! Kept source files are stored once per library, by content: importing, replacing, deleting,
-//! transferring, and converting a library that keeps a copy beside every item.
+//! transferring, and converting a library that keeps a copy beside every item. (The source here is a
+//! generic one: a Substance archive becomes an asset of its own in step 6, see `substance_tests`.)
 
 use std::path::PathBuf;
 use std::sync::atomic::{AtomicU32, Ordering};
@@ -53,10 +54,10 @@ fn hash(bytes: &[u8]) -> String {
 /// A material rendered from `archive` (staged as an importer does: its maps and a copy of the archive).
 fn preset(library: &LibraryHandle, name: &str, archive: &[u8]) -> Value {
     put(library, &format!("library/_import_s/materials/{name}/color.png"), name.as_bytes());
-    put(library, &format!("library/_import_s/materials/{name}/stone.sbsar"), archive);
+    put(library, &format!("library/_import_s/materials/{name}/stone.src"), archive);
     json!({"id": format!("uid://{name}"), "kind": "material", "pack": "_import_s", "category": "stone", "name": name,
         "maps": [{"role": "albedo", "file": "color.png"}],
-        "origin": {"plugin": "com.example.sbsar", "files": ["stone.sbsar"], "meta": {"sbsar": "stone.sbsar", "preset": name}}})
+        "origin": {"plugin": "com.example.sbsar", "files": ["stone.src"], "meta": {"source": "stone.src", "preset": name}}})
 }
 
 fn assets(library: &LibraryHandle) -> Vec<Asset> {
@@ -93,15 +94,15 @@ fn presets_of_one_archive_share_one_stored_copy_and_keep_their_own_keys() {
     let entries: Vec<Value> = ["Green", "Red", "Blue"].iter().map(|name| preset(&lib, name, &archive)).collect();
     merge_entries(&lib, entries).unwrap();
 
-    let expected = sources::shared_path("materials", &hash(&archive), "stone.sbsar");
+    let expected = sources::shared_path("materials", &hash(&archive), "stone.src");
     let items = assets(&lib);
     assert_eq!(items.len(), 3);
     let mut folders = Vec::new();
     for item in &items {
         assert_eq!(item.origin.as_ref().unwrap().files, vec![expected.clone()], "{} points at the shared copy", item.name);
-        assert_eq!(item.origin.as_ref().unwrap().meta["sbsar"], "stone.sbsar");
+        assert_eq!(item.origin.as_ref().unwrap().meta["source"], "stone.src");
         folders.push(item.rel_path.clone());
-        assert!(!lib.root.join(&item.rel_path).join("stone.sbsar").exists(), "no copy beside the maps");
+        assert!(!lib.root.join(&item.rel_path).join("stone.src").exists(), "no copy beside the maps");
     }
     folders.sort();
     folders.dedup();
@@ -167,7 +168,7 @@ fn a_copy_between_libraries_carries_each_source_once_and_relinks_it() {
     let report = ingest_package(&to, &package, IngestOptions::default(), &read, &|_| {}).unwrap();
     assert_eq!(report.items.len(), 3);
     assert!(report.items.iter().all(|item| item.reason.is_none()), "{report:?}");
-    let archive_path = sources::shared_path("materials", &hash(&archive), "stone.sbsar");
+    let archive_path = sources::shared_path("materials", &hash(&archive), "stone.src");
     assert_eq!(reads.lock().unwrap().iter().filter(|path| **path == archive_path).count(), 1, "the archive is read from the source once");
     assert_eq!(shared_files(&to), vec![to.root.join(&archive_path)]);
     for item in assets(&to) {
@@ -215,7 +216,7 @@ fn a_library_with_a_copy_beside_every_item_is_converted_in_place() {
     let lone = vec![6u8; 3000];
     merge_entries(&lib, vec![preset(&lib, "One", &archive), preset(&lib, "Two", &archive), preset(&lib, "Three", &archive), preset(&lib, "Solo", &lone)]).unwrap();
     make_legacy(&lib);
-    assert_eq!(files_below(&lib.root.join("library/materials")).iter().filter(|p| p.file_name().unwrap() == "stone.sbsar").count(), 4);
+    assert_eq!(files_below(&lib.root.join("library/materials")).iter().filter(|p| p.file_name().unwrap() == "stone.src").count(), 4);
 
     crate::infra::migrations::run(&lib.root, &lib.cache_path).unwrap();
 
@@ -228,18 +229,18 @@ fn a_library_with_a_copy_beside_every_item_is_converted_in_place() {
     assert_eq!(report.bytes_freed, 2 * 100_000, "three copies became one");
     assert!(report.skipped.is_empty());
     assert_eq!(shared_files(&lib).len(), 2);
-    let kept_beside = files_below(&lib.root.join("library/materials")).into_iter().filter(|p| p.file_name().unwrap() == "stone.sbsar" && !p.to_string_lossy().contains("_sources")).count();
+    let kept_beside = files_below(&lib.root.join("library/materials")).into_iter().filter(|p| p.file_name().unwrap() == "stone.src" && !p.to_string_lossy().contains("_sources")).count();
     assert_eq!(kept_beside, 0, "no copy is left beside an item");
-    let expected = sources::shared_path("materials", &hash(&archive), "stone.sbsar");
+    let expected = sources::shared_path("materials", &hash(&archive), "stone.src");
     for item in assets(&lib).iter().filter(|item| item.name != "Solo") {
         assert_eq!(item.origin.as_ref().unwrap().files, vec![expected.clone()]);
-        assert_eq!(item.origin.as_ref().unwrap().meta["sbsar"], "stone.sbsar");
+        assert_eq!(item.origin.as_ref().unwrap().meta["source"], "stone.src");
     }
     let entry = store.load_entries(&["uid://Two".to_string()]).unwrap().remove(0);
     assert_eq!(entry["origin"]["files"], json!([expected]));
     // The journal says the library needs a Toybox that knows the layout.
     let journal: Value = serde_json::from_slice(&std::fs::read(lib.root.join("_library_config/migrations.json")).unwrap()).unwrap();
-    assert_eq!(journal["version"], 5);
+    assert_eq!(journal["version"], crate::domain::library_migrations::LATEST_VERSION);
     // Running it again changes nothing.
     crate::infra::migrations::run(&lib.root, &lib.cache_path).unwrap();
     assert_eq!(source_migration::report(&store).unwrap(), report);
@@ -288,7 +289,7 @@ fn a_source_that_cannot_be_moved_stays_where_it_is_and_is_reported() {
     make_legacy(&lib);
     let store = Store::for_handle(&lib);
     let broken = store.load_entries(&["uid://Broken".to_string()]).unwrap().remove(0);
-    std::fs::remove_file(lib.root.join(broken["storagePath"].as_str().unwrap()).join("stone.sbsar")).unwrap();
+    std::fs::remove_file(lib.root.join(broken["storagePath"].as_str().unwrap()).join("stone.src")).unwrap();
     crate::infra::migrations::run(&lib.root, &lib.cache_path).unwrap();
     let report = source_migration::report(&store).unwrap();
     assert_eq!(report.items, 1);
@@ -297,7 +298,7 @@ fn a_source_that_cannot_be_moved_stays_where_it_is_and_is_reported() {
     let fine = assets(&lib).into_iter().find(|item| item.name == "Fine").unwrap();
     assert!(sources::is_shared(&fine.origin.unwrap().files[0]));
     let broken = store.load_entries(&["uid://Broken".to_string()]).unwrap().remove(0);
-    assert_eq!(broken["origin"]["files"], json!(["stone.sbsar"]), "left as it was");
+    assert_eq!(broken["origin"]["files"], json!(["stone.src"]), "left as it was");
 }
 
 /// Every file below `root` with a hash of its content, in path order.
@@ -336,8 +337,9 @@ fn the_pre_flight_reports_step_five_and_changes_nothing() {
     let report = crate::infra::preflight::check(&lib.root).unwrap();
     assert_eq!(tree_hash(&lib.root), before, "the library is byte-identical after the check");
     assert_eq!(report.format_version, 4);
-    assert_eq!(report.latest_version, 5);
-    assert_eq!(report.pending.len(), 1);
+    assert_eq!(report.latest_version, 6);
+    assert_eq!(report.pending.len(), 2, "step 5, and step 6 with nothing to convert in this library");
+    assert_eq!((report.pending[1].version, report.pending[1].items), (6, Some(0)));
     let step = &report.pending[0];
     assert_eq!((step.version, step.name.as_str()), (5, "shared-sources"));
     assert_eq!(step.items, Some(3));
@@ -366,7 +368,7 @@ fn the_conversion_takes_a_snapshot_first_and_keeps_the_newest_three() {
     // It is a database of the library as it was: the entries name the files beside the items.
     let connection = crate::infra::snapshot::open_unchanged(&made[0].path).unwrap();
     let entry: String = connection.query_row("SELECT entry FROM items WHERE id = 'uid://One'", [], |row| row.get(0)).unwrap();
-    assert!(entry.contains("\"stone.sbsar\"") && !entry.contains("_sources"), "{entry}");
+    assert!(entry.contains("\"stone.src\"") && !entry.contains("_sources"), "{entry}");
     drop(connection);
     // Nothing more to convert: no second snapshot on the next open.
     crate::infra::migrations::run(&lib.root, &lib.cache_path).unwrap();

@@ -93,6 +93,16 @@ pub struct BrowseFilter {
     /// Case-insensitive substring of the name or of a tag.
     pub text: String,
     pub visibility: Visibility,
+    /// Only the assets whose `origin.derivedFrom` is this raw (unqualified) id. With it, an empty `kind`
+    /// means every type.
+    pub derived_from: Option<String>,
+}
+
+impl BrowseFilter {
+    /// Whether the filter looks at one type (`false`: derived assets of any type).
+    fn typed(&self) -> bool {
+        !(self.kind.is_empty() && self.derived_from.is_some())
+    }
 }
 
 /// A value and how many items have it.
@@ -345,6 +355,7 @@ impl Session {
     /// The list of a type with no other constraint: what the index serves directly (every library, or one).
     fn plain(&self, f: &BrowseFilter) -> bool {
         self.ix.as_ref().is_some_and(|ix| ix.all || self.arms.len() == 1)
+            && f.derived_from.is_none()
             && f.text.trim().is_empty()
             && f.tags.is_empty()
             && !f.favorites_only
@@ -562,9 +573,14 @@ impl Session {
         };
         let driven = driver.as_ref().map(|d| d.what);
         let mut conds: Vec<String> = Vec::new();
+        let with_type = with_type && f.typed();
         if with_type {
             conds.push("a.type = ?".into());
             p.push(text_value(&f.kind));
+        }
+        if let Some(parent) = &f.derived_from {
+            conds.push("a.derived_from = ?".into());
+            p.push(text_value(parent));
         }
         if let Some(shown) = Self::visible(&f.visibility, "a", &mut p) {
             conds.push(shown);
@@ -673,7 +689,7 @@ impl Session {
     /// publishers, licenses or formats), read from the counts the libraries keep minus the hidden rows
     /// (remembered per revision), so it does not walk the list. `None` for any other filter.
     fn counted(&self, f: &BrowseFilter) -> AppResult<Option<i64>> {
-        if !f.text.trim().is_empty() || f.favorites_only || f.collection.is_some() || f.tags.len() > 1 {
+        if !f.text.trim().is_empty() || f.favorites_only || f.collection.is_some() || f.tags.len() > 1 || f.derived_from.is_some() {
             return Ok(None);
         }
         let groups: Vec<(&str, &Vec<String>)> = [("source", &f.sources), ("publisher", &f.publishers), ("license", &f.licenses), ("format", &f.formats), ("category", &f.categories)]

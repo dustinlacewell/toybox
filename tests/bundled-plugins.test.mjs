@@ -66,6 +66,7 @@ test("no two bundled plugins declare the same type", () => {
   assert.equal(new Set(owners.map(([type]) => type)).size, owners.length);
   assert.deepEqual(owners.map(([type, id]) => `${type}:${id}`).sort(), [
     "animation:com.toybox.animation-core", "audio:com.toybox.audio-core", "material:com.toybox.material-core", "model:com.toybox.model-core", "skybox:com.toybox.skybox-core",
+    "substance:com.toybox.material-sbsar",
   ]);
 });
 

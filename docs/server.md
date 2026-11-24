@@ -358,7 +358,11 @@ server stores each source once all the same:
 
 The server converts a library made before this to the layout when it starts (migration step 5,
 see [Managed library storage](library-storage.md)); the first start after an update can take as long
-as hashing the kept sources takes.
+as hashing the kept sources takes. Migration step 6 then makes each Substance archive an asset of its
+own (a *substance*, moved into its folder by a rename, no copy) and links its materials to it with
+`origin.derivedFrom`; an old-style material a client commits later is linked at the next start or write.
+A package entry's `origin.derivedFrom` must be a string (the id of the asset it was made from); an
+export carries that asset along (`carried: true` on the package asset) when it is in the library.
 
 ### Copying items from another library: export, package upload, ingest
 
@@ -581,7 +585,7 @@ and the one in `tauri.conf.json` differ.) `--binary` and `--source` work as befo
 ### Before a migration: `migrate --check` and snapshots
 
 A new version may change the library's format (the steps listed in `_library_config/migrations.json`; step 5 stores
-each kept source file once per library). The server runs pending steps when it starts. To see first:
+each kept source file once per library, step 6 makes each Substance archive an asset of its own). The server runs pending steps when it starts. To see first:
 
 ```text
 toybox-server migrate --check [--json]      change nothing and say what a start would do
@@ -593,7 +597,7 @@ was afterwards. It reports the format version now and after, each pending step w
 bytes), a rough time, free disk space against what the step needs at its peak, where the snapshot will go, and that
 **after a step like 5, older Toybox apps and servers refuse the library** ("migrated by a newer Toybox").
 
-Before a migration that rewrites entries (step 5), core copies `library.db` alone (SQLite `VACUUM INTO`, consistent)
+Before a migration that rewrites entries (step 5 or 6), core copies `library.db` alone (SQLite `VACUUM INTO`, consistent)
 to `library/_library_config/snapshots/library-v<version>-<UTC time>.db` and keeps the newest 3.
 
 What a snapshot can and cannot do: **it restores entries, not files.** Step 5 moves the kept source files into shared

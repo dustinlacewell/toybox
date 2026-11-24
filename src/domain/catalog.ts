@@ -85,7 +85,7 @@ interface AssetBase {
    *  Search and the Tags filter use both. */
   tags?: string[];
   /** The plugin that imported the asset and its own record of how. */
-  origin?: { plugin: string; meta?: Record<string, unknown>; files?: string[] };
+  origin?: { plugin: string; meta?: Record<string, unknown>; files?: string[]; derivedFrom?: string };
   /** The file format it was imported from ("fbx", "obj", ...): lower-case, no dot. Absent on older imports. */
   format?: string;
   /** Fingerprint of the files (hex SHA-256), the same for byte-identical content whatever the id,

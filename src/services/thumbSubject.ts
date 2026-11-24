@@ -8,7 +8,8 @@ import { createRigGuide, hasVisibleGeometry } from "./rigGuide";
 
 import type { Asset, BuiltinKind } from "../domain/catalog";
 import { loadAssetScene } from "./gltfLoad";
-import { loadMaterial } from "./materialLoad";
+import { buildMaterial, type MaterialSource } from "./materialLoad";
+import { assetUrl } from "./assetUrl";
 import { buildPreviewMesh } from "./materialPreview";
 import { studioEnvironment } from "./studioEnvironment";
 import { usePreviewPreferences } from "../state/previewPreferences";
@@ -34,13 +35,23 @@ const LOADERS: SubjectLoaders = {
   },
   // Thumbnails are bind-pose stills; animation clips are ignored.
   model: async (asset) => (await loadAssetScene(asset)).scene,
-  material: async (asset, renderer) => {
-    const shape=usePreviewPreferences.getState().materialStyle;
-    const material = await loadMaterial(asset, { maxSize: MATERIAL_THUMB_TEXTURE_SIZE });
-    material.envMap = studioEnvironment(renderer);
-    return buildPreviewMesh(material, shape);
-  },
+  material: (asset, renderer) => materialSubject(materialSourceOf(asset), renderer),
 };
+
+/** Where a library material's maps are fetched from (on a remote library each map is downloaded when asked for). */
+export function materialSourceOf(asset: KindOf<"material">): MaterialSource {
+  const { maps, flipNormalGreen } = asset.material;
+  return { maps, flipNormalGreen, resolveUrl: (file) => assetUrl(asset.library, file) };
+}
+
+/** The object a material's thumbnail shows: the maps on the preferred preview shape, lit by the studio
+ *  environment. Every material picture (a library material's, or one a plugin asks for) is built here. */
+export async function materialSubject(source: MaterialSource, renderer: WebGLRenderer): Promise<Object3D> {
+  const shape=usePreviewPreferences.getState().materialStyle;
+  const material = await buildMaterial(source, { maxSize: MATERIAL_THUMB_TEXTURE_SIZE });
+  material.envMap = studioEnvironment(renderer);
+  return buildPreviewMesh(material, shape);
+}
 
 /** Build the object a thumbnail shows for an asset. Caller owns disposal. */
 export function loadThumbSubject(asset: KindOf<SceneKind>, renderer: WebGLRenderer): Promise<Object3D> {

@@ -1,89 +1,67 @@
 /**
- * The viewer tab of a material this plugin made: the preset and parameters it
- * was rendered with, a live preview of changes, and two ways to keep them —
- * update the material in place, or save a new one next to it.
+ * The Substance tab of a material this plugin made: which substance it was
+ * rendered from, with which preset, size and changed parameters, and a way to
+ * open that substance with this material chosen for editing. Read-only, and
+ * the engine is not started here: editing happens in the substance's viewer.
  */
 
-import { useEffect, useMemo, useState } from "react";
-import { Button, Select, Stack, TextInput } from "@ldlework/toybox-sdk/ui";
-import { defineAssetPanel, type AssetPanelCtx } from "@ldlework/toybox-sdk";
+import { useEffect, useMemo, useState, type CSSProperties } from "react";
+import { Button, PropertyRow } from "@ldlework/toybox-sdk/ui";
+import { defineAssetPanel, type AssetPanelCtx, type AssetView } from "@ldlework/toybox-sdk";
 
-import { clearScratch, type Env } from "../lib/engine.js";
-import { absolutePath, archiveFile } from "../lib/archive.js";
-import { cleanName, presetValues, readMeta, SIZES, type Value, type Values } from "../lib/graph.js";
-import { rerenderMaterial } from "../lib/rerender.js";
-import { Parameters } from "./Parameters.js";
-import { useLoaded, usePreview } from "./useSubstance.js";
+import { showValue, pixels } from "../lib/describe.js";
+import { prettyIdentifier } from "../lib/editor.js";
+import { readMeta } from "../lib/graph.js";
+import { parentOf } from "../lib/rerender.js";
+import { isLegacyMaterial, isSubstance } from "../lib/substance.js";
+import { requestEdit } from "./handoff.js";
 
-const message = (failure: unknown) => (failure instanceof Error ? failure.message : String(failure));
-const hint = { color: "var(--text-2)", margin: 0, lineHeight: 1.5 } as const;
+const note: CSSProperties = { color: "var(--text-1)", margin: "0 8px 12px", lineHeight: 1.5 };
+const card: CSSProperties = { display: "flex", alignItems: "center", gap: 12, padding: "8px", minWidth: 0 };
 
-export default defineAssetPanel(function SbsarAssetPanel({ ctx }: { ctx: AssetPanelCtx }) {
-  const { asset } = ctx;
-  const env = useMemo<Env>(() => ({ services: ctx.services, fs: ctx.fs }), [ctx.services, ctx.fs]);
+export default defineAssetPanel(function SubstanceTab({ ctx }: { ctx: AssetPanelCtx }) {
+  const { asset, host, widgets } = ctx;
   const meta = useMemo(() => readMeta(asset.origin?.meta), [asset.origin]);
-  const [root, setRoot] = useState<string | null>();
-  const [preset, setPreset] = useState<string | null>(meta?.preset ?? null);
-  const [values, setValues] = useState<Values>();
-  const [size, setSize] = useState(String(meta?.size ?? 11));
-  const [name, setName] = useState(`${asset.name} variation`);
-  const [busy, setBusy] = useState<"update" | "new">();
-  const [status, setStatus] = useState("");
-  const [error, setError] = useState<string>();
-
+  const link = useMemo(() => parentOf(asset), [asset]);
+  const [parent, setParent] = useState<AssetView | null>();
   useEffect(() => {
-    void clearScratch(env).catch(() => undefined);
-    void ctx.host.getLibraryRoot().then(setRoot, () => setRoot(null));
-  }, [env, ctx.host]);
+    if (!("id" in link)) return;
+    let alive = true;
+    setParent(undefined);
+    host.getAssetAsync(link.id).then((found) => { if (alive) setParent(found && isSubstance(found) ? found : null); }, () => { if (alive) setParent(null); });
+    return () => { alive = false; };
+  }, [host, link]);
 
-  // Where the archive is kept is archive.ts's business.
-  const archive = meta ? archiveFile(asset, meta) : undefined;
-  const file = root && archive ? absolutePath({ root, path: archive }) : undefined;
-  const loaded = useLoaded(env, file, meta?.graph ?? 0);
-  const substance = loaded.status === "ready" ? loaded.substance : undefined;
-  // Start from what the material was rendered with.
-  useEffect(() => {
-    if (substance && meta && !values) setValues({ ...presetValues(substance.graph, meta.preset), ...meta.inputs });
-  }, [substance, meta, values]);
-  const { preview, rendering, error: previewError } = usePreview(env, busy ? undefined : substance, values);
-  const graph = preview?.graph ?? substance?.graph;
+  if (isLegacyMaterial(asset)) return <p style={note}>This material keeps its Substance archive the old way. The library is converted to substances the next time Toybox opens it; this tab then leads to the substance.</p>;
+  if (!meta) return <p style={note}>This material records no Substance rendering.</p>;
 
-  if (!meta || !archive) return <p style={hint}>This material has no Substance archive stored with it, so it cannot be rendered again here.</p>;
-
-  const save = async (mode: "update" | "new") => {
-    if (!substance || !values || !root) return;
-    const target = mode === "update" ? asset.name : cleanName(name);
-    setBusy(mode); setError(undefined); setStatus(`Rendering ${SIZES.find((item) => item.value === size)?.label ?? ""}…`);
-    try {
-      const entry = await rerenderMaterial(env, root, asset, meta, substance, { mode, name: target, preset, values, size: Number(size) });
-      setStatus("Saving to the library…");
-      await ctx.commit([entry]);
-      setStatus(mode === "update" ? "Material updated." : `Saved as "${target}".`);
-    } catch (failure) { setError(message(failure)); setStatus(""); }
-    finally { setBusy(undefined); }
+  const open = () => {
+    if (!parent) return;
+    requestEdit(parent.id, asset.id);
+    host.openAsset(parent.id);
   };
-
-  const failure = loaded.status === "error" ? loaded.error : previewError;
-  return <Stack gap={12} style={{ padding: "4px 0 16px" }}>
-    <p style={hint}>Rendered from <strong style={{ color: "var(--text-1)", overflowWrap: "anywhere" }}>{meta.sbsar}</strong>. Change the preset or parameters to see the result, then keep it.</p>
-    <div style={{ position: "relative", aspectRatio: "1 / 1", minHeight: 260, width: "100%", borderRadius: 8, overflow: "hidden", border: "1px solid var(--border)" }}>
-      {preview ? <ctx.widgets.MaterialPreview maps={preview.maps} resolveUrl={preview.resolveUrl} sourceKey={preview.key} />
-        : <p role={failure ? "alert" : "status"} style={{ margin: 0, padding: 12, color: failure ? "var(--danger)" : "var(--text-2)" }}>
-          {failure ?? (root === null ? "No library is open." : loaded.status === "ready" ? "Rendering a preview…" : "Opening in the Substance engine…")}</p>}
-    </div>
-    <p role="status" style={{ ...hint, minHeight: "1.5em" }}>{status || (preview && rendering ? "Updating preview…" : preview && previewError ? previewError : "")}</p>
-    {error && <p role="alert" style={{ margin: 0, color: "var(--danger)", overflowWrap: "anywhere" }}>{error}</p>}
-    {graph && values && <>
-      {graph.presets.length > 0 && <label>Preset<Select value={preset ?? ""} disabled={!!busy}
-        options={[{ value: "", label: "None (defaults)" }, ...graph.presets.map((item) => ({ value: item.label, label: item.label }))]}
-        onChange={(label) => { setPreset(label || null); setValues(presetValues(graph, label || null)); }} /></label>}
-      <Parameters graph={graph} values={values} disabled={!!busy}
-        onChange={(identifier: string, value: Value) => setValues((current) => ({ ...current, [identifier]: value }))} />
-      <Button variant="ghost" disabled={!!busy} onClick={() => setValues(presetValues(graph, preset))}>Reset parameters</Button>
-      <label>Texture size<Select value={size} disabled={!!busy} options={SIZES.map(({ value, label }) => ({ value, label: `${label} × ${label}` }))} onChange={setSize} /></label>
-      <Button variant="primary" disabled={!!busy} onClick={() => void save("update")}>{busy === "update" ? "Updating…" : "Update this material"}</Button>
-      <label>Or save as a new material<TextInput aria-label="New material name" value={name} disabled={!!busy} onChange={(event) => setName(event.currentTarget.value)} /></label>
-      <Button disabled={!!busy || !name.trim() || cleanName(name).toLowerCase() === asset.name.toLowerCase()} onClick={() => void save("new")}>{busy === "new" ? "Saving…" : "Save as new"}</Button>
-    </>}
-  </Stack>;
+  const changed = Object.entries(meta.inputs);
+  return <>
+    {"reason" in link ? <p style={note}>Rendered from {meta.sbsar}, but {link.reason}.</p>
+      : parent === null ? <p role="note" style={note}>Rendered from {meta.sbsar}. Its substance is no longer in the library, so it cannot be edited again.</p>
+      : <div style={card}>
+        <span style={{ width: 56, height: 56, flex: "none", borderRadius: 8, overflow: "hidden", background: "var(--bg-2)" }}>
+          {parent && <widgets.AssetThumbnail id={parent.id} size={56} />}
+        </span>
+        <span style={{ display: "grid", gap: 2, minWidth: 0 }}>
+          <strong style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{parent?.name ?? "Looking for its substance…"}</strong>
+          <span style={{ color: "var(--text-2)", fontSize: 12, overflowWrap: "anywhere" }}>Substance · {meta.sbsar}</span>
+        </span>
+      </div>}
+    <PropertyRow label="Preset" value={meta.preset ?? "None (defaults)"} />
+    {meta.graphLabel && <PropertyRow label="Graph" value={meta.graphLabel} />}
+    <PropertyRow label="Texture size" value={`${pixels(meta.size)} × ${pixels(meta.size)}`} />
+    <div className="viewer-panel-section">{changed.length ? `Changed parameters (${changed.length})` : "Parameters"}</div>
+    {changed.length ? changed.map(([key, value]) => <PropertyRow key={key} label={<span title={key}>{prettyIdentifier(key)}</span>} value={showValue(value)} />)
+      : <p style={note}>{meta.preset ? "As the preset sets them." : "The archive's defaults."}</p>}
+    {parent && <div style={{ padding: "16px 8px 8px", display: "grid" }}>
+      <Button variant="primary" onClick={open}>Open substance</Button>
+      <p style={{ ...note, margin: "8px 0 0", color: "var(--text-2)", fontSize: 12 }}>Opens {parent.name} with this material chosen, to change its preset, parameters or size.</p>
+    </div>}
+  </>;
 });

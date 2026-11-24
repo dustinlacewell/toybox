@@ -92,6 +92,11 @@ pub(super) fn qualify_asset(asset: &mut Json, library: &str) {
             *preview = Json::String(qualify_ref(library, &id));
         }
     }
+    if let Some(parent) = map.get_mut("origin").and_then(|o| o.get_mut("derivedFrom")) {
+        if let Some(id) = parent.as_str().filter(|s| !s.is_empty()).map(str::to_string) {
+            *parent = Json::String(qualify_ref(library, &id));
+        }
+    }
     if map.get("kind").and_then(Json::as_str) == Some("animation") {
         if let Some(source) = map.get_mut("clip").and_then(|c| c.get_mut("sourceId")) {
             if let Some(id) = source.as_str().filter(|s| !s.is_empty()).map(str::to_string) {
@@ -159,6 +164,12 @@ pub(super) fn register(engine: &Engine, host: &Arc<Host>, events: &Rc<dyn Fn(Eve
     with_host!("fs.readBytes", |_h, a| {
         plugin_fs::read_bytes_under(Path::new(text(&a, 0, "sourceRoot")?), text(&a, 1, "path")?).map(Value::Bytes).map_err(|e| e.to_string())
     });
+    with_host!("fs.hashFile", |_h, a| {
+        plugin_fs::hash_file_under(Path::new(text(&a, 0, "sourceRoot")?), text(&a, 1, "path")?).map(Value::String).map_err(|e| e.to_string())
+    });
+    with_host!("fs.fileSize", |_h, a| {
+        plugin_fs::file_size_under(Path::new(text(&a, 0, "sourceRoot")?), text(&a, 1, "path")?).map(|n| Value::Number(n as f64)).map_err(|e| e.to_string())
+    });
     with_host!("fs.readImageThumb", |_h, a| {
         let max = number(&a, 2, "maxSize")?.max(1.0) as u32;
         plugin_fs::image_thumb_under(Path::new(text(&a, 0, "sourceRoot")?), text(&a, 1, "path")?, max).map(Value::Bytes).map_err(|e| e.to_string())
@@ -205,6 +216,36 @@ pub(super) fn register(engine: &Engine, host: &Arc<Host>, events: &Rc<dyn Fn(Eve
             out.push(Value::from(asset));
         }
         Ok(Value::Array(out))
+    });
+    with_host!("assets.derived", |h, a| {
+        // The assets made from one (their `origin.derivedFrom` is its raw id), in its library.
+        let default = text(&a, 0, "library")?.to_string();
+        let (library, raw) = split(text(&a, 1, "id")?, &default);
+        let rows = h.derived_assets(library, raw).map_err(|e| e.to_string())?;
+        let mut out = Vec::new();
+        for row in rows {
+            let mut asset = serde_json::to_value(&row.asset).map_err(|e| e.to_string())?;
+            qualify_asset(&mut asset, &row.library);
+            out.push(Value::from(asset));
+        }
+        Ok(Value::Array(out))
+    });
+    with_host!("assets.ensureFiles", |h, a| {
+        // The files of these items (with what they keep and the assets they were made from) on this
+        // computer: a download for a remote library, nothing for a local one.
+        let default = text(&a, 0, "library")?.to_string();
+        let mut groups: Vec<(String, Vec<String>)> = Vec::new();
+        for id in string_list(&a, 1, "ids")? {
+            let (library, raw) = split(&id, &default);
+            match groups.iter_mut().find(|(l, _)| l == library) {
+                Some((_, ids)) => ids.push(raw.to_string()),
+                None => groups.push((library.to_string(), vec![raw.to_string()])),
+            }
+        }
+        for (library, ids) in groups {
+            h.ensure_asset_files(&library, &ids, true).map_err(|e| e.to_string())?;
+        }
+        Ok(Value::Null)
     });
     with_host!("library.info", |h, a| {
         let info = h.library_info(text(&a, 0, "library")?).map_err(|e| e.to_string())?;
@@ -315,7 +356,8 @@ mod tests {
     #[test]
     fn assets_are_qualified_like_the_app_does() {
         let mut asset = json!({ "id": "a", "user": { "previewAssetId": "m" }, "kind": "animation", "clip": { "sourceId": "toybox:mannequin" },
-            "variants": [{ "id": "a2", "user": {}, "kind": "animation", "clip": { "sourceId": "s" } }] });
+            "origin": { "plugin": "p", "derivedFrom": "uid://substance_1" },
+            "variants": [{ "id": "a2", "user": {}, "kind": "animation", "clip": { "sourceId": "s" }, "origin": { "plugin": "p", "derivedFrom": "L::uid://s" } }] });
         qualify_asset(&mut asset, "L");
         assert_eq!(asset["id"], "L::a");
         assert_eq!(asset["library"], "L");
@@ -323,5 +365,7 @@ mod tests {
         assert_eq!(asset["clip"]["sourceId"], "toybox:mannequin");
         assert_eq!(asset["variants"][0]["id"], "L::a2");
         assert_eq!(asset["variants"][0]["clip"]["sourceId"], "L::s");
+        assert_eq!(asset["origin"]["derivedFrom"], "L::uid://substance_1");
+        assert_eq!(asset["variants"][0]["origin"]["derivedFrom"], "L::uid://s", "already qualified");
     }
 }

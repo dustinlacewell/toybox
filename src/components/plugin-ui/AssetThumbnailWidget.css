@@ -1,0 +1,4 @@
+.asset-thumbnail-widget { display: inline-grid; place-items: center; flex: none; overflow: hidden; border-radius: var(--radius-1); background: var(--bg-0); color: var(--text-2); }
+.asset-thumbnail-widget img { width: 100%; height: 100%; object-fit: contain; display: block; }
+.asset-thumbnail-widget__note { padding: var(--space-1); font-size: var(--fs-sm); line-height: 1.2; text-align: center; }
+.asset-thumbnail-widget__note.is-rendering { color: var(--accent); }

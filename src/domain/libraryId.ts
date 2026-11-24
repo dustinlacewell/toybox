@@ -48,11 +48,13 @@ const qualifyRef = (library: string, id: string): string =>
 
 /** The same asset with its id and every reference to another asset qualified,
  *  stamped with `library`; variants included. References: `id`,
- *  `user.previewAssetId`, an animation's `clip.sourceId`, and the same on variants. */
+ *  `user.previewAssetId`, an animation's `clip.sourceId`, `origin.derivedFrom`,
+ *  and the same on variants. */
 export function qualifyAsset<T extends Asset>(asset: T, library: string): T {
   const out: Record<string, unknown> = { ...asset, id: qualify(library, asset.id), library };
   if (asset.user.previewAssetId) out.user = { ...asset.user, previewAssetId: qualifyRef(library, asset.user.previewAssetId) };
   if (asset.kind === "animation" && asset.clip?.sourceId) out.clip = { ...asset.clip, sourceId: qualifyRef(library, asset.clip.sourceId) };
+  if (asset.origin?.derivedFrom) out.origin = { ...asset.origin, derivedFrom: qualifyRef(library, asset.origin.derivedFrom) };
   if (asset.variants) out.variants = asset.variants.map((variant) => qualifyAsset(variant, library));
   return out as unknown as T;
 }
@@ -63,6 +65,7 @@ export function unqualifyAsset<T extends Asset>(asset: T, library: string): T {
   const out: Record<string, unknown> = { ...rest, id: unqualify(library, asset.id) };
   if (asset.user.previewAssetId) out.user = { ...asset.user, previewAssetId: unqualify(library, asset.user.previewAssetId) };
   if (asset.kind === "animation" && asset.clip?.sourceId) out.clip = { ...asset.clip, sourceId: unqualify(library, asset.clip.sourceId) };
+  if (asset.origin?.derivedFrom) out.origin = { ...asset.origin, derivedFrom: unqualify(library, asset.origin.derivedFrom) };
   if (asset.variants) out.variants = asset.variants.map((variant) => unqualifyAsset(variant, library));
   return out as unknown as T;
 }
@@ -168,12 +171,21 @@ export function groupIds(ids: readonly string[]): Map<string, string[]> {
   return groups;
 }
 
+type EntryOrigin = { derivedFrom?: string };
+type EntryRefs = { id: string; origin?: EntryOrigin; variants?: { id: string; origin?: EntryOrigin }[] };
+
 /** A seed entry a plugin built for `library` with raw ids. A plugin may reuse the
- *  qualified `asset.id` it was handed to replace that item in place; the host
- *  strips the qualifier so only raw ids reach the library. */
-export function unqualifyEntry<E extends { id: string; variants?: { id: string }[] }>(library: string, entry: E): E {
-  const out = { ...entry, id: unqualify(library, entry.id) };
-  if (entry.variants) out.variants = entry.variants.map((variant) => ({ ...variant, id: unqualify(library, variant.id) }));
+ *  qualified `asset.id` it was handed to replace that item in place, and name the
+ *  item an entry was made from (`origin.derivedFrom`) by the qualified id it was
+ *  handed; the host strips the qualifier so only raw ids reach the library. */
+export function unqualifyEntry<E extends EntryRefs>(library: string, entry: E): E {
+  const refs = <T extends { id: string; origin?: EntryOrigin }>(item: T): T => {
+    const out = { ...item, id: unqualify(library, item.id) };
+    if (item.origin?.derivedFrom) out.origin = { ...item.origin, derivedFrom: unqualify(library, item.origin.derivedFrom) };
+    return out;
+  };
+  const out = refs(entry);
+  if (entry.variants) out.variants = entry.variants.map(refs);
   return out;
 }
 

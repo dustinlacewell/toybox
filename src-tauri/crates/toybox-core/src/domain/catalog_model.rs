@@ -90,6 +90,10 @@ pub struct AssetOrigin {
     /// manifest; library-relative paths in the catalog, like every other file.
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub files: Vec<String>,
+    /// The id of the asset of the same library this one was made from (a material rendered from a
+    /// substance). A soft link: the parent may be gone. Not part of the storage key or content hash.
+    #[serde(default, rename = "derivedFrom", skip_serializing_if = "Option::is_none")]
+    pub derived_from: Option<String>,
 }
 
 impl AssetOrigin {
@@ -101,7 +105,8 @@ impl AssetOrigin {
         if plugin.is_empty() { return None; }
         let files = origin.get("files").and_then(|files| files.as_array()).into_iter().flatten()
             .filter_map(|file| file.as_str()).map(String::from).collect();
-        Some(AssetOrigin { plugin: plugin.to_string(), meta: origin.get("meta").cloned().unwrap_or(serde_json::Value::Null), files })
+        let derived_from = origin.get("derivedFrom").and_then(|id| id.as_str()).map(str::trim).filter(|id| !id.is_empty()).map(String::from);
+        Some(AssetOrigin { plugin: plugin.to_string(), meta: origin.get("meta").cloned().unwrap_or(serde_json::Value::Null), files, derived_from })
     }
 }
 

@@ -416,6 +416,14 @@ export const pluginReadBytes = async (
 ): Promise<Uint8Array> =>
   new Uint8Array(await invoke<ArrayBuffer>("plugin_read_bytes", { sourceRoot, path }));
 
+/** The SHA-256 (lower-case hex) of a file under a source root, hashed natively. */
+export const pluginHashFile = (sourceRoot: string, path: string): Promise<string> =>
+  invoke<string>("plugin_hash_file", { sourceRoot, path });
+
+/** The size in bytes of a file under a source root, from its metadata (never read). */
+export const pluginFileSize = (sourceRoot: string, path: string): Promise<number> =>
+  invoke<number>("plugin_file_size", { sourceRoot, path });
+
 /** Copy a file natively from a source root into an authorized root, so large
  *  media never crosses the IPC boundary. */
 export const pluginCopyFile = (

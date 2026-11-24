@@ -1,15 +1,25 @@
 {
   "id": "com.toybox.material-sbsar",
-  "name": "Substance materials (.sbsar)",
-  "version": "1.0.0",
+  "name": "Substances (.sbsar)",
+  "version": "2.0.0",
+  "entry": "dist/index.js",
   "dependencies": {
     "com.toybox.material-core": "^2.0.0"
   },
   "assetKinds": [
     "material"
   ],
-  "icon": "icons/sbsar.svg",
-  "description": "Materials: render Substance archives (.sbsar) into texture sets, choosing a preset and adjusting parameters. Needs Adobe's Substance 3D Integration Tools.",
+  "assetTypes": [
+    {
+      "id": "substance",
+      "label": "Substances",
+      "singular": "Substance",
+      "icon": "icons/substance.svg",
+      "order": 25
+    }
+  ],
+  "icon": "icons/substance.svg",
+  "description": "The Substances type of the library: Substance archives (.sbsar) kept as assets of their own, rendered by Adobe's Substance engine into materials with the preset, parameters and texture size you choose, and edited again from the substance's viewer. Needs Adobe's Substance 3D Integration Tools.",
   "permissions": {
     "fsRead": true,
     "fsWrite": true,
@@ -80,18 +90,18 @@
     "importers": [
       {
         "name": "sbsar",
-        "summary": "Render Substance archives (.sbsar) into materials. Needs Adobe's Substance 3D Integration Tools (see: tbx sbsar engine).",
+        "summary": "Add Substance archives (.sbsar) as substances and render a material from each. Needs Adobe's Substance 3D Integration Tools (see: tbx sbsar engine).",
         "options": [
           {
             "name": "category",
             "type": "string",
             "default": "substance",
-            "help": "Category of the imported materials."
+            "help": "Category of the imported materials, and of a substance new to the library."
           },
           {
             "name": "name",
             "type": "string",
-            "help": "Name the material (and so its identity) instead of using the archive's file name, so variants of one archive sit side by side. One archive only; with --all-presets it is the base of <name> - <preset>."
+            "help": "Name the material (and so its identity) instead of using the archive's file name, so variants of one archive sit side by side; a substance new to the library takes it too. One archive only; with --all-presets it is the base of <name> - <preset>."
           },
           {
             "name": "size",
@@ -138,7 +148,7 @@
           {
             "name": "skip-existing",
             "type": "flag",
-            "help": "Leave alone an archive whose material the library already has, rendered from the same archive content with the same graph, preset, parameters and size."
+            "help": "Leave alone an archive whose material the library already has, made from the same substance (archive content) with the same graph, preset, parameters and size."
           },
           {
             "name": "renderer",
@@ -156,7 +166,7 @@
     "commands": [
       {
         "name": "sbsar",
-        "summary": "Work with Substance archives and the materials made from them.",
+        "summary": "Work with Substance archives, substances and the materials made from them.",
         "commands": [
           {
             "name": "inputs",
@@ -194,7 +204,7 @@
           },
           {
             "name": "render",
-            "summary": "Render Substance materials again with another preset, other parameters or size: in place, or as a new material with --save-as.",
+            "summary": "Render Substance materials again with another preset, other parameters or size: in place, or as a new material with --save-as. A selected substance is rendered into a new material (--save-as NAME).",
             "selection": true,
             "files": true,
             "options": [
@@ -202,7 +212,7 @@
                 "name": "set",
                 "type": "string",
                 "multiple": true,
-                "help": "Set a parameter, name=value; repeatable, laid over what the material was rendered with. See: tbx sbsar inputs."
+                "help": "Set a parameter, name=value; repeatable, laid over what the material was rendered with (a substance: its defaults or --preset). See: tbx sbsar inputs."
               },
               {
                 "name": "values",
@@ -228,22 +238,27 @@
                   "2048",
                   "4096"
                 ],
-                "help": "Texture size in pixels. Default: the material's own."
+                "help": "Texture size in pixels. Default: the material's own (a substance: the plugin's setting)."
               },
               {
                 "name": "save-as",
                 "type": "string",
-                "help": "Keep the original and add a new material of this name (one item only)."
+                "help": "Keep the original and add a new material of this name (one item only). Required for a substance. A name the substance's materials already have is refused, unless --replace."
+              },
+              {
+                "name": "replace",
+                "type": "flag",
+                "help": "With --save-as: when the substance already has a material of that name, replace it (same id; tags and collections kept) instead of refusing."
               },
               {
                 "name": "ignore-missing",
                 "type": "flag",
-                "help": "A parameter a material's archive does not have is ignored with a warning, instead of skipping that material."
+                "help": "A parameter the archive does not have is ignored with a warning, instead of skipping that item."
               },
               {
                 "name": "dry-run",
                 "type": "flag",
-                "help": "Print what each material would be rendered with and render nothing (the archives are opened in the engine to check the values)."
+                "help": "Print what each item would be rendered with and render nothing (the archives are opened in the engine to check the values)."
               },
               {
                 "name": "renderer",
@@ -259,7 +274,7 @@
           },
           {
             "name": "show",
-            "summary": "Show how Substance materials were made: archive, graph, preset, changed parameters and size.",
+            "summary": "Show how Substance materials were made (substance, archive, graph, preset, changed parameters, size), and for a substance its archive, graphs and materials.",
             "selection": true
           },
           {

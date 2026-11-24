@@ -140,6 +140,24 @@ fn sources_of(ctx: &Ctx, library: &LibraryInfo, asset: &Asset) -> CliResult<Vec<
         .collect())
 }
 
+/// What an item was made from (`origin.derivedFrom`) and what was made from it, as lines of `show`.
+fn links_of(ctx: &Ctx, library: &LibraryInfo, asset: &Asset) -> CliResult<Vec<(&'static str, String)>> {
+    let store = Store::for_handle(&ctx.host.resolve(&library.id)?);
+    let mut out = Vec::new();
+    if let Some(parent) = asset.origin.as_ref().and_then(|origin| origin.derived_from.clone()) {
+        let found = store.load_assets(std::slice::from_ref(&parent))?.into_iter().next();
+        out.push(("made from", match found {
+            Some(parent_asset) => format!("{} ({parent}, {})", parent_asset.name, parent_asset.content.type_id()),
+            None => format!("{parent} (not in this library)"),
+        }));
+    }
+    let derived = store.derived_from(&asset.id)?;
+    if !derived.is_empty() {
+        out.push(("used by", out::plural(derived.len(), "asset made from it", "assets made from it")));
+    }
+    Ok(out)
+}
+
 pub fn show(ctx: &Ctx, matches: &ArgMatches) -> CliResult<()> {
     let mut items = Vec::new();
     let mut text = String::new();
@@ -147,10 +165,11 @@ pub fn show(ctx: &Ctx, matches: &ArgMatches) -> CliResult<()> {
         for asset in assets {
             let files = files_of(ctx, &library, &asset)?;
             let sources = sources_of(ctx, &library, &asset)?;
+            let links = links_of(ctx, &library, &asset)?;
             if !text.is_empty() {
                 text.push('\n');
             }
-            text.push_str(&describe(&library, &asset, &files, &sources, ""));
+            text.push_str(&describe(&library, &asset, &files, &sources, &links, ""));
             items.push(ShowItem { library: library.id.clone(), asset, files, sources });
         }
     }
@@ -158,7 +177,7 @@ pub fn show(ctx: &Ctx, matches: &ArgMatches) -> CliResult<()> {
 }
 
 /// One item as text; a variant is shown indented under its parent.
-fn describe(library: &LibraryInfo, asset: &Asset, files: &[FileDoc], sources: &[FileDoc], indent: &str) -> String {
+fn describe(library: &LibraryInfo, asset: &Asset, files: &[FileDoc], sources: &[FileDoc], links: &[(&str, String)], indent: &str) -> String {
     let mut text = String::new();
     let mut field = |name: &str, value: String| {
         if !value.is_empty() {
@@ -188,6 +207,9 @@ fn describe(library: &LibraryInfo, asset: &Asset, files: &[FileDoc], sources: &[
     if let Some(origin) = &asset.origin {
         field("imported by", origin.plugin.clone());
     }
+    for (name, value) in links {
+        field(name, value.clone());
+    }
     field("hash", asset.content_hash.clone().unwrap_or_default());
     if !files.is_empty() {
         text.push_str(&format!("{indent}files\n"));
@@ -207,7 +229,8 @@ fn describe(library: &LibraryInfo, asset: &Asset, files: &[FileDoc], sources: &[
         text.push_str(&format!("{indent}variants\n"));
         for variant in &asset.variants {
             let variant_sources: Vec<FileDoc> = variant.origin.iter().flat_map(|origin| origin.files.iter()).map(|path| FileDoc { path: path.clone(), size: None }).collect();
-            text.push_str(&describe(library, variant, &[], &variant_sources, &format!("{indent}  ")));
+            let variant_links: Vec<(&str, String)> = variant.origin.as_ref().and_then(|origin| origin.derived_from.clone()).map(|parent| ("made from", parent)).into_iter().collect();
+            text.push_str(&describe(library, variant, &[], &variant_sources, &variant_links, &format!("{indent}  ")));
         }
     }
     text

@@ -47,8 +47,10 @@ pub use changes::{ChangesPage, ChangesQuery, CHANGES_KEEP_REVISIONS};
 pub use delta::{BulkWriter, Delta, ItemPut};
 pub use manifest::{manifest_exists, manifest_revision, read_manifest, read_manifest_with_revision, write_manifest, write_manifest_checked};
 
-/// Schema version of both databases.
-pub const SCHEMA_VERSION: i64 = 1;
+/// Schema version of `library.db`. Version 2 added `assets.derived_from` (see `upgrade_library`).
+pub const SCHEMA_VERSION: i64 = 2;
+/// Schema version of `user.db`.
+pub const USER_SCHEMA_VERSION: i64 = 1;
 const BUSY_MS: u64 = 15_000;
 
 const LIBRARY_SCHEMA: &str = "
@@ -96,12 +98,14 @@ CREATE TABLE assets (
   rel_path      TEXT NOT NULL DEFAULT '',
   thumb_name    TEXT NOT NULL DEFAULT '',
   clip_source   TEXT NOT NULL DEFAULT '',
-  plugin        TEXT NOT NULL DEFAULT ''
+  plugin        TEXT NOT NULL DEFAULT '',
+  derived_from  TEXT NOT NULL DEFAULT ''
 );
 CREATE INDEX assets_item ON assets(item_id, ord);
 CREATE INDEX assets_rel ON assets(rel_path);
 CREATE INDEX assets_thumb ON assets(thumb_name);
 CREATE INDEX assets_clip_source ON assets(clip_source);
+CREATE INDEX assets_derived_from ON assets(derived_from);
 CREATE INDEX assets_order ON assets(ord);
 CREATE INDEX assets_browse ON assets(type, name COLLATE NOCASE, id, content_hash);
 CREATE INDEX assets_hash ON assets(type, content_hash);
@@ -300,8 +304,11 @@ pub(crate) fn open_or_create(path: &Path, kind: Kind) -> AppResult<Connection> {
     let connection = Connection::open(path).map_err(|e| db_error("Open database", path, e))?;
     configure(&connection, path)?;
     let version: i64 = connection.query_row("PRAGMA user_version", [], |row| row.get(0))?;
-    if version > SCHEMA_VERSION {
+    if version > schema_version(kind) {
         return Err(AppError::msg(format!("{} was written by a newer Toybox. Install that version or newer.", path.display())));
+    }
+    if version != 0 && version < schema_version(kind) {
+        upgrade(&connection, kind)?;
     }
     if version == 0 {
         // Two openers racing to create it: the second sees the first's tables.
@@ -315,7 +322,7 @@ pub(crate) fn open_or_create(path: &Path, kind: Kind) -> AppResult<Connection> {
                     // vouches for the content of another one (an ETag, for instance).
                     connection.execute("INSERT INTO meta(key,value) VALUES('dbId',?1)", [crate::infra::registry::new_id()])?;
                 }
-                connection.execute_batch(&format!("PRAGMA user_version={SCHEMA_VERSION}"))
+                connection.execute_batch(&format!("PRAGMA user_version={}", schema_version(kind)))
             });
             if let Err(error) = result {
                 let _ = connection.execute_batch("ROLLBACK");
@@ -332,18 +339,65 @@ pub(crate) fn open_existing(path: &Path, kind: Kind) -> AppResult<Option<Connect
     if !path.is_file() {
         return Ok(None);
     }
-    let _ = kind;
     let connection = Connection::open_with_flags(path, OpenFlags::SQLITE_OPEN_READ_WRITE | OpenFlags::SQLITE_OPEN_NO_MUTEX).map_err(|e| db_error("Open database", path, e))?;
     configure(&connection, path)?;
     let version: i64 = connection.query_row("PRAGMA user_version", [], |row| row.get(0))?;
-    if version > SCHEMA_VERSION {
+    if version > schema_version(kind) {
         return Err(AppError::msg(format!("{} was written by a newer Toybox. Install that version or newer.", path.display())));
     }
     if version == 0 {
         // An empty file left by an interrupted creation: not a database yet.
         return Ok(None);
     }
+    if version < schema_version(kind) {
+        upgrade(&connection, kind)?;
+    }
     Ok(Some(connection))
+}
+
+fn schema_version(kind: Kind) -> i64 {
+    match kind {
+        Kind::Library => SCHEMA_VERSION,
+        Kind::User => USER_SCHEMA_VERSION,
+    }
+}
+
+/// Bring a database of an older schema up to the current one, in place, in one transaction (a
+/// second opener racing for it waits for the lock and then finds it done). Every step only adds
+/// what is derived from rows that are already there, so nothing is lost and a step can repeat.
+fn upgrade(connection: &Connection, kind: Kind) -> AppResult<()> {
+    if kind != Kind::Library {
+        return Ok(());
+    }
+    connection.execute_batch("BEGIN IMMEDIATE")?;
+    match upgrade_library(connection) {
+        Ok(()) => Ok(connection.execute_batch("COMMIT")?),
+        Err(error) => {
+            let _ = connection.execute_batch("ROLLBACK");
+            Err(error)
+        }
+    }
+}
+
+/// The schema steps of `library.db`, from the version it has to [`SCHEMA_VERSION`].
+fn upgrade_library(connection: &Connection) -> AppResult<()> {
+    let version: i64 = connection.query_row("PRAGMA user_version", [], |row| row.get(0))?;
+    if version < 2 {
+        // 2: `assets.derived_from`, the indexed copy of `origin.derivedFrom`. It is filled from the
+        // stored asset JSON (which always held the whole origin), so a library that already has such
+        // links lists its derived assets without a rescan.
+        let has: i64 = connection.query_row("SELECT COUNT(*) FROM pragma_table_info('assets') WHERE name='derived_from'", [], |row| row.get(0))?;
+        if has == 0 {
+            connection.execute_batch("ALTER TABLE assets ADD COLUMN derived_from TEXT NOT NULL DEFAULT ''")?;
+        }
+        connection.execute_batch(
+            "CREATE INDEX IF NOT EXISTS assets_derived_from ON assets(derived_from);
+             UPDATE assets SET derived_from = json_extract(asset, '$.origin.derivedFrom')
+               WHERE json_type(asset, '$.origin.derivedFrom') = 'text';",
+        )?;
+    }
+    connection.execute_batch(&format!("PRAGMA user_version={SCHEMA_VERSION}"))?;
+    Ok(())
 }
 
 pub(crate) fn meta_get(connection: &Connection, key: &str) -> AppResult<Option<String>> {

@@ -36,6 +36,8 @@ pub struct LibraryStats {
     pub source_saved_bytes: Option<u64>,
     /// What the migration to shared sources did (items converted, bytes freed), if it ran here.
     pub migration: Option<toybox_core::infra::source_migration::SourceMigration>,
+    /// What making Substance archives assets of their own did (step 6), if it converted anything here.
+    pub substances: Option<toybox_core::infra::substance_migration::SubstanceMigration>,
 }
 
 /// One thing `check` found wrong.
@@ -51,6 +53,9 @@ pub struct CheckReport {
     pub items: i64,
     pub files_checked: u64,
     pub problems: Vec<CheckProblem>,
+    /// Things worth knowing that are not wrong: an `origin.derivedFrom` naming an asset that is not in the
+    /// library (the asset it was made from was deleted; the link is soft).
+    pub notes: Vec<CheckProblem>,
     /// Shared source files no item uses (not a problem: `fix` removes them).
     pub orphan_sources: Vec<String>,
     /// Orphans `fix` removed.
@@ -110,7 +115,8 @@ impl Host {
         let cache_bytes = if handle.is_remote() { Some(self.remote_cache_size(library)?) } else { None };
         let summary = browse::summary(&handle)?;
         let migration = toybox_core::infra::source_migration::report(&store).filter(|report| report.items > 0 || !report.skipped.is_empty());
-        Ok(LibraryStats { items: summary.count, revision: summary.revision, types, files, bytes, cache_bytes, source_files, source_bytes, source_saved_bytes: source_saved, migration })
+        let substances = if handle.is_remote() { None } else { toybox_core::infra::substance_migration::report(&store).filter(|report| report.substances > 0 || report.materials > 0 || !report.skipped.is_empty()) };
+        Ok(LibraryStats { items: summary.count, revision: summary.revision, types, files, bytes, cache_bytes, source_files, source_bytes, source_saved_bytes: source_saved, migration, substances })
     }
 
     /// Verify the library database and (for a local library) that every file of every
@@ -144,8 +150,15 @@ impl Host {
         let root = handle.root_str();
         let mut checked = HashSet::new();
         let mut referenced: HashSet<String> = HashSet::new();
+        // (asset id, name, the id it says it was made from)
+        let mut links: Vec<(String, String, String)> = Vec::new();
         for_each_page(&store, |assets| {
             for asset in assets {
+                for item in std::iter::once(asset).chain(&asset.variants) {
+                    if let Some(parent) = item.origin.as_ref().and_then(|origin| origin.derived_from.clone()) {
+                        links.push((item.id.clone(), item.name.clone(), parent));
+                    }
+                }
                 let mut paths = Vec::new();
                 asset.collect_files(&mut paths);
                 for path in paths {
@@ -169,6 +182,11 @@ impl Host {
             }
         })?;
         report.files_checked = checked.len() as u64;
+        let parents: Vec<String> = links.iter().map(|(_, _, parent)| parent.clone()).collect::<HashSet<_>>().into_iter().collect();
+        let present = store.existing_asset_ids(&parents)?;
+        for (id, name, parent) in links.into_iter().filter(|(_, _, parent)| !present.contains(parent)) {
+            report.notes.push(CheckProblem { item: Some(id.clone()), message: format!("{name} ({id}): made from {parent}, which is not in the library (it was deleted; the material keeps working)") });
+        }
         for orphan in shared_sources_on_disk(&handle.root).into_iter().filter(|path| !referenced.contains(&path.to_lowercase())) {
             if fix && !store.files_in_use(std::slice::from_ref(&orphan))?.contains(&orphan) {
                 let file = abs_under_root(&root, &orphan);

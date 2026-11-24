@@ -739,6 +739,41 @@ impl Store {
             .unwrap_or_default())
     }
 
+    /// The kept sources whose path starts with `prefix` and ends with `suffix` (both compared without
+    /// case), found through the file-reference index: what is left of a migration of sources is found
+    /// without reading every entry.
+    pub fn kept_sources_like(&self, prefix: &str, suffix: &str) -> AppResult<Vec<String>> {
+        Ok(self
+            .read(|library| {
+                // A range of the primary key (`path` sorts without case): everything that starts with `prefix`.
+                let mut end = prefix.to_string();
+                let last = end.pop().map(|c| char::from_u32(c as u32 + 1).unwrap_or(c)).unwrap_or('\u{1}');
+                end.push(last);
+                let mut statement = library.prepare("SELECT path FROM asset_files WHERE path >= ?1 AND path < ?2 AND origin = 1")?;
+                let mut rows = statement.query([prefix, end.as_str()])?;
+                let mut found = Vec::new();
+                while let Some(row) = rows.next()? {
+                    let path: String = row.get(0)?;
+                    if path.to_lowercase().ends_with(&suffix.to_lowercase()) && !found.contains(&path) {
+                        found.push(path);
+                    }
+                }
+                Ok(found)
+            })?
+            .unwrap_or_default())
+    }
+
+    /// Ids of the assets whose `origin.derivedFrom` is `parent` (a raw id of this library), in catalog order.
+    pub fn derived_from(&self, parent: &str) -> AppResult<Vec<String>> {
+        Ok(self
+            .read(|library| {
+                let mut statement = library.prepare("SELECT id FROM assets WHERE derived_from = ?1 ORDER BY ord")?;
+                let found = statement.query_map([parent], |row| row.get::<_, String>(0))?.collect::<Result<Vec<_>, _>>()?;
+                Ok(found)
+            })?
+            .unwrap_or_default())
+    }
+
     /// The assets that still lack a content hash in the hashes table: those with a
     /// storage key (their own or a variant's) that has none. Personal data is not
     /// read. Found through the `asset_hash_keys` pending index, so the cost is the

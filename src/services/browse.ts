@@ -9,8 +9,10 @@ import { invoke } from "@tauri-apps/api/core";
 
 import type { Asset, Catalog, RigDefinition } from "../domain/catalog";
 import type { BrowseFilter, VisibilityRules } from "../domain/browseQuery";
+import { collectDerived } from "../domain/derived";
 import type { AlsoIn } from "../domain/duplicates";
 import { groupIds, parseQualified, qualify, qualifyAsset } from "../domain/libraryId";
+import { usePlugins } from "../state/plugins";
 
 /** Where a library stands once it is ready to be read. */
 export interface LibrarySummary { library: string; count: number; revision: number }
@@ -26,6 +28,22 @@ export async function queryAssets(filter: BrowseFilter, offset: number, limit: n
   const page = await invoke<{ total: number; exact: boolean; rows: Row[] }>("query_assets", { filter, descending: false, offset, limit });
   return { total: page.total, exact: page.exact, assets: page.rows.map(asset) };
 }
+
+/** The items (any type) made from the item `parentId` (qualified): those whose `origin.derivedFrom` is it, from
+ *  its library, hidden the way the library view hides them (a switched-off plugin's items stay out). Every
+ *  library, a remote one included (read through its local replica), applies the filter; the answer is checked
+ *  here as well, and all of its pages are read. */
+export async function derivedAssets(parentId: string): Promise<Asset[]> {
+  const parent = parseQualified(parentId);
+  if (!parent) throw new Error(`Not a library item id: ${parentId}`);
+  const filter: BrowseFilter = {
+    kind: "", libraries: [parent.library], sources: [], publishers: [], licenses: [], formats: [], categories: [], tags: [],
+    favoritesOnly: false, collection: null, text: "", visibility: usePlugins.getState().rules, derivedFrom: parent.id,
+  };
+  return collectDerived(async (offset, limit) => (await queryAssets(filter, offset, limit)).assets, parentId, DERIVED_PAGE);
+}
+
+const DERIVED_PAGE = 500;
 
 /** How many items the filter shows, exactly (for a page whose `exact` was false). */
 export const countAssets = (filter: BrowseFilter): Promise<number> => invoke("count_assets", { filter });

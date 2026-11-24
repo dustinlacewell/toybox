@@ -109,16 +109,29 @@ pub fn run(root: &Path, cache: &Path) -> AppResult<()> {
         // Step 5 moves files and can be interrupted after its journal entry: finish it.
         finish_shared_sources(root, cache)?;
     }
+    if current >= 6 {
+        // Step 6 moves archives and can be interrupted after its journal entry; and an older client can
+        // still commit an old-style material through a newer server: finish both. A routine open does not
+        // fail for it (another process holding the library, say): the next open tries again.
+        if let Err(error) = finish_substances(root, cache) {
+            eprintln!("toybox: Substance archives could not be converted now, the next open tries again: {error}");
+        }
+    }
     if current == LATEST_VERSION {
         return Ok(());
     }
     for &(next, name) in STEPS.iter().filter(|(next, _)| *next > current) {
-        if next == 5 {
+        if next == 5 || next == 6 {
             // The journal first: from here on an older Toybox refuses the library, so it never reads the
             // new layout. Then the files move; an interruption is finished at the next open.
             let store = Store::local(root, cache);
             // Entries are about to be rewritten: keep the database as it is, to go back to by hand.
-            if crate::infra::preflight::count_unshared_sources(root).map(|count| count.items > 0).unwrap_or(false) {
+            let rewrites = if next == 5 {
+                crate::infra::preflight::count_unshared_sources(root).map(|count| count.items > 0).unwrap_or(false)
+            } else {
+                crate::infra::preflight::count_substance_archives(root).map(|count| count.items > 0).unwrap_or(false)
+            };
+            if rewrites {
                 match crate::infra::snapshot::take(root, next - 1) {
                     Ok(path) => eprintln!("toybox: snapshot of the library database before step {next}: {}", path.display()),
                     Err(error) => return Err(AppError::msg(format!("Could not take the snapshot before step {next}, nothing was changed: {error}"))),
@@ -135,7 +148,13 @@ pub fn run(root: &Path, cache: &Path) -> AppResult<()> {
                 next,
                 Documents { manifest: (Value::Null, Value::Null), cache: None, journal_before: read_optional(&journal_path)?, journal_after: encoded(&journal)? },
             )?;
-            finish_shared_sources(root, cache)?;
+            if next == 5 {
+                finish_shared_sources(root, cache)?;
+            } else if let Err(error) = finish_substances(root, cache) {
+                // The journal says 6 already: an interrupted or stopped conversion is finished by the
+                // next open (every state it leaves reads correctly), so the library still opens.
+                eprintln!("toybox: Substance archives could not all be converted now, the next open goes on: {error}");
+            }
             continue;
         }
         if next == 3 { crate::infra::storage::migrate(root, cache)?; }
@@ -204,6 +223,26 @@ fn finish_shared_sources(root: &Path, cache: &Path) -> AppResult<()> {
             report.bytes_freed / (1024 * 1024),
             started.elapsed().as_secs_f64(),
             if report.skipped.is_empty() { String::new() } else { format!(" ({} items could not be converted and keep their files)", report.skipped.len()) }
+        );
+    }
+    Ok(())
+}
+
+/// Make every Substance archive an asset of its own unless nothing is left to do. Says what it did on
+/// standard error.
+fn finish_substances(root: &Path, cache: &Path) -> AppResult<()> {
+    if !crate::infra::substance_migration::pending(root, cache)? {
+        return Ok(());
+    }
+    let started = std::time::Instant::now();
+    let before = crate::infra::substance_migration::report(&Store::local(root, cache)).unwrap_or_default();
+    let report = crate::infra::substance_migration::migrate(root, cache)?;
+    let (substances, materials) = (report.substances - before.substances, report.materials - before.materials);
+    if substances > 0 || materials > 0 || !report.skipped.is_empty() {
+        eprintln!(
+            "toybox: Substance archives are assets of their own now: {substances} substances, {materials} materials linked in {:.1}s{}",
+            started.elapsed().as_secs_f64(),
+            if report.skipped.is_empty() { String::new() } else { format!(" ({} archives could not be converted and stay with their materials)", report.skipped.len()) }
         );
     }
     Ok(())
@@ -394,13 +433,14 @@ mod tests {
             journal
         );
         // The old files were moved aside, not deleted: steps 1, 2, the storage
-        // snapshot of step 3, the files moved by step 4 and its journal record.
+        // snapshot of step 3, the files moved by step 4 and its journal record, and the journal
+        // records of steps 5 and 6.
         assert!(!root.join(config::SEED_REL).exists() && !cache.exists());
         assert_eq!(
             std::fs::read_dir(root.join("_library_config/migration-backups"))
                 .unwrap()
                 .count(),
-            6
+            7
         );
         std::fs::remove_dir_all(root).unwrap();
     }
@@ -480,7 +520,7 @@ mod tests {
             let (handle, manifest, cached) = step_three(&tmp, config::SCHEMA_VERSION);
             run(&handle.root, &handle.cache_path).unwrap();
             let journal: Value = serde_json::from_slice(&fsio::read_bytes(&handle.root.join("_library_config").join(JOURNAL)).unwrap()).unwrap();
-            assert_eq!(journal["version"], 5);
+            assert_eq!(journal["version"], LATEST_VERSION);
             assert_eq!(journal["applied"].as_array().unwrap().iter().find(|step| step["version"] == 4).unwrap()["name"], "sqlite-store");
             // What the files said, the databases say.
             assert_eq!(store::read_manifest(&handle.root).unwrap(), manifest);
@@ -517,7 +557,7 @@ mod tests {
             let before = Store::for_handle(&handle).stamp().unwrap();
             run(&handle.root, &handle.cache_path).unwrap();
             let again: Value = serde_json::from_slice(&fsio::read_bytes(&journal_path).unwrap()).unwrap();
-            assert_eq!(again["version"], 5);
+            assert_eq!(again["version"], LATEST_VERSION);
             assert_eq!(Store::for_handle(&handle).stamp().unwrap(), before, "the databases were not touched again");
             assert_eq!(store::read_manifest(&handle.root).unwrap(), manifest);
         }
@@ -558,7 +598,7 @@ mod tests {
             let cache = tmp.cache();
             run(&root, &cache).unwrap();
             let journal: Value = serde_json::from_slice(&fsio::read_bytes(&root.join("_library_config").join(JOURNAL)).unwrap()).unwrap();
-            assert_eq!(journal["version"], 5);
+            assert_eq!(journal["version"], LATEST_VERSION);
             assert!(!root.join(config::SEED_REL).exists());
             assert_eq!(store::read_manifest(&root).unwrap()["assets"], json!([]));
             assert!(!std::fs::read_dir(root.join("_library_config/migration-backups")).map(|read| read.flatten().any(|e| e.path().join("manifest.before.json").exists())).unwrap_or(false), "there was nothing to move");

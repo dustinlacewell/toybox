@@ -109,6 +109,9 @@ pub struct LibraryInfoDoc {
     /// compared with a copy for every item that keeps one. Absent for a remote library.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub sources: Option<SourcesDoc>,
+    /// What converting the library's Substance archives into substance assets did, when it ran here.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub substances: Option<SubstancesDoc>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub remote: Option<RemoteDoc>,
     /// Library format migrations this version would run when the library is opened (local libraries).
@@ -125,6 +128,20 @@ pub struct SourcesDoc {
     /// What converting the library to shared sources did when it ran here.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub migration: Option<MigrationDoc>,
+}
+
+#[derive(Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct SubstancesDoc {
+    /// Substance assets made from archives materials kept.
+    pub substances: usize,
+    /// Materials linked to them (`origin.derivedFrom`).
+    pub materials: usize,
+    /// Archives moved into their substance's folder, and their bytes (moved, not copied).
+    pub archives_moved: usize,
+    pub bytes_moved: u64,
+    /// Archives that could not be converted (tried again at the next open).
+    pub skipped: usize,
 }
 
 #[derive(Serialize)]
@@ -190,6 +207,9 @@ pub struct CheckDoc {
     pub items: i64,
     pub files_checked: u64,
     pub problems: Vec<ProblemDoc>,
+    /// What is worth knowing but not wrong (an asset made from one that was deleted).
+    #[serde(skip_serializing_if = "Vec::is_empty")]
+    pub notes: Vec<ProblemDoc>,
     /// Stored source files no item uses.
     pub orphan_sources: Vec<String>,
     /// Orphans `--fix` removed.

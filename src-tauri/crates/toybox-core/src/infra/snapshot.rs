@@ -93,9 +93,43 @@ pub fn take(root: &Path, from_version: u32) -> AppResult<PathBuf> {
         let _ = std::fs::remove_file(&pending);
         return Err(error.into());
     }
+    // The snapshot is for the Toybox that wrote the library at `from_version`: the database schema
+    // that version reads. Opening the library with this build upgrades `library.db` in place (schema 2
+    // adds a derived column) before any format step runs, so the copy is brought back down.
+    if let Err(error) = downgrade_for(&pending, from_version) {
+        let _ = std::fs::remove_file(&pending);
+        return Err(error);
+    }
     std::fs::rename(&pending, &target).map_err(|e| AppError::file("Name the snapshot", &target, e))?;
     prune(root);
     Ok(target)
+}
+
+/// The `library.db` schema the Toybox releases of a library format version read: formats up to 5 (Toybox
+/// 0.5.x) read schema 1; format 6 added schema 2 (`assets.derived_from`).
+pub fn schema_for_format(format_version: u32) -> i64 {
+    if format_version <= 5 { 1 } else { crate::infra::store::SCHEMA_VERSION }
+}
+
+/// Bring a snapshot copy down to the schema of `from_version` (see [`schema_for_format`]). Schema 2 only
+/// added `assets.derived_from` and its index, both derived from the stored asset JSON, so dropping them
+/// loses nothing.
+fn downgrade_for(path: &Path, from_version: u32) -> AppResult<()> {
+    let wanted = schema_for_format(from_version);
+    let connection = Connection::open_with_flags(path, OpenFlags::SQLITE_OPEN_READ_WRITE | OpenFlags::SQLITE_OPEN_NO_MUTEX)?;
+    let version: i64 = connection.query_row("PRAGMA user_version", [], |row| row.get(0))?;
+    if version <= wanted {
+        return Ok(());
+    }
+    if wanted < 2 {
+        connection.execute_batch("DROP INDEX IF EXISTS assets_derived_from;")?;
+        let has: i64 = connection.query_row("SELECT COUNT(*) FROM pragma_table_info('assets') WHERE name='derived_from'", [], |row| row.get(0))?;
+        if has > 0 {
+            connection.execute_batch("ALTER TABLE assets DROP COLUMN derived_from;")?;
+        }
+    }
+    connection.execute_batch(&format!("PRAGMA user_version={wanted};"))?;
+    Ok(())
 }
 
 /// The snapshots, newest first.

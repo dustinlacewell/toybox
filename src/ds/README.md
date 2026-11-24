@@ -17,6 +17,8 @@ presentation resources, such as loading an image or maintaining an element ref.
 - `ThumbnailStrip` receives generic options, a value, and `onChange`.
 - `PropertyRow` receives a label, value, and optional action.
 - `Segmented`, `Select`, `Checkbox`, and `TextInput` are controlled inputs.
+- `Slider` is a controlled labelled range with a number box. It emits `onChange`
+  continuously while dragging and `onCommit` once a change is finished.
 - `ConfirmationDialog` receives generic rows, copy, busy/error state and callbacks.
   It arranges the confirmation and destructive action without performing it.
 - `Waveform` receives amplitude peaks, duration, position and a seek callback.

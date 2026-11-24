@@ -96,6 +96,10 @@ pub struct PackageAsset {
     pub user: BTreeMap<String, Value>,
     #[serde(default)]
     pub thumbs: Vec<PackageThumb>,
+    /// Not asked for: the asset another item of the package was made from (its `origin.derivedFrom`),
+    /// carried so the copy is whole. A target that has it already keeps its own, even when replacing.
+    #[serde(default, skip_serializing_if = "std::ops::Not::not")]
+    pub carried: bool,
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
@@ -169,6 +173,10 @@ pub struct TransferItem {
     /// A move deleted the item from the source.
     #[serde(default)]
     pub source_removed: bool,
+    /// Carried along as the asset an item was made from (see [`PackageAsset::carried`]); a move never
+    /// deletes it from the source.
+    #[serde(default, skip_serializing_if = "std::ops::Not::not")]
+    pub carried: bool,
 }
 
 #[derive(Debug, Clone, PartialEq, Default, Serialize, Deserialize)]
@@ -240,6 +248,27 @@ pub fn export_package(source: &LibraryHandle, ids: &[String], options: ExportOpt
             }
         }
     }
+    // The assets the items were made from, when the source has them: carried first, so they land
+    // before (or with) what was made from them.
+    let mut parents: Vec<String> = Vec::new();
+    for id in &wanted {
+        let Some(entry) = entries.get(id) else { continue };
+        for item in std::iter::once(entry).chain(entry["variants"].as_array().into_iter().flatten()) {
+            if let Some(parent) = item["origin"]["derivedFrom"].as_str() {
+                if !wanted.iter().any(|w| w == parent) && !parents.iter().any(|p| p == parent) {
+                    parents.push(parent.to_string());
+                }
+            }
+        }
+    }
+    let carried: HashSet<String> = store.present_items(&parents)?;
+    parents.retain(|parent| carried.contains(parent));
+    for entry in store.load_entries(&parents)? {
+        if let Some(id) = entry["id"].as_str().map(String::from) {
+            entries.insert(id, entry);
+        }
+    }
+    let wanted: Vec<String> = parents.into_iter().chain(wanted).collect();
     // The personal data this computer holds for the items: their rows only.
     let cache: HashMap<String, Asset> = store.load_top_assets(&wanted)?.into_iter().map(|asset| (asset.id.clone(), asset)).collect();
 
@@ -251,7 +280,10 @@ pub fn export_package(source: &LibraryHandle, ids: &[String], options: ExportOpt
             continue;
         };
         match package_asset(source, entry, cache.get(&id), &mut digests) {
-            Ok(asset) => package.assets.push(asset),
+            Ok(mut asset) => {
+                asset.carried = carried.contains(&id);
+                package.assets.push(asset);
+            }
             Err(error) => {
                 let (name, kind) = describe(entry);
                 package.failed.push(ItemFailure { id, name, kind, reason: error.to_string() });
@@ -302,7 +334,7 @@ fn package_asset(source: &LibraryHandle, entry: &Value, cached: Option<&Asset>, 
         }
     }
     let (name, kind) = describe(entry);
-    Ok(PackageAsset { id: parsed.id, name, kind, entry: entry.clone(), files, user, thumbs })
+    Ok(PackageAsset { id: parsed.id, name, kind, entry: entry.clone(), files, user, thumbs, carried: false })
 }
 
 /// Every library file one item (not its variants) needs, source-relative.
@@ -461,14 +493,14 @@ pub fn ingest_package(
 
     let total = package.assets.len() + package.failed.len();
     let mut items: Vec<TransferItem> = package.assets.iter().map(|asset| TransferItem {
-        id: asset.id.clone(), name: asset.name.clone(), kind: asset.kind.clone(), outcome: Outcome::Failed, reason: None, source_removed: false,
+        id: asset.id.clone(), name: asset.name.clone(), kind: asset.kind.clone(), outcome: Outcome::Failed, reason: None, source_removed: false, carried: asset.carried,
     }).collect();
     let mut replacing: HashSet<usize> = HashSet::new();
     let mut todo: Vec<usize> = Vec::new();
     for (index, asset) in package.assets.iter().enumerate() {
         match conflict(asset, &owners) {
             Conflict::None => todo.push(index),
-            Conflict::Exists if options.on_conflict == OnConflict::Replace => {
+            Conflict::Exists if options.on_conflict == OnConflict::Replace && !asset.carried => {
                 replacing.insert(index);
                 todo.push(index);
             }
@@ -539,11 +571,13 @@ pub fn ingest_package(
         }
     }
 
+    // A carried asset the target has already is nothing to report: it was not asked for.
+    let items: Vec<TransferItem> = items.into_iter().filter(|item| !(item.carried && item.outcome == Outcome::Skipped)).collect();
     let mut report = TransferReport { items };
     for failure in &package.failed {
         report.items.push(TransferItem {
             id: failure.id.clone(), name: failure.name.clone(), kind: failure.kind.clone(),
-            outcome: Outcome::Failed, reason: Some(failure.reason.clone()), source_removed: false,
+            outcome: Outcome::Failed, reason: Some(failure.reason.clone()), source_removed: false, carried: false,
         });
     }
     Ok(report)
@@ -922,7 +956,7 @@ pub fn sort_report(report: &mut TransferReport, ids: &[String]) {
 pub fn complete_move(report: &mut TransferReport, verify: &dyn Fn(&str) -> AppResult<()>, delete: &dyn Fn(&[String]) -> AppResult<()>) {
     let mut movable: Vec<usize> = Vec::new();
     for (index, item) in report.items.iter_mut().enumerate() {
-        if !matches!(item.outcome, Outcome::Copied | Outcome::Replaced) {
+        if !matches!(item.outcome, Outcome::Copied | Outcome::Replaced) || item.carried {
             continue;
         }
         match verify(&item.id) {
@@ -974,7 +1008,7 @@ pub fn fill_user_from_cache(package: &mut TransferPackage, cache: &Path) {
 pub fn apply_personal_metadata(target: &LibraryHandle, package: &TransferPackage, report: &TransferReport) -> AppResult<()> {
     let items: Vec<TransferItem> = package.assets.iter().map(|asset| {
         let outcome = report.items.iter().find(|item| item.id == asset.id).map(|item| item.outcome).unwrap_or(Outcome::Failed);
-        TransferItem { id: asset.id.clone(), name: asset.name.clone(), kind: asset.kind.clone(), outcome, reason: None, source_removed: false }
+        TransferItem { id: asset.id.clone(), name: asset.name.clone(), kind: asset.kind.clone(), outcome, reason: None, source_removed: false, carried: asset.carried }
     }).collect();
     let committed: Vec<usize> = items.iter().enumerate().filter(|(_, item)| matches!(item.outcome, Outcome::Copied | Outcome::Replaced)).map(|(index, _)| index).collect();
     carry_personal_metadata(target, package, &committed, &items)

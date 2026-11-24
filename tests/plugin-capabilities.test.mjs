@@ -8,7 +8,7 @@ async function load(file) {
   return import(`data:text/javascript;base64,${Buffer.from(outputText).toString("base64")}`);
 }
 const { isActive, isBlocked } = await load("../src/services/pluginActive.ts");
-const { declaresTypes, isImporter, needsEntry, implementsTypes } = await load("../src/services/pluginCapabilities.ts");
+const { declaresTypes, isImporter, needsEntry, implementsTypes, showsAssetPanel } = await load("../src/services/pluginCapabilities.ts");
 const { blockedSentence } = await load("../src/services/pluginBlocked.ts");
 const { collectExtensions, extensionLookup, setExtensionTable } = await load("../src/services/pluginExtensions.ts");
 const { resolvePluginModule } = await load("../src/services/pluginModule.ts");
@@ -184,4 +184,15 @@ test("the retired FBX and OBJ plugins are gone from the repository and from the 
   }
   assert.doesNotMatch(conf, /model-(fbx|obj)/);
   assert.doesNotMatch(build, /model-(fbx|obj)/);
+});
+
+test("an asset panel shows for the plugin's items, but not for items of a type it declares", () => {
+  const plugin = { id: "com.example.sbsar", replaces: ["com.example.old"], ui: { assetPanel: "ui/Panel.js" }, assetTypes: [{ id: "substance" }] };
+  assert.equal(showsAssetPanel(plugin, { kind: "material", origin: { plugin: "com.example.sbsar" } }), true);
+  assert.equal(showsAssetPanel(plugin, { kind: "material", origin: { plugin: "com.example.old" } }), true);
+  assert.equal(showsAssetPanel(plugin, { kind: "plugin", type: "substance", origin: { plugin: "com.example.sbsar" } }), false);
+  assert.equal(showsAssetPanel(plugin, { kind: "plugin", type: "skybox", origin: { plugin: "com.example.sbsar" } }), true);
+  assert.equal(showsAssetPanel(plugin, { kind: "material", origin: { plugin: "com.example.other" } }), false);
+  assert.equal(showsAssetPanel(plugin, { kind: "material" }), false);
+  assert.equal(showsAssetPanel({ id: "com.example.sbsar" }, { kind: "material", origin: { plugin: "com.example.sbsar" } }), false);
 });

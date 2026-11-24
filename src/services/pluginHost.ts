@@ -33,6 +33,8 @@ import {
   previewExport,
   placerMergeFile,
   pluginCopyFile,
+  pluginHashFile,
+  pluginFileSize,
   pluginImageThumb,
   pluginReadBytes,
   pluginReadDir,
@@ -148,6 +150,12 @@ export function buildFsApi(pluginId: string, perms: PluginPermissions): FsApi {
     ),
     readBytes: gatedRead((sourceRoot: string, path: string) =>
       pluginReadBytes(sourceRoot, path),
+    ),
+    hashFile: gatedRead((sourceRoot: string, path: string) =>
+      pluginHashFile(sourceRoot, path),
+    ),
+    fileSize: gatedRead((sourceRoot: string, path: string) =>
+      pluginFileSize(sourceRoot, path),
     ),
     readImageThumb: gatedRead((sourceRoot: string, path: string, maxSize: number) =>
       pluginImageThumb(sourceRoot, path, maxSize),

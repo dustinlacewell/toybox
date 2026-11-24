@@ -9,7 +9,7 @@ function moduleUrl(file) {
 }
 const {
   readGraphs, readInputs, presetInputs, coerce, sameValue, editableInputs, presetValues, changedValues, rangeOf, toHex, fromHex,
-  outputRoles, outputFile, channelOf, withVisibility, cleanName, materialName, materialId, sizeOf, readMeta,
+  outputRoles, outputFile, channelOf, withVisibility, cleanName, materialName, materialId, sizeOf, readMeta, defaultMaterial,
 } = await import(moduleUrl("../plugins/com.toybox.material-sbsar/lib/graph.ts"));
 const { withOrigin } = await import(moduleUrl("../src/domain/origin.ts"));
 
@@ -150,6 +150,8 @@ test("names, ids and stored records are safe and stable", () => {
   assert.deepEqual(readMeta({ sbsar: "tiles.sbsar", graph: 0, preset: "Green", inputs: { joint_height: 0.3, glass_color: [0, 0, 0], junk: { a: 1 } }, size: 12 }),
     { sbsar: "tiles.sbsar", graph: 0, preset: "Green", inputs: { joint_height: 0.3, glass_color: [0, 0, 0] }, size: 12 });
   assert.deepEqual(readMeta({ sbsar: "tiles.sbsar" }), { sbsar: "tiles.sbsar", graph: 0, preset: null, inputs: {}, size: 11 });
+  // The fingerprint older materials recorded is no longer read: the substance (`origin.derivedFrom`) says which archive.
+  assert.deepEqual(readMeta({ sbsar: "tiles.sbsar", archiveHash: "b-00ff", graphLabel: "Bricks" }), { sbsar: "tiles.sbsar", graph: 0, preset: null, inputs: {}, size: 11, graphLabel: "Bricks" });
   // A record cannot point outside the plugin's folder.
   for (const bad of [undefined, {}, { sbsar: "" }, { sbsar: "../secret.sbsar" }, { sbsar: "a\\\\b.sbsar" }, { sbsar: 3 }]) assert.equal(readMeta(bad), undefined);
 });
@@ -163,4 +165,21 @@ test("the host stamps the importing plugin on every entry and its variants", () 
   assert.equal(entry.origin.plugin, "com.example.other");
   assert.deepEqual(withOrigin({ kind: "audio", id: "s", pack: "p", category: "c", file: "s.wav" }, "com.toybox.audio-core").origin, { plugin: "com.toybox.audio-core" });
   assert.equal(withOrigin(entry, ""), entry);
+});
+
+test("a substance's thumbnail shows its default material", () => {
+  const made = (id, name, meta, kind = "material") => ({ id, name, kind, origin: { plugin: "com.toybox.material-sbsar", ...(meta ? { meta: { sbsar: "tiles.sbsar", size: 11, ...meta } } : {}) } });
+  const pristine = made("l::b", "Tiles", { graph: 0, preset: null, inputs: {} });
+  const preset = made("l::a", "Tiles Green", { graph: 0, preset: "Green", inputs: {} });
+  const second = made("l::c", "Tiles (Grout)", { graph: 1, preset: null, inputs: {} });
+  const tweaked = made("l::d", "Tiles Wide", { graph: 0, preset: null, inputs: { width: 2 } });
+  const tweakedMore = made("l::e", "Aaa", { graph: 0, preset: null, inputs: { width: 2, height: 3 } });
+  assert.equal(defaultMaterial([preset, tweaked, second, pristine]).id, "l::b");
+  // Without a pristine one: the fewest changed inputs, ties by name.
+  assert.equal(defaultMaterial([tweakedMore, tweaked, second, preset]).id, "l::c");
+  assert.equal(defaultMaterial([tweakedMore, tweaked, preset]).id, "l::a");
+  assert.equal(defaultMaterial([tweakedMore, tweaked]).id, "l::d");
+  // Only materials this plugin rendered count.
+  assert.equal(defaultMaterial([made("l::x", "Other", undefined), made("l::y", "Sub", { graph: 0, preset: null, inputs: {} }, "substance")]), undefined);
+  assert.equal(defaultMaterial([]), undefined);
 });

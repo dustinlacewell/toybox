@@ -102,7 +102,7 @@ fn source_library(base: &Path) -> LibraryHandle {
     for name in ["Stone", "Stone_1K"] {
         put(&source, &format!("library/_import_s/materials/{name}/color.png"), name.as_bytes());
     }
-    put(&source, "library/_import_s/materials/Stone/stone.sbsar", b"archive");
+    put(&source, "library/_import_s/materials/Stone/stone.src", b"archive");
     put(&source, "library/_import_s/sounds/click.wav", &wav());
     put(&source, "library/_import_s/skybox/Night/px.png", b"px");
     put(&source, "library/_import_s/skybox/Night/nx.png", b"nx");
@@ -113,7 +113,7 @@ fn source_library(base: &Path) -> LibraryHandle {
             "variants":[{"id":"uid://crate_lod","pack":"_import_s","category":"props","file":"Crate_LOD1.gltf","format":"obj","origin":origin("Crate_LOD1"),"tags":["low detail"]}]}),
         json!({"id":"uid://barrel","pack":"_import_s","category":"props","file":"Barrel.gltf"}),
         json!({"id":"uid://stone","kind":"material","pack":"_import_s","category":"stone","name":"Stone","maps":[{"role":"albedo","file":"color.png"}],
-            "origin":{"plugin":"com.example.sbsar","files":["stone.sbsar"],"meta":{"preset":"Green"}},
+            "origin":{"plugin":"com.example.sbsar","files":["stone.src"],"meta":{"preset":"Green"}},
             "variants":[{"id":"uid://stone_small","kind":"material","pack":"_import_s","category":"stone","name":"Stone_1K","maps":[{"role":"albedo","file":"color.png"}]}]}),
         json!({"id":"uid://click","kind":"audio","pack":"_import_s","category":"sounds","file":"click.wav","tags":["click","ui"],"provenance":{"publisher":"Sound Co","url":"https://example.test/clicks"}}),
         json!({"id":"uid://night","kind":"plugin","type":"skybox","pack":"_import_s","category":"night","name":"Night","files":["px.png","nx.png"],"meta":{"layout":"cubemap"}}),
@@ -196,14 +196,14 @@ fn every_asset_kind_arrives_with_its_files_variants_and_manifest_fields() {
     // Material, sound and plugin type.
     let stone = entry(&target, "uid://stone").unwrap();
     let archive = stone["origin"]["files"][0].as_str().unwrap().to_string();
-    assert!(archive.starts_with("library/materials/_sources/") && archive.ends_with("/stone.sbsar"), "{archive}");
+    assert!(archive.starts_with("library/materials/_sources/") && archive.ends_with("/stone.src"), "{archive}");
     assert_eq!(stone["origin"]["meta"]["preset"], "Green");
     assert_eq!(stone["variants"][0]["id"], "uid://stone_small");
     let folder = stone["storagePath"].as_str().unwrap();
     assert!(folder.starts_with("library/materials/"));
     assert_eq!(std::fs::read(target.root.join(folder).join("color.png")).unwrap(), b"Stone");
     assert_eq!(std::fs::read(target.root.join(&archive)).unwrap(), b"archive");
-    assert!(!target.root.join(folder).join("stone.sbsar").exists());
+    assert!(!target.root.join(folder).join("stone.src").exists());
     let click = entry(&target, "uid://click").unwrap();
     assert!(click["storagePath"].as_str().unwrap().starts_with("library/audio/"));
     let night = entry(&target, "uid://night").unwrap();
@@ -280,7 +280,7 @@ fn a_package_describes_the_entry_the_files_and_travels_as_plain_data() {
     }
     let material = &package.assets[1];
     assert_eq!(material.kind, "material");
-    assert!(material.files.iter().any(|f| f.path.ends_with("stone.sbsar")) && material.files.iter().any(|f| f.path.ends_with("Stone_1K/color.png") || f.path.contains("color.png")));
+    assert!(material.files.iter().any(|f| f.path.ends_with("stone.src")) && material.files.iter().any(|f| f.path.ends_with("Stone_1K/color.png") || f.path.contains("color.png")));
 
     // It is plain data: it survives JSON, and ingest works from the copy.
     let wire = serde_json::to_string(&package).unwrap();

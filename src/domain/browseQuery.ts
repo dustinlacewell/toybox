@@ -33,6 +33,8 @@ export interface BrowseFilter {
   collection: string | null;
   text: string;
   visibility: VisibilityRules;
+  /** Only the items made from this one (raw id; see `origin.derivedFrom`). With it, `kind` may be "" for every type. */
+  derivedFrom?: string;
 }
 
 const list = (values: ReadonlySet<string>): string[] => [...values].sort();

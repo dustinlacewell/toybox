@@ -35,7 +35,7 @@ Both use WAL mode, `synchronous=NORMAL`, `foreign_keys=ON`, and a `user_version`
 for their own schema. One writer at a time per library is still enforced by
 `_library_config/storage.lock` plus the in-process mutex.
 
-## `library.db` schema (version 1)
+## `library.db` schema (version 2)
 
 ```sql
 CREATE TABLE meta (key TEXT PRIMARY KEY, value TEXT NOT NULL);
@@ -94,13 +94,15 @@ CREATE TABLE assets (                      -- derived catalog rows (what the app
   rel_path      TEXT NOT NULL DEFAULT '',  -- the asset's rel_path (what grouping matches on)
   thumb_name    TEXT NOT NULL DEFAULT '',  -- sanitised id: the thumbnail file name
   clip_source   TEXT NOT NULL DEFAULT '',    -- for a clip, the id of the model it was cut from
-  plugin        TEXT NOT NULL DEFAULT ''     -- the plugin that imported it (origin.plugin)
+  plugin        TEXT NOT NULL DEFAULT '',    -- the plugin that imported it (origin.plugin)
+  derived_from  TEXT NOT NULL DEFAULT ''     -- origin.derivedFrom: the id of the asset it was made from
 );
 CREATE INDEX assets_item ON assets(item_id, ord);
 CREATE INDEX assets_order ON assets(ord);
 CREATE INDEX assets_rel ON assets(rel_path);
 CREATE INDEX assets_thumb ON assets(thumb_name);
 CREATE INDEX assets_clip_source ON assets(clip_source);
+CREATE INDEX assets_derived_from ON assets(derived_from);
 CREATE INDEX assets_browse ON assets(type, name COLLATE NOCASE, id, content_hash);   -- the list, in order, with the hash for the copy probe
 CREATE INDEX assets_hash ON assets(type, content_hash);
 CREATE INDEX assets_unhashed ON assets(type, id) WHERE content_hash IS NULL;         -- the few items without a hash yet
@@ -248,6 +250,46 @@ CREATE INDEX user_assets_favorite ON user_assets(asset_id) WHERE favorite = 1;
 - Bookkeeping that is not a library change (a thumbnail error, the migration
   marker `personalTagsMigrated`, a completed tag migration, a picture saved to the
   shared-thumbnail log) does not bump `revision`.
+
+## Schema version 2: `assets.derived_from`
+
+`origin.derivedFrom` (the raw id of the asset of the same library an asset was made from: a material rendered
+from a substance) is copied into `assets.derived_from` and indexed, like `clip_source`, so "what was made from
+this" (`Store::derived_from`, the browse filter's `derivedFrom`) is an index lookup. Only a top-level asset's own
+origin is indexed; a variant's link is in its parent's `asset` JSON. A `library.db` of version 1 (local library or
+replica) is upgraded in place when it is opened (`store::upgrade`, one `BEGIN IMMEDIATE` transaction):
+`ALTER TABLE assets ADD COLUMN derived_from`, the index, and the column filled from the stored asset JSON
+(`json_extract(asset, '$.origin.derivedFrom')`), so nothing needs a rescan. `user.db` stays at version 1. An older
+Toybox refuses a database of version 2 ("written by a newer Toybox"); a local library is refused by its journal
+(format 6) anyway.
+
+The link is soft: deleting the parent leaves the children with a dangling link (`tbx library check` notes it), and
+deleting children never touches the parent. It is part of neither the storage key (the key ignores it like
+`origin.files`, so linking never moves a folder) nor the content hash (which never looks at `origin`).
+
+## Substances (library migration step 6, `substance-assets`)
+
+A Substance archive a material kept as a shared source (`library/materials/_sources/<sha256>/<name>.sbsar`) becomes
+an asset of its own: plugin type `substance`, id `uid://substance_<sha256[..32]>`, stored in
+`library/substance/<key>/` (the key a normal commit of that entry would get) with the archive (given a second name
+there by a hard link and its content checked against the sha256 it is named by; its `_sources` name is removed after
+the commit) and a `preview.png`. Its materials lose the path from `origin.files` and gain `origin.derivedFrom`;
+nothing else of them changes. See [Managed library storage](library-storage.md) for the order of the steps, the
+invariants and what the next open does after an interruption. State in `meta`: `substanceAssets` (`done`),
+`substanceAssetsReport` (JSON: `substances`, `materials`, `archivesMoved`, `bytesMoved`, `duplicatesRemoved`,
+`previews`, `skipped` as `[path, reason]` pairs, `skippedFiles` (path, size, modification time and Toybox version of
+each skipped archive: it is not tried again until one of them changes), `extraLinks` (`[material, substance]`: a
+material made from more than one archive, linked to the first) and `warnings` (clean-ups of the last run that failed
+after a commit)) and `substanceAssetsChecked` (the manifest revision at which nothing was left: an open or a commit
+checks again only after the manifest changed, and then through a range of `asset_files`, not the entries).
+
+The schema of `library.db` is 2 from this release (`assets.derived_from`); any open by this build upgrades it in
+place, before the format steps run. The snapshot taken before step 6 is therefore brought back to schema 1 (the
+column and its index dropped, `user_version` 1): a format 5, schema 1 database that Toybox 0.5.x opens. Restoring it
+gives back the entries and derived rows as they were before step 6 and sets the journal back to 5; it does not give
+back the files: the archives are in the substances' folders by then, so the restore refuses until each is put back
+at the `_sources` path the snapshot's entries list (see [Managed library storage](library-storage.md), "Going back
+from step 6").
 
 ## Kept source files (library migration step 5, `shared-sources`)
 

@@ -22,14 +22,14 @@ fn hash(bytes: &[u8]) -> String {
 }
 
 fn stage(library: &RemoteLibrary, pack: &str, name: &str, archive: &[u8]) -> Value {
-    for (rel, bytes) in [(format!("library/{pack}/materials/{name}/color.png"), png()), (format!("library/{pack}/materials/{name}/stone.sbsar"), archive.to_vec())] {
+    for (rel, bytes) in [(format!("library/{pack}/materials/{name}/color.png"), png()), (format!("library/{pack}/materials/{name}/stone.src"), archive.to_vec())] {
         let path = library.files_root().join(rel);
         std::fs::create_dir_all(path.parent().unwrap()).unwrap();
         std::fs::write(path, bytes).unwrap();
     }
     json!({"id": format!("uid://{name}"), "kind": "material", "pack": pack, "category": "stone", "name": name,
         "maps": [{"role": "albedo", "file": "color.png"}],
-        "origin": {"plugin": "com.example.sbsar", "files": ["stone.sbsar"], "meta": {"sbsar": "stone.sbsar", "preset": name}}})
+        "origin": {"plugin": "com.example.src", "files": ["stone.src"], "meta": {"sbsar": "stone.src", "preset": name}}})
 }
 
 fn uploaded_bytes(world: &World) -> u64 {
@@ -66,7 +66,7 @@ fn presets_of_one_archive_upload_it_once_and_a_later_import_not_at_all() {
     let stored = stored_sources(&server);
     assert_eq!(stored.len(), 1, "{stored:?}");
     assert_eq!(std::fs::read(&stored[0]).unwrap(), archive);
-    let shared = sources::shared_path("materials", &hash(&archive), "stone.sbsar");
+    let shared = sources::shared_path("materials", &hash(&archive), "stone.src");
     for asset in &outcome.catalog.assets {
         assert_eq!(asset.origin.as_ref().unwrap().files, vec![shared.clone()], "{}", asset.name);
     }
@@ -91,7 +91,7 @@ fn a_transfer_to_a_server_sends_a_source_once_and_skips_one_the_server_has() {
     let local = world.local("here");
     let archive = archive();
     for (n, name) in ["A", "B", "C"].iter().enumerate() {
-        for (rel, bytes) in [(format!("library/_import_l{n}/materials/{name}/color.png"), png()), (format!("library/_import_l{n}/materials/{name}/stone.sbsar"), archive.clone())] {
+        for (rel, bytes) in [(format!("library/_import_l{n}/materials/{name}/color.png"), png()), (format!("library/_import_l{n}/materials/{name}/stone.src"), archive.clone())] {
             let path = local.root.join(rel);
             std::fs::create_dir_all(path.parent().unwrap()).unwrap();
             std::fs::write(path, bytes).unwrap();
@@ -101,7 +101,7 @@ fn a_transfer_to_a_server_sends_a_source_once_and_skips_one_the_server_has() {
         .iter()
         .enumerate()
         .map(|(n, name)| json!({"id": format!("uid://{name}"), "kind": "material", "pack": format!("_import_l{n}"), "category": "stone", "name": name,
-            "maps": [{"role": "albedo", "file": "color.png"}], "origin": {"plugin": "x", "files": ["stone.sbsar"], "meta": {"sbsar": "stone.sbsar"}}}))
+            "maps": [{"role": "albedo", "file": "color.png"}], "origin": {"plugin": "x", "files": ["stone.src"], "meta": {"sbsar": "stone.src"}}}))
         .collect();
     toybox_core::ops::import::merge_entries(&local, entries).unwrap();
     let options = TransferOptions { mode: TransferMode::Copy, on_conflict: OnConflict::Skip, include_clips: false };
@@ -126,7 +126,7 @@ fn a_transfer_to_a_server_sends_a_source_once_and_skips_one_the_server_has() {
     let back = world.local("back");
     let report = transfer(Side::Remote(&library), Side::Local(&back), &ids(&["uid://A", "uid://B", "uid://C"]), options, &|_| {}).unwrap();
     assert!(report.items.iter().all(|item| item.reason.is_none()), "{report:?}");
-    let shared = sources::shared_path("materials", &hash(&archive), "stone.sbsar");
+    let shared = sources::shared_path("materials", &hash(&archive), "stone.src");
     assert!(back.root.join(&shared).is_file());
     let count = std::fs::read_dir(back.root.join("library/materials/_sources")).unwrap().count();
     assert_eq!(count, 1);

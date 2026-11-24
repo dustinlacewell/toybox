@@ -99,6 +99,16 @@ file once per library, by content, in `library/<materials|models>/_sources/<sha2
 and the entry then lists those paths instead (so several items made from one archive share
 one copy). Do not author the shared paths; stage bare names and let Toybox commit.
 
+### What an item was made from: `origin.derivedFrom`
+
+An entry (or a variant) may say which asset of the same library it was made from, by that
+asset's raw id: `"origin": {"plugin": "…", "derivedFrom": "uid://substance_…"}` (a material
+rendered from a Substance archive names its substance). It must be a non-empty string when
+present. Toybox stores and indexes it and can list an asset's derived assets; it is a soft
+link (the parent may be deleted; the link then dangles) and part of neither the item's storage
+folder key nor its content hash. Copying an item to another library carries its parent along
+when the target does not have it.
+
 ### The cardinal rule
 
 > **`catalog.json` is a manifest of files that already exist on disk.** Every model entry

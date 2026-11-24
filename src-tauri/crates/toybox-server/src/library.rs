@@ -629,6 +629,15 @@ fn valid_pack(pack: &str) -> bool {
         && pack.bytes().all(|b| b.is_ascii_alphanumeric() || b == b'_' || b == b'-')
 }
 
+/// `origin.derivedFrom` is the plain id of another asset of the library: a string, when present.
+fn derived_from_ok(object: &serde_json::Map<String, Value>) -> Result<(), String> {
+    match object.get("origin").and_then(|origin| origin.get("derivedFrom")) {
+        None | Some(Value::Null) => Ok(()),
+        Some(Value::String(id)) if !id.trim().is_empty() => Ok(()),
+        Some(_) => Err("origin.derivedFrom must be the id of an asset, as text.".into()),
+    }
+}
+
 fn check_item(item: &Value) -> Result<(), String> {
     let Some(object) = item.as_object() else { return Err("Each entry must be an object.".into()) };
     if object.contains_key("storagePath") {
@@ -661,6 +670,7 @@ fn check_item(item: &Value) -> Result<(), String> {
     if !list_ok(object.get("files")) || !list_ok(object.get("origin").and_then(|o| o.get("files"))) {
         return Err("File lists must contain plain relative paths.".into());
     }
+    derived_from_ok(object)?;
     if let Some(maps) = object.get("maps") {
         let ok = maps.as_array().is_some_and(|maps| maps.iter().all(|m| m.get("file").and_then(Value::as_str).is_some_and(safe_rel)));
         if !ok {
@@ -828,6 +838,7 @@ pub fn check_package_entry(entry: &Value) -> Result<String, String> {
         if !list_ok(object.get("files")) || !list_ok(object.get("origin").and_then(|o| o.get("files"))) {
             return Err("File lists must contain plain relative paths.".into());
         }
+        derived_from_ok(object)?;
         if let Some(maps) = object.get("maps") {
             let ok = maps.as_array().is_some_and(|maps| maps.iter().all(|m| m.get("file").and_then(Value::as_str).is_some_and(safe_rel)));
             if !ok {
@@ -877,7 +888,7 @@ pub fn ingest_blocking(
         };
         match verdict {
             Ok(()) => kept.push(asset),
-            Err(reason) => refused.push(TransferItem { id: asset.id, name: asset.name, kind: asset.kind, outcome: Outcome::Failed, reason: Some(reason), source_removed: false }),
+            Err(reason) => refused.push(TransferItem { id: asset.id, name: asset.name, kind: asset.kind, outcome: Outcome::Failed, reason: Some(reason), source_removed: false, carried: asset.carried }),
         }
     }
     package.assets = kept;
@@ -944,6 +955,9 @@ mod tests {
         assert!(bad(json!({"storagePath":"library/skybox/0123456789abcdef"})).is_err());
         assert!(bad(json!({"id":""})).is_err());
         assert!(bad(json!({"origin":{"plugin":"p","files":["../x"]}})).is_err());
+        assert!(bad(json!({"origin":{"plugin":"p","derivedFrom":7}})).is_err());
+        assert!(bad(json!({"origin":{"plugin":"p","derivedFrom":["uid://s"]}})).is_err());
+        assert!(check_entry(&json!({"id":"m","pack":"_import_ab12","origin":{"plugin":"p","derivedFrom":"uid://substance_0123"}})).is_ok());
         assert!(bad(json!({"maps":[{"role":"albedo","file":"../x.png"}]})).is_err());
         assert!(bad(json!({"variants":[{"id":"v","pack":"elsewhere"}]})).is_err());
         assert!(check_entry(&json!("text")).is_err());
@@ -968,6 +982,8 @@ mod tests {
         assert!(bad(json!({"category":"C:/x"})).is_err());
         assert!(bad(json!({"files":["../x.hdr"]})).is_err());
         assert!(bad(json!({"origin":{"plugin":"p","files":["/abs"]}})).is_err());
+        assert!(bad(json!({"origin":{"plugin":"p","derivedFrom":{"id":"x"}}})).is_err());
+        assert!(bad(json!({"origin":{"plugin":"p","derivedFrom":"uid://substance_0123"}})).is_ok());
         assert!(bad(json!({"maps":[{"role":"albedo","file":"../x.png"}]})).is_err());
         assert!(bad(json!({"variants":[{"id":"v","name":"../x"}]})).is_err());
         assert!(bad(json!({"id":""})).is_err());

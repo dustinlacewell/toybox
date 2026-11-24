@@ -97,6 +97,14 @@ impl Host {
         browse::get_assets(&self.browse_libraries()?, items)
     }
 
+    /// The assets of `library` made from its asset `id` (a raw id: their `origin.derivedFrom`), in catalog order.
+    pub fn derived_assets(&self, library: &str, id: &str) -> AppResult<Vec<Row>> {
+        let handle = self.resolve(library)?;
+        let ids = Store::for_handle(&handle).derived_from(id)?;
+        let items: Vec<ItemRef> = ids.into_iter().map(|id| ItemRef { library: library.to_string(), id }).collect();
+        self.get_assets(&items)
+    }
+
     /// The rail's numbers for one type.
     pub fn facet_counts(&self, kind: &str, visibility: &Visibility, tag_limit: usize, selected_tags: &[String]) -> AppResult<FacetCounts> {
         browse::facet_counts(&self.browse_libraries()?, kind, visibility, tag_limit, selected_tags)

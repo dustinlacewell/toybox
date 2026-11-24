@@ -38,6 +38,20 @@ pub async fn plugin_read_bytes(source_root: String, path: String) -> AppResult<t
     Ok(tauri::ipc::Response::new(plugin_fs::read_bytes_under(Path::new(&source_root), &path)?))
 }
 
+/// The SHA-256 (lower-case hex) of a file under a user-authorized `source_root`, computed here so a
+/// large file (a Substance archive) is never read into the window. Same jail as `plugin_read_bytes`.
+#[tauri::command]
+pub async fn plugin_hash_file(source_root: String, path: String) -> AppResult<String> {
+    blocking(move || plugin_fs::hash_file_under(Path::new(&source_root), &path)).await
+}
+
+/// The size in bytes of a file under a user-authorized `source_root`, read from its metadata so a
+/// large file is never loaded. Same jail as `plugin_read_bytes`.
+#[tauri::command]
+pub async fn plugin_file_size(source_root: String, path: String) -> AppResult<u64> {
+    blocking(move || plugin_fs::file_size_under(Path::new(&source_root), &path)).await
+}
+
 /// Copy one file from a user-authorized `source_root` to a path under
 /// `authorized_root`, without its bytes crossing the IPC boundary. Both ends
 /// are jailed exactly like `plugin_read_bytes` and `plugin_write_bytes`. An

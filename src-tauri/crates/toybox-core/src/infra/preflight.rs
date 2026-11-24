@@ -138,6 +138,54 @@ pub fn count_unshared_sources(root: &Path) -> AppResult<SourceCount> {
     Ok(count)
 }
 
+/// What step 6 would convert, counted in the database that is there.
+#[derive(Debug, Default, Clone, PartialEq)]
+pub struct SubstanceCount {
+    /// Material items that list a shared Substance archive.
+    pub items: u64,
+    /// Distinct archives (each becomes a substance), and their bytes (moved, not copied).
+    pub archives: u64,
+    pub bytes: u64,
+    pub done: bool,
+}
+
+/// Count the materials whose Substance archive is still a shared source, without changing the database.
+pub fn count_substance_archives(root: &Path) -> AppResult<SubstanceCount> {
+    let db = root.join(crate::config::LIBRARY_DB_REL);
+    let mut count = SubstanceCount::default();
+    if !db.is_file() {
+        return Ok(count);
+    }
+    let connection = snapshot::open_unchanged(&db)?;
+    count.done = connection
+        .query_row("SELECT value FROM meta WHERE key = ?1", [crate::infra::substance_migration::META_DONE], |row| row.get::<_, String>(0))
+        .map(|value| value == "done")
+        .unwrap_or(false);
+    let mut statement = match connection.prepare("SELECT entry FROM items WHERE instr(entry, '\"origin\"') > 0 AND instr(lower(entry), '.sbsar') > 0") {
+        Ok(statement) => statement,
+        Err(_) => return Ok(count),
+    };
+    let mut rows = statement.query([])?;
+    let mut seen: HashSet<String> = HashSet::new();
+    let root_text = root.to_string_lossy().to_string();
+    while let Some(row) = rows.next()? {
+        let text: String = row.get(0)?;
+        let Ok(entry) = serde_json::from_str::<Value>(&text) else { continue };
+        let archives = crate::infra::substance_migration::archives_of(&entry);
+        if archives.is_empty() {
+            continue;
+        }
+        count.items += 1;
+        for archive in archives {
+            if seen.insert(archive.clone()) {
+                count.archives += 1;
+                count.bytes += std::fs::metadata(crate::domain::paths::abs_under_root(&root_text, &archive)).map(|m| m.len()).unwrap_or(0);
+            }
+        }
+    }
+    Ok(count)
+}
+
 fn summary(version: u32) -> &'static str {
     match version {
         1 => "mark every entry's kind explicitly",
@@ -145,6 +193,7 @@ fn summary(version: u32) -> &'static str {
         3 => "move media into typed storage folders",
         4 => "move the manifest, the cache and the content hashes into databases",
         5 => "store each kept source file once per library, shared between items",
+        6 => "make each Substance archive an asset of its own (Substances) and link its materials to it",
         _ => "update the library format",
     }
 }
@@ -156,9 +205,11 @@ pub fn check(root: &Path) -> AppResult<Preflight> {
     let mut notes = Vec::new();
     let newer = format_version > LATEST_VERSION;
     let mut count = SourceCount::default();
+    let mut substances = SubstanceCount::default();
     let mut counted = false;
     if db.is_file() {
         count = count_unshared_sources(root)?;
+        substances = count_substance_archives(root)?;
         counted = true;
     }
     let mut pending = Vec::new();
@@ -175,29 +226,41 @@ pub fn check(root: &Path) -> AppResult<Preflight> {
                     notes.push("Kept source files are counted once the library is in a database (step 4).".into());
                 }
             }
+            if version == 6 && counted {
+                // Archives are moved by a rename: no bytes are copied. (Those step 5 has not shared yet are
+                // converted too, once it has.)
+                step.items = Some(substances.items);
+                step.files = Some(substances.archives);
+                step.bytes = Some(substances.bytes);
+                step.rewrites_entries = substances.items > 0 || count.items > 0;
+            }
             pending.push(step);
         }
         // Step 5 started (the journal says 5) but did not finish: it resumes at the next open.
         if format_version == 5 && counted && !count.done {
             pending.push(PendingStep { version: 5, name: "shared-sources".into(), summary: "finish storing each kept source file once (an earlier run was interrupted)".into(), items: Some(count.items), files: Some(count.files), bytes: Some(count.bytes), rewrites_entries: false });
         }
+        // Step 6 ran, but archives are left (an interrupted run, or materials an older client committed since).
+        if format_version >= 6 && counted && (substances.items > 0 || !substances.done) {
+            pending.push(PendingStep { version: 6, name: "substance-assets".into(), summary: "finish making Substance archives assets of their own (an earlier run was interrupted, or older clients added materials since)".into(), items: Some(substances.items), files: Some(substances.archives), bytes: Some(substances.bytes), rewrites_entries: false });
+        }
     } else {
         notes.push(format!("This library was migrated by a newer Toybox (format {format_version}; this build knows {LATEST_VERSION}). It will be refused until Toybox is updated."));
     }
-    let snapshot_wanted = pending.iter().any(|step| step.version == 5 && step.rewrites_entries && format_version < 5);
+    let snapshot_wanted = pending.iter().any(|step| (step.version == 5 && format_version < 5 || step.version == 6 && format_version < 6) && step.rewrites_entries);
     let db_bytes = std::fs::metadata(&db).map(|m| m.len()).unwrap_or(0);
     let needed_bytes = if snapshot_wanted { db_bytes + count.peak_bytes + 64 * 1024 * 1024 } else if pending.is_empty() { 0 } else { 64 * 1024 * 1024 };
     let free_bytes = fs4::available_space(if root.exists() { root } else { Path::new(".") }).ok();
     let estimate_seconds = if pending.is_empty() {
         None
     } else {
-        Some(count.bytes / BYTES_PER_SECOND + count.items * SECONDS_PER_ITEM_MILLIS / 1000 + 1)
+        Some(count.bytes / BYTES_PER_SECOND + (count.items + substances.items) * SECONDS_PER_ITEM_MILLIS / 1000 + substances.archives / 4 + 1)
     };
     let enough_space = free_bytes.map(|free| free >= needed_bytes).unwrap_or(true);
     if !enough_space {
         notes.push("There is not enough free disk space for this migration.".into());
     }
-    if pending.iter().any(|step| step.version == 5) {
+    if pending.iter().any(|step| step.version >= 5 && format_version < step.version) {
         notes.push(format!(
             "Afterwards, Toybox apps and servers older than {} refuse this library; keep the snapshot and the previous server binary until you are sure.",
             env!("CARGO_PKG_VERSION")
@@ -214,7 +277,7 @@ pub fn check(root: &Path) -> AppResult<Preflight> {
         free_bytes,
         needed_bytes,
         enough_space,
-        snapshot: snapshot_wanted.then(|| snapshot::planned_path(root, 4).to_string_lossy().to_string()),
+        snapshot: snapshot_wanted.then(|| snapshot::planned_path(root, format_version.clamp(4, LATEST_VERSION - 1)).to_string_lossy().to_string()),
         refused_before,
         notes,
     })
@@ -230,7 +293,7 @@ mod tests {
         let _ = std::fs::remove_dir_all(&root);
         let report = check(&root).unwrap();
         assert_eq!(report.format_version, 0);
-        assert_eq!(report.pending.len(), 5);
+        assert_eq!(report.pending.len(), STEPS.len());
         assert!(!root.exists());
     }
 }

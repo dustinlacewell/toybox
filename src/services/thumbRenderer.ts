@@ -14,10 +14,16 @@ import {
   WebGLRenderer,
 } from "three";
 
+import type { ThumbnailTools } from "@ldlework/toybox-sdk";
+
 import type { Asset } from "../domain/catalog";
+import { parseQualified, qualify } from "../domain/libraryId";
 import { disposeScene } from "./disposeScene";
 import { fitCameraToObject } from "./fitCamera";
-import { loadThumbSubject } from "./thumbSubject";
+import { loadThumbSubject, materialSourceOf, materialSubject } from "./thumbSubject";
+import { derivedAssets } from "./browse";
+import { fetchAsset } from "./pluginHost";
+import { cacheAssets } from "../state/assetCache";
 import { audioThumbnail } from "./audioThumbnail";
 import { pluginAssetFiles } from "./pluginAssetFiles";
 import { assetTypeEntry, assetTypesLoaded } from "../state/assetTypes";
@@ -74,7 +80,7 @@ export class ThumbRenderer {
       await assetTypesLoaded();
       const render=assetTypeEntry(asset.type).implementation?.renderThumbnail;
       if(!render)throw new Error(`No installed plugin renders ${asset.type} previews`);
-      const png=await render(asset,pluginAssetFiles,SIZE);
+      const png=await render(asset,pluginAssetFiles,SIZE,this.tools(asset.library));
       if(!(png instanceof Uint8Array)||!png.length)throw new Error(`The ${asset.type} plugin returned no preview image`);
       return {png};
     }
@@ -86,18 +92,52 @@ export class ThumbRenderer {
     if(!("png" in subject))disposeScene(subject);
   }
 
-  async renderPrepared(subject: PreparedSubject): Promise<Uint8Array> {
+  async renderPrepared(subject: PreparedSubject, size = SIZE): Promise<Uint8Array> {
     if("png" in subject)return subject.png;
     this.initialize();
+    // Render and capture without yielding: a plugin's picture can be drawn while another asset is being
+    // prepared, and the shared scene must hold only this subject while it is drawn. `toBlob` copies the
+    // canvas when it is called, so the subject can go before the PNG is encoded.
+    let capture: Promise<Uint8Array>;
     try {
+      if(size!==SIZE)this.renderer.setSize(size,size,false);
       this.scene.add(subject);
       fitCameraToObject(this.camera, subject);
       this.renderer.render(this.scene, this.camera);
-      return await capturePng(this.renderer);
+      capture=capturePng(this.renderer);
     } finally {
+      if(size!==SIZE)this.renderer.setSize(SIZE,SIZE,false);
       this.scene.remove(subject);
       disposeScene(subject);
     }
+    return capture;
+  }
+
+  /** What a plugin's `renderThumbnail` may ask of the host, for an asset of `library`: material pictures drawn
+   *  exactly as the library's own material thumbnails are, on this renderer. */
+  private tools(library: string): ThumbnailTools {
+    return {
+      materialSphere: async (input, size) => {
+        this.initialize();
+        const source = { maps: input.maps.map((map) => ({ ...map, invert: !!map.invert })), flipNormalGreen: !!input.flipNormalGreen, resolveUrl: async (file: string) => input.resolveUrl(file) };
+        return this.renderPrepared(await materialSubject(source, this.renderer), size);
+      },
+      assetThumbnail: async (id, size) => {
+        try {
+          const asset = await fetchAsset(parseQualified(id) ? id : qualify(library, id));
+          if (asset?.kind !== "material") return undefined;
+          this.initialize();
+          return await this.renderPrepared(await materialSubject(materialSourceOf(asset), this.renderer), size);
+        } catch {
+          return undefined;
+        }
+      },
+      derivedAssets: async (id) => {
+        const found = await derivedAssets(parseQualified(id) ? id : qualify(library, id));
+        cacheAssets(found);
+        return found;
+      },
+    };
   }
 
   dispose(): void {

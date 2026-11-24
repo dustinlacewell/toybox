@@ -6,19 +6,21 @@
  */
 
 import { useCallback, useEffect, useMemo, useState } from "react";
+import { assetTypeOf } from "@ldlework/toybox-sdk";
 
 import type { AssetKind } from "../domain/catalog";
 import { NO_RULES, filterSignature, toBrowseFilter } from "../domain/browseQuery";
 import { withAssetTypesInUse } from "../services/assetTypes";
 import { assetTypeEntry } from "../state/assetTypes";
 import { getAssets, queryIds, setCollection } from "../services/browse";
+import { invalidateParentThumbs } from "../services/pluginCommit";
 import { listLibraries, deleteAssets, transferAssets, PartialLibraryError, type DeleteResult } from "../services/tauriApi";
 import { OfflineNotice } from "../components/OfflineNotice";
 import { affectedLibraries, canOfferTransfer, readOnlyNotice, readOnlyOwners, type TransferMode } from "../domain/transfer";
 import { loadAllLibraries, syncLibrary } from "../services/libraries";
 import { libraryOf } from "../domain/libraryId";
 import { useStore } from "../state/store";
-import { useAsset, useAssets } from "../state/assetCache";
+import { cachedAsset, useAsset, useAssets } from "../state/assetCache";
 import { useAssetList } from "../state/assetList";
 import { useCollections, useFacetCounts, useTypeCounts } from "../state/libraryCounts";
 import { alsoInMap, useElsewhere } from "../state/duplicates";
@@ -306,7 +308,9 @@ export function LibraryView() {
       {deleteIds && <DeleteAssetsDialog assets={deleteItems} count={deleteIds.length} libraries={libraries} alsoIn={alsoInMap(deleteCopies)} onClose={() => setDeleteIds(undefined)} onDelete={async () => {
         await stopThumbs();
         // Each library deletes its own items; a failure part-way still shows what was deleted.
-        try { afterDelete(await deleteAssets(deleteIds)); }
+        // The items they were made from may show one of them in their picture.
+        const parents = deleteIds.flatMap(id => cachedAsset(id)?.origin?.derivedFrom ? [cachedAsset(id)!] : []);
+        try { afterDelete(await deleteAssets(deleteIds)); await invalidateParentThumbs(parents); }
         catch (failure) { if (failure instanceof PartialLibraryError) afterDelete(failure.done as DeleteResult[]); throw failure; }
         finally { void startThumbs(); }
       }} />}
@@ -329,7 +333,7 @@ export function LibraryView() {
       }} />}
 
       {previewAsset && (
-        <AssetDetail asset={previewAsset} onClose={() => setPreview(null)} onExport={() => { setPreview(null); openExport([previewAsset.id]); }} />
+        <AssetDetail asset={previewAsset} onClose={() => setPreview(null)} onExport={() => { setPreview(null); openExport([previewAsset.id], undefined, assetTypeOf(previewAsset)); }} />
       )}
 
       <ExportDrawer

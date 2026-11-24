@@ -174,6 +174,13 @@ impl RemoteLibrary {
             asset.user.clear();
         }
         sendable.source_library = String::new();
+        // An asset carried as the one an item was made from is not sent when the server has it already
+        // (as this client's replica shows): it would be skipped there anyway, after its files were sent.
+        let carried: Vec<String> = sendable.assets.iter().filter(|asset| asset.carried).map(|asset| asset.id.clone()).collect();
+        if !carried.is_empty() {
+            let present = toybox_core::infra::store::Store::for_handle(&self.handle()).present_items(&carried).unwrap_or_default();
+            sendable.assets.retain(|asset| !(asset.carried && present.contains(&asset.id)));
+        }
         if sendable.assets.is_empty() {
             return Ok(failed_only(&sendable.failed));
         }
@@ -596,6 +603,7 @@ fn failed_only(failed: &[ItemFailure]) -> TransferReport {
                 outcome: Outcome::Failed,
                 reason: Some(failure.reason.clone()),
                 source_removed: false,
+                carried: false,
             })
             .collect(),
     }

@@ -62,6 +62,33 @@ pub fn read_bytes_under(source_root: &Path, path: &str) -> AppResult<Vec<u8>> {
     fsio::read_bytes(&abs)
 }
 
+/// The SHA-256 of a file under a user-authorized `source_root` (lower-case hex), read in chunks so a
+/// large archive never crosses into a plugin's memory. Same jail as [`read_bytes_under`].
+pub fn hash_file_under(source_root: &Path, path: &str) -> AppResult<String> {
+    use sha2::{Digest, Sha256};
+    use std::io::Read;
+    let abs = jail(source_root, path)?;
+    let mut file = std::fs::File::open(&abs).map_err(|e| toybox_core::error::AppError::file("Read", &abs, e))?;
+    let mut hasher = Sha256::new();
+    let mut buffer = vec![0u8; 256 * 1024];
+    loop {
+        let count = file.read(&mut buffer)?;
+        if count == 0 {
+            break;
+        }
+        hasher.update(&buffer[..count]);
+    }
+    Ok(format!("{:x}", hasher.finalize()))
+}
+
+/// The size in bytes of a file under a user-authorized `source_root`, from its metadata (the file is
+/// not read). Same jail as [`read_bytes_under`].
+pub fn file_size_under(source_root: &Path, path: &str) -> AppResult<u64> {
+    let abs = jail(source_root, path)?;
+    let meta = std::fs::metadata(&abs).map_err(|e| toybox_core::error::AppError::file("Read", &abs, e))?;
+    Ok(meta.len())
+}
+
 /// Copy one file from a user-authorized `source_root` to a path under
 /// `authorized_root`. Both ends are jailed exactly like [`read_bytes_under`] and
 /// [`write_bytes_under`]. An existing destination is only accepted when it already

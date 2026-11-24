@@ -81,7 +81,9 @@ export default defineAssetTypes({
   types: {
     skybox: {
       Viewer,                       // full-view stage; receives { ctx }
-      renderThumbnail,              // (asset, files, size) => PNG bytes
+      needsFiles: false,            // true: a remote item's files are downloaded before Viewer mounts
+      renderThumbnail,              // (asset, files, size, tools) => PNG bytes
+      thumbnailVersion: 1,          // raise to redraw stored thumbnails once
       properties: (asset) => [{ label: "Layout", value: "Panorama" }],
       subtitle: (asset) => "Panorama · HDR",
     },
@@ -91,13 +93,43 @@ export default defineAssetTypes({
 
 - **`Viewer`** fills the stage of the host's viewer frame. The frame keeps the
   title, details, favourite and export controls. `ctx.setSidebar` and
-  `ctx.setFooter` place the type's own controls in the frame.
+  `ctx.setFooter` place the type's own controls in the frame. The rest of its
+  `ctx` is what an [asset panel](#a-panel-in-the-viewer) gets, bound to the
+  plugin that declares the type: `host`, `fs`, `services`, `extensions`,
+  `widgets` and `commit(entries)` into the item's library. After a commit, or
+  any other change to the libraries, the viewer receives a new `ctx` with the
+  item as it is now and a higher `ctx.dataVersion`; use it as a dependency of
+  lookups such as `host.getDerivedAssets(asset.id)`. `host.openAsset(id)`
+  replaces the viewer with another item's.
+- **`needsFiles`**: the viewer reads the item's files from disk (with `ctx.fs`,
+  or by handing them to a program) rather than only through `ctx.files`. On a
+  remote library the host downloads them, showing that it is doing so, before
+  it mounts the viewer. Without it the viewer mounts at once and may call
+  `ctx.ensureFiles()` when it needs them; on a local library that resolves at
+  once. Either way the files are then at `host.getLibraryRoot()` joined with
+  their paths in `asset.files`, so `ctx.fs.readBytes(root, asset.files[i])` and
+  `ctx.fs.hashFile(...)` work on them.
 - **`renderThumbnail`** returns a square PNG. The host queues, stores and
-  refreshes thumbnails; it waits for plugin discovery before asking.
+  refreshes thumbnails; it waits for plugin discovery before asking. Its fourth
+  argument, `tools`, lets the picture be the host's own material thumbnail,
+  drawn by the same code, scene, lighting and preview shape on the host's
+  shared renderer: `tools.materialSphere({ maps, flipNormalGreen, resolveUrl },
+  size)` draws a set of maps; `tools.assetThumbnail(id, size)` draws a library
+  material by id from its stored maps (undefined when it is not a material or
+  its maps cannot be had; on a remote library only the maps are downloaded);
+  `tools.derivedAssets(id)` is `host.getDerivedAssets`. A type's pictures are
+  redrawn when the material preview shape changes, and the thumbnail of an
+  item is redrawn when an item made from it (`origin.derivedFrom`) is added,
+  replaced or deleted.
+- **`thumbnailVersion`**: raise it when the type's pictures change look; the
+  host then redraws the type's stored thumbnails once per library (the old
+  picture stays until the new one is saved).
 - **`files`** (`ctx.files`, and the second argument of `renderThumbnail`) reads
   the asset's own files by name: `fileUrl(asset, name)` for an image or media
   source, `readFile(asset, name)` for bytes. A plugin cannot name a path
-  outside the asset it was given.
+  outside the asset it was given. On a remote library each call downloads only
+  the named file, so a thumbnail drawn from a small `preview.png` never fetches
+  a large file next to it.
 
 Plugin modules resolve `react`, `three`, `three/addons/loaders/HDRLoader.js`,
 `three/addons/loaders/EXRLoader.js`, `lucide-react`, `@ldlework/toybox-sdk` and
@@ -235,14 +267,33 @@ own id otherwise. The origin decides
 what [turning a plugin off](#turning-plugins-on-and-off) hides, and which
 plugin's panel an item's viewer shows.
 
+### Items made from other items
+
+`origin.derivedFrom` names the item an entry was made from, in the same
+library: a material rendered from a substance, say. Any type may carry it, and
+so may each variant. An importer passes the id it was handed (qualified) or a
+raw id, and may name another entry of the same commit; the library stores the
+raw id, and plugins see it qualified like every other id. It is a soft link:
+deleting the parent leaves its children as they are, with a link that leads
+nowhere, so read it defensively. It is not part of an item's content or
+storage key, so changing it does not move the item.
+
+`host.getDerivedAssets(id)` lists the items made from `id`, of any type, leaving
+out those a switched-off plugin hides. The inspector shows a "Made from" row
+that opens the parent and a "Used by" row with the number of children, and
+deleting a parent says that its children stay.
+
 ### A panel in the viewer
 
 `ui.assetPanel` names a module that default-exports a component
 (`defineAssetPanel`). The viewer shows it as a tab — labelled
 `ui.assetPanelLabel`, else the plugin's name — for every item whose
-`origin.plugin` is that plugin. Its `ctx` carries the asset, the jailed `fs`,
+`origin.plugin` is that plugin, except an item of a type that plugin declares
+itself, whose Viewer is already the plugin's own UI. Its `ctx` carries the asset, the jailed `fs`,
 `services`, the host widgets, and `commit(entries)`, which adds entries exactly
-as an import does. An entry that reuses the asset's `id` replaces that item in
+as an import does. The widgets are `MaterialPreview`, the interactive material
+preview, and `AssetThumbnail` (`{ id, size?, alt? }`), the library picture of
+any item by its qualified id, or what the grid shows while there is none. An entry that reuses the asset's `id` replaces that item in
 place and gets a new thumbnail; another id adds a new item. When a material or
 a plugin-defined item is replaced, the folder it used to occupy is removed.
 

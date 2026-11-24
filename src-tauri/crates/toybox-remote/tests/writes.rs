@@ -197,7 +197,7 @@ fn package_with(entry: Value, files: Vec<PackageFile>) -> TransferPackage {
     TransferPackage {
         version: 1,
         source_library: String::new(),
-        assets: vec![PackageAsset { id: entry["id"].as_str().unwrap().to_string(), name: "x".into(), kind: "audio".into(), entry, files, user: Default::default(), thumbs: vec![] }],
+        assets: vec![PackageAsset { id: entry["id"].as_str().unwrap().to_string(), name: "x".into(), kind: "audio".into(), entry, files, user: Default::default(), thumbs: vec![], carried: false }],
         failed: vec![],
     }
 }
@@ -351,7 +351,7 @@ fn many_audio(count: usize) -> (TransferPackage, std::collections::HashMap<Strin
         let path = format!("library/audio/{sha}/s{i}.wav");
         let entry = json!({"id": format!("uid://many{i}"), "kind": "audio", "pack": "imported", "category": "sounds", "file": format!("s{i}.wav"), "storagePath": path});
         let file = PackageFile { path: path.clone(), size: bytes.len() as u64, sha256: sha };
-        assets.push(PackageAsset { id: format!("uid://many{i}"), name: format!("s{i}.wav"), kind: "audio".into(), entry, files: vec![file], user: Default::default(), thumbs: vec![] });
+        assets.push(PackageAsset { id: format!("uid://many{i}"), name: format!("s{i}.wav"), kind: "audio".into(), entry, files: vec![file], user: Default::default(), thumbs: vec![], carried: false });
         contents.insert(path, bytes);
     }
     (TransferPackage { version: 1, source_library: String::new(), assets, failed: vec![] }, contents)

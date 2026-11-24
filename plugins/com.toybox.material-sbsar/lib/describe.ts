@@ -5,8 +5,9 @@
 
 import type { AssetView } from "@ldlework/toybox-sdk";
 
-import { editableInputs, presetValues, rangeOf, sizeOf, toHex, type Graph, type SbsarMeta, type Value, type Values } from "./graph.js";
-import { renderedWith } from "./rerender.js";
+import { editableInputs, presetValues, rangeOf, readMeta, sizeOf, toHex, type Graph, type SbsarMeta, type Value, type Values } from "./graph.js";
+import { parentOf, renderedWith, type SubstanceAsset } from "./rerender.js";
+import { humanBytes, isSubstance, readSubstanceMeta, substanceArchive } from "./substance.js";
 
 const trim = (value: number) => Number(value.toFixed(4));
 
@@ -72,18 +73,48 @@ export function graphText(graph: GraphDescription): string {
   return lines.join("\n");
 }
 
-/** What a Substance material was rendered with, as data. */
-export function describeRendering(asset: Pick<AssetView, "id" | "name" | "origin" | "kind" | "library">) {
+/** What a Substance material was rendered with, as data. `parent` is its substance as the library has it now
+ *  (undefined when it is gone or the material names none). */
+export function describeRendering(asset: Pick<AssetView, "id" | "name" | "origin" | "kind" | "library">, parent?: SubstanceAsset) {
   const found = renderedWith(asset);
   if ("reason" in found) return { id: asset.id, name: asset.name, library: asset.library, substance: false as const, reason: found.reason };
   const meta: SbsarMeta = found.meta;
+  const link = parentOf(asset);
+  const present = !!parent && isSubstance(parent);
   return {
     id: asset.id, name: asset.name, library: asset.library, substance: true as const,
     archive: meta.sbsar, graph: meta.graph, ...(meta.graphLabel ? { graphLabel: meta.graphLabel } : {}), preset: meta.preset,
     inputs: meta.inputs, size: meta.size, pixels: pixels(meta.size),
-    archiveStored: (asset.origin?.files ?? []).some((file) => file.replace(/\\/g, "/").split("/").pop() === meta.sbsar),
-    ...(meta.archiveHash ? { archiveHash: meta.archiveHash } : {}),
+    archiveStored: present && !!substanceArchive(parent),
+    madeFrom: "id" in link ? { id: link.id, ...(present ? { name: parent.name } : { missing: true as const }) } : { reason: link.reason },
   };
+}
+
+/** A substance as data: its archive, what is known of its graphs, and the materials made from it. */
+export function describeSubstance(asset: SubstanceAsset & Pick<AssetView, "library">, materials: Pick<AssetView, "id" | "name" | "origin">[]) {
+  const meta = readSubstanceMeta(asset.meta);
+  return {
+    id: asset.id, name: asset.name, library: asset.library, kind: "substance" as const,
+    archive: meta?.sbsar ?? null, archiveStored: !!substanceArchive(asset), ...(meta?.bytes !== undefined ? { bytes: meta.bytes } : {}),
+    ...(meta?.sha256 ? { sha256: meta.sha256 } : {}), ...(meta?.graphs ? { graphs: meta.graphs } : {}),
+    materials: materials.map((material) => {
+      const recorded = readMeta(material.origin?.meta);
+      return { id: material.id, name: material.name, preset: recorded?.preset ?? null, size: recorded?.size ?? null, pixels: recorded ? pixels(recorded.size) : null };
+    }).sort((a, b) => a.name.localeCompare(b.name)),
+  };
+}
+
+/** The text `tbx sbsar show` prints for one substance. */
+export function substanceText(item: ReturnType<typeof describeSubstance>): string {
+  const lines = [`${item.id}  ${item.name}  (substance)`];
+  lines.push(`  archive:    ${item.archive ?? "(none recorded)"}${item.archiveStored ? "" : " (not stored)"}${item.bytes !== undefined ? `, ${humanBytes(item.bytes)}` : ""}`);
+  for (const graph of item.graphs ?? []) {
+    lines.push(`  graph ${graph.index}:    ${graph.label}: ${graph.parameters} parameters; presets: ${graph.presets.join(", ") || "none"}; outputs: ${graph.outputs.join(", ") || "none"}`);
+  }
+  if (!item.graphs) lines.push("  graphs:     not recorded (import the archive again, or see: tbx sbsar inputs)");
+  lines.push(`  materials:  ${item.materials.length || "none"}`);
+  for (const material of item.materials) lines.push(`    ${material.name}  (${material.preset ?? "defaults"}${material.pixels ? `, ${material.pixels} px` : ""})  ${material.id}`);
+  return lines.join("\n");
 }
 
 /** The changed parameters as `name=value` text. */
@@ -97,7 +128,8 @@ export function renderingText(rendering: ReturnType<typeof describeRendering>): 
   if (!rendering.substance) return `${rendering.id}  ${rendering.name}\n  not a Substance material: ${rendering.reason}`;
   return [
     `${rendering.id}  ${rendering.name}`,
-    `  archive:    ${rendering.archive}${rendering.archiveStored ? "" : " (not stored with the material)"}`,
+    `  substance:  ${"reason" in rendering.madeFrom ? `none (${rendering.madeFrom.reason})` : "missing" in rendering.madeFrom ? `${rendering.madeFrom.id} (no longer in the library)` : `${rendering.madeFrom.name} (${rendering.madeFrom.id})`}`,
+    `  archive:    ${rendering.archive}${rendering.archiveStored ? "" : " (not stored)"}`,
     `  graph:      ${rendering.graph}${rendering.graphLabel ? ` (${rendering.graphLabel})` : ""}`,
     `  preset:     ${rendering.preset ?? "none"}`,
     `  parameters: ${inputsText(rendering.inputs)}${Object.keys(rendering.inputs).length ? " (changed from the preset or defaults)" : ""}`,

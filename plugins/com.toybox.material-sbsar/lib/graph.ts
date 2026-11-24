@@ -273,15 +273,14 @@ export const sizeOf = (value: unknown, fallback = 11): number => {
 
 /** What the plugin records on a material it made, to render it again. */
 export interface SbsarMeta {
-  /** File name of the archive, kept in the material's own folder. */
+  /** File name of the archive it was rendered from. The archive itself belongs to the material's substance
+   *  (`origin.derivedFrom`); this name is a record of which file that was. */
   sbsar: string;
   graph: number;
   preset: string | null;
   /** Values that differ from the preset (or from the defaults without one). */
   inputs: Values;
   size: number;
-  /** A fingerprint of the archive's content (see `fingerprint` in `archive.ts`), when it was recorded. */
-  archiveHash?: string;
   /** The label of the graph, when it is not the archive's first (the name of such a material says it). */
   graphLabel?: string;
 }
@@ -291,6 +290,20 @@ export function readMeta(meta: unknown): SbsarMeta | undefined {
   if (typeof value.sbsar !== "string" || !value.sbsar || /[\\/]/.test(value.sbsar)) return undefined;
   const inputs = Object.fromEntries(Object.entries(record(value.inputs)).filter((entry): entry is [string, Value] => isValue(entry[1])));
   return { sbsar: value.sbsar, graph: typeof value.graph === "number" ? value.graph : 0, preset: typeof value.preset === "string" ? value.preset : null, inputs, size: sizeOf(value.size),
-    ...(typeof value.archiveHash === "string" && value.archiveHash ? { archiveHash: value.archiveHash } : {}),
     ...(typeof value.graphLabel === "string" && value.graphLabel ? { graphLabel: value.graphLabel } : {}) };
+}
+
+/** The material a substance's thumbnail shows, of the items made from it: the one rendered from the first
+ *  graph without a preset or changed inputs, else the one with the fewest changed inputs (ties by name, then
+ *  id). Only materials rendered by this plugin (their `origin.meta` reads as one) count; undefined when none does. */
+export function defaultMaterial<T extends { id: string; name: string; kind: string; origin?: { meta?: unknown } }>(derived: readonly T[]): T | undefined {
+  const ranked = derived.flatMap((asset) => {
+    const meta = asset.kind === "material" ? readMeta(asset.origin?.meta) : undefined;
+    if (!meta) return [];
+    const changed = Object.keys(meta.inputs).length;
+    return [{ asset, pristine: meta.graph === 0 && meta.preset === null && changed === 0, changed }];
+  });
+  ranked.sort((a, b) => Number(b.pristine) - Number(a.pristine) || a.changed - b.changed
+    || a.asset.name.localeCompare(b.asset.name) || (a.asset.id < b.asset.id ? -1 : a.asset.id > b.asset.id ? 1 : 0));
+  return ranked[0]?.asset;
 }

@@ -4,7 +4,8 @@
 // writes under an authorized root, nothing may escape its root), the extension
 // table of the loaded modules, and `commit` that records what would be committed.
 
-import { cpSync, copyFileSync, existsSync, mkdirSync, mkdtempSync, readFileSync, readdirSync, rmSync, writeFileSync } from "node:fs";
+import { createHash } from "node:crypto";
+import { cpSync, copyFileSync, existsSync, mkdirSync, mkdtempSync, readFileSync, readdirSync, rmSync, statSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import { pathToFileURL } from "node:url";
@@ -68,6 +69,8 @@ export function createFs() {
       }));
     },
     async readBytes(root, p) { return new Uint8Array(readFileSync(jail(root, p))); },
+    async hashFile(root, p) { return createHash("sha256").update(readFileSync(jail(root, p))).digest("hex"); },
+    async fileSize(root, p) { return statSync(jail(root, p)).size; },
     async readImageThumb() { throw new Error("no image support in tests"); },
     async copyFile(sourceRoot, p, authorizedRoot, target) {
       const to = jail(authorizedRoot, target);
@@ -113,6 +116,10 @@ export async function loadPlugins(ids, env) {
   const host = {
     getLibraryRoot: async () => env.libraryRoot,
     getSelectedAssets: () => [], getAsset: () => undefined, getSelectedAssetsAsync: async () => [], getAssetAsync: async (id) => library.get(id),
+    getDerivedAssets: async (id) => [...library.values()].filter((asset) => asset.origin?.derivedFrom === id),
+    openAsset: () => {},
+    /** The pretend library is local: its files are always there. */
+    ensureAssetFiles: async () => {},
     convertToGltf: async () => { throw new Error("no converter"); },
     pickDirectory: fs.pickDirectory, pickSaveFile: fs.pickSaveFile,
   };
@@ -149,7 +156,9 @@ export async function loadPlugins(ids, env) {
     ...extra,
   });
   return {
-    plugins, committed, logs, warnings, printed, fs, lookup, library,
+    plugins, committed, logs, warnings, printed, fs, lookup, library, host,
+    /** `run.commit` of a run of `pluginId`. */
+    commit: (pluginId, entries) => base(pluginId).commit(entries),
     /** `tbx import <name> <paths> [--option ...]`. */
     async runImporter(pluginId, name, paths, options = {}) {
       const { manifest, module } = plugins.get(pluginId);
@@ -182,23 +191,40 @@ export function defaultServices(over = {}) {
 }
 
 /**
- * What the host does with a committed material entry: move the staged folder
- * `library/<pack>/materials/<name>/` to `library/materials/<key>/`, replace an item of the same id (its old
- * folder goes, its tags and other user data stay) and list the files as library-relative paths in `origin.files`.
+ * What the host does with a committed material or plugin-type entry: move the staged folder
+ * (`library/<pack>/materials/<name>/`, `library/<pack>/<type>/<name>/`) to managed storage (`library/materials/<key>/`,
+ * `library/<type>/<key>/`), replace an item of the same id (its old folder goes, its tags and other user data stay)
+ * and list the files as library-relative paths (a material's in `origin.files`, a plugin item's in `files`).
+ * `origin.derivedFrom` and `format` are kept as given.
  */
 function storeEntry(libraryRoot, library, pluginId, entry) {
   const key = entry.id.replace(/[^a-z0-9]/gi, "");
-  const staged = path.join(libraryRoot, "library", entry.pack, "materials", entry.name);
-  const final = path.join(libraryRoot, "library", "materials", key);
+  const folder = entry.kind === "plugin" ? entry.type : "materials";
+  const staged = path.join(libraryRoot, "library", entry.pack, folder, entry.name);
+  const final = path.join(libraryRoot, "library", folder, key);
   const before = library.get(entry.id);
   if (before) rmSync(path.join(libraryRoot, path.dirname(before.relPath)), { recursive: true, force: true });
   mkdirSync(path.dirname(final), { recursive: true });
   cpSync(staged, final, { recursive: true });
   rmSync(staged, { recursive: true, force: true });
-  library.set(entry.id, {
-    kind: "material", id: entry.id, library: "lib-1", name: entry.name, category: entry.category, pack: "imported", fileName: entry.maps[0].file, relPath: `library/materials/${key}/${entry.maps[0].file}`,
-    origin: { plugin: pluginId, files: (entry.origin?.files ?? []).map((file) => `library/materials/${key}/${file}`), meta: entry.origin?.meta },
+  const stored = (file) => `library/${folder}/${key}/${file}`;
+  const derivedFrom = entry.origin?.derivedFrom ? { derivedFrom: entry.origin.derivedFrom } : {};
+  const common = {
+    id: entry.id, library: "lib-1", name: entry.name, category: entry.category, pack: "imported",
+    ...(entry.format ? { format: entry.format } : {}),
     user: before?.user ?? { favorite: false, tags: [], provenance: entry.provenance },
+  };
+  if (entry.kind === "plugin") {
+    library.set(entry.id, {
+      ...common, kind: "plugin", type: entry.type, fileName: entry.files[0], relPath: stored(entry.files[0]),
+      files: entry.files.map(stored), meta: entry.meta ?? {},
+      origin: { plugin: pluginId, ...(entry.origin?.meta ? { meta: entry.origin.meta } : {}), ...derivedFrom },
+    });
+    return;
+  }
+  library.set(entry.id, {
+    ...common, kind: "material", fileName: entry.maps[0].file, relPath: stored(entry.maps[0].file),
+    origin: { plugin: pluginId, files: (entry.origin?.files ?? []).map(stored), meta: entry.origin?.meta, ...derivedFrom },
     material: { maps: entry.maps, flipNormalGreen: false },
   });
 }

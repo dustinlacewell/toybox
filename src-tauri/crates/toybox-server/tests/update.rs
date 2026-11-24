@@ -520,7 +520,7 @@ fn migrate_check_and_snapshot_list_work_on_a_fresh_data_folder_and_change_nothin
     let (status, json, _) = run_server(&["migrate", "--check", "--json", "--data", &data_text], None);
     assert_eq!(status, 0);
     let report: serde_json::Value = serde_json::from_str(&json).unwrap();
-    assert_eq!(report["latestVersion"], 5);
+    assert_eq!(report["latestVersion"], 6);
     let (status, out, _) = run_server(&["snapshot", "list", "--data", &data_text], None);
     assert_eq!(status, 0);
     assert!(out.contains("No snapshots"), "{out}");

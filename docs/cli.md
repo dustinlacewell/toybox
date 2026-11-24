@@ -159,7 +159,7 @@ so they are not selection filters there.
 | Command | Does |
 | --- | --- |
 | `tbx library list` | Registered libraries: id, name, kind, location, default, state. |
-| `tbx library info [LIBRARY]` | One library: counts by type, revision, size of its files, how many kept source files it stores once and how many bytes that sharing saves (and what converting the library to the shared layout freed), for a remote the server, role and cache size. |
+| `tbx library info [LIBRARY]` | One library: counts by type, revision, size of its files, how many kept source files it stores once and how many bytes that sharing saves (and what converting the library to the shared layout freed), what making Substance archives assets of their own did (substances made, materials linked, bytes moved, archives that could not be converted), for a remote the server, role and cache size. |
 | `tbx library create <DIR> [--name NAME] [--default]` | Make a new library folder and register it. |
 | `tbx library add <DIR> [--name NAME] [--default]` | Register an existing library folder. |
 | `tbx library connect <URL> [--name NAME] [--token-stdin]` | Register a library served by `toybox-server`. |
@@ -168,7 +168,7 @@ so they are not selection filters there.
 | `tbx library default <LIBRARY>` | |
 | `tbx library remove <LIBRARY>` | Forget a library. Its files stay where they are (for a remote library its token and downloaded files go; the server is untouched). `--dry-run` prints what would happen. |
 | `tbx library scan [LIBRARY]` | Local: rebuild the index from the manifest and the files. Remote: fetch what changed on the server. |
-| `tbx library check [LIBRARY] [--fix]` | Verify the database and that every item's files exist, and that each kept source file (stored by content) still is what its name says. Exit `4` when something is wrong. Stored source files no item uses are reported (not an error); `--fix` removes them and changes nothing else. A local library with library-format migrations this version would run on opening gets a line saying so (`pendingMigrations` in JSON; the details are `toybox-server migrate --check`). `tbx library info` shows the same, and for a remote library the server's version, the oldest Toybox it serves and the version sentence (`remote.serverVersion`, `minClientVersion`, `compat`, `compatMessage`). |
+| `tbx library check [LIBRARY] [--fix]` | Verify the database and that every item's files exist, and that each kept source file (stored by content) still is what its name says. Exit `4` when something is wrong. Stored source files no item uses are reported (not an error); `--fix` removes them and changes nothing else. An item made from an asset that is no longer in the library (`origin.derivedFrom`) is a note (`note: …`), not a problem. A local library with library-format migrations this version would run on opening gets a line saying so (`pendingMigrations` in JSON; the details are `toybox-server migrate --check`). `tbx library info` shows the same, and for a remote library the server's version, the oldest Toybox it serves and the version sentence (`remote.serverVersion`, `minClientVersion`, `compat`, `compatMessage`). |
 | `tbx library cache size\|clear [LIBRARY]` | The downloaded files of a remote library. |
 | `tbx library token list [LIBRARY]` | Access tokens of a remote library (needs an admin token). |
 | `tbx library token create --name NAME --role read\|write\|admin [LIBRARY]` | Make a token; its secret is printed once, alone, on standard output. |
@@ -180,7 +180,7 @@ so they are not selection filters there.
 | --- | --- |
 | `tbx search [TEXT] [FILTER] [--sort name] [--desc] [--limit N] [--offset N] [--include-hidden] [--ids]` | List matching items, over every library (the same item in several is listed once, from the best-ranked library: the default first). Default limit 50. `--ids` prints only ids, one per line, for piping. Without `--type` every type is searched (the query runs per type and the pages are merged by name). Items whose plugin is off are hidden, as in the app, unless `--include-hidden`. Columns: [library, when more than one library is registered,] id, type, name, category, source, tags. When nothing matches, `No items match.` is printed on standard error. |
 | `tbx count [TEXT] [FILTER] [--include-hidden]` | How many match. |
-| `tbx show <ID>...` | Everything about items: names, type, tags, details, files with sizes, the source files kept with each (listed apart: other items may keep the same one), variants, where they came from. Takes a selection. |
+| `tbx show <ID>...` | Everything about items: names, type, tags, details, files with sizes, the source files kept with each (listed apart: other items may keep the same one), variants, where they came from, what each was made from (`made from`) and how many assets were made from it (`used by`). Takes a selection. |
 | `tbx path <ID>... [--all]` | The absolute path of each item's main file (`--all`: every file). Files of a remote library are downloaded first. Takes a selection. |
 | `tbx types` | The asset types with their counts and the plugin that declares each; `off` marks a type whose plugin is off. |
 | `tbx facets --type <TYPE> [--tags N]` | The values that can be filtered on, with counts: sources, publishers, licenses, formats, categories, tags. Default 20 tags. |
@@ -384,11 +384,11 @@ the item as the app has it (`id`, `name`, `kind`, `category`, `tags`, `user`, `o
 | `status` | `{paths:{appData, cache, settings, plugins, exists}, libraries:[Library], plugins:{on[], off[], blocked[]}, problems[]}` |
 | `help --all` | `{commands:[{command, summary, plugin?}]}` (`command` as typed after `tbx`) |
 | `library list` | `{libraries:[Library]}` where a *Library* is `{id, name, kind: local\|remote, location, default, state: ok\|missing\|read-only\|offline\|unreachable, canWrite, items?}` |
-| `library info` | a *Library* plus `{items, revision, types:[{id, count}], files?, bytes?, sources?:{files, bytes, savedBytes, migration?:{items, bytesFreed, skipped}}, remote?:{url, serverName, role, offline, cacheBytes}}` (`files`, `bytes` and `sources` for a local library; `sources` counts the kept source files stored once, with the bytes sharing saves) |
+| `library info` | a *Library* plus `{items, revision, types:[{id, count}], files?, bytes?, sources?:{files, bytes, savedBytes, migration?:{items, bytesFreed, skipped}}, substances?:{substances, materials, archivesMoved, bytesMoved, skipped}, remote?:{url, serverName, role, offline, cacheBytes}}` (`files`, `bytes` and `sources` for a local library; `sources` counts the kept source files stored once, with the bytes sharing saves) |
 | `library create\|add\|connect\|login\|rename\|default` | `{library: Library}` |
 | `library remove` | `{removed: Library, dryRun}` |
 | `library scan` | `{library, items, revision}` |
-| `library check` | `{library, ok, items, filesChecked, problems:[{item?, message}], orphanSources[], removedSources[]}`; exit `4` when `ok` is false (an orphan source is not a problem) |
+| `library check` | `{library, ok, items, filesChecked, problems:[{item?, message}], notes?:[{item?, message}], orphanSources[], removedSources[]}`; exit `4` when `ok` is false (an orphan source is not a problem) |
 | `library cache size` / `clear` | `{library, bytes}` / `{library, freedBytes}` |
 | `library token list` | `{tokens:[{id, name, role, createdAt, lastUsedAt?}]}` |
 | `library token create` | `{id, name, role, createdAt, token}` (the secret appears only here) |
