@@ -1,0 +1,13 @@
+/* Above the page's floating panels and dialogs (60); below toasts (80). */
+.ds-context-menu { position: fixed; z-index: 70; min-width: 220px; max-width: 320px; padding: 4px; background: var(--floating-surface); backdrop-filter: blur(16px); border: 1px solid var(--border-strong); border-radius: var(--radius-1); box-shadow: 0 16px 40px -12px #000; font-size: var(--fs-md); color: var(--text-1); cursor: default; user-select: none; outline: none; animation: ds-context-menu-open 80ms ease-out; }
+.ds-context-menu__heading { padding: 6px 8px 4px; font-size: var(--fs-sm); color: var(--text-2); overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
+.ds-context-menu__separator { height: 1px; margin: 4px 0; background: var(--border); }
+.ds-context-menu__item { display: flex; align-items: center; gap: 8px; min-height: 30px; padding: 4px 8px; border-radius: calc(var(--radius-1) - 2px); outline: none; }
+.ds-context-menu__item.is-active { background: var(--bg-3); color: var(--text-0); }
+.ds-context-menu__item.is-danger { color: var(--danger); }
+.ds-context-menu__item[aria-disabled="true"] { color: var(--text-2); }
+.ds-context-menu__icon { width: 16px; flex: none; display: grid; place-items: center; }
+.ds-context-menu__label { flex: 1; min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.ds-context-menu__reason { flex: none; font-size: var(--fs-sm); color: var(--text-2); }
+@keyframes ds-context-menu-open { from { opacity: 0; transform: scale(.97); } }
+@media (prefers-reduced-motion: reduce) { .ds-context-menu { animation: none; } }

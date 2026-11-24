@@ -39,6 +39,8 @@ export async function derivedAssets(parentId: string): Promise<Asset[]> {
   const filter: BrowseFilter = {
     kind: "", libraries: [parent.library], sources: [], publishers: [], licenses: [], formats: [], categories: [], tags: [],
     favoritesOnly: false, collection: null, text: "", visibility: usePlugins.getState().rules, derivedFrom: parent.id,
+    exclude: { sources: [], publishers: [], licenses: [], formats: [], categories: [], tags: [] }, tagsAny: false, ranges: [],
+    sort: { key: "name", descending: false },
   };
   return collectDerived(async (offset, limit) => (await queryAssets(filter, offset, limit)).assets, parentId, DERIVED_PAGE);
 }

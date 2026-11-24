@@ -58,12 +58,48 @@ possible type by type; nothing in the contract prevents it.
 - `label` / `singular` — navigation label and noun.
 - `icon` — plugin-relative artwork for the navigation.
 - `order` — navigation position; the native types use 10–40.
+- `properties` — numbers of the type's assets that the library can sort by and
+  filter on with a range (see below).
 - `tileAspectRatio` — width ÷ height of library tiles (default 1).
 - `implementation` — `"native"` only for a built-in kind.
 
 A plugin works with the types it declares unless `assetKinds` says otherwise.
 If two plugins declare one id, the first by plugin id owns it and the other is
 reported as a plugin error.
+
+## Properties: sorting and range filters
+
+A type lists the numbers of its assets that are worth sorting by or narrowing
+to a range. The library reads each one straight from the stored asset record,
+so a property is a path, not code, and works in the app, over a remote library
+and for items whose plugin is not loaded:
+
+```json
+"assetTypes": [
+  { "id": "skybox", "label": "Skyboxes",
+    "properties": [
+      { "id": "width", "label": "Width", "path": "meta.width", "unit": "px" },
+      { "id": "exposure", "label": "Exposure", "path": "meta.exposure", "use": ["range"] }
+    ] }
+]
+```
+
+- `id` — lower-case letters, digits and dashes, unique within the type.
+- `label` — shown in the sort menu and the filter pane; `unit` is written after
+  the numbers.
+- `path` — dotted path to a number in the asset record: `meta.<field>` for a
+  plugin type (whatever the importer put in `meta`), the host's own fields for a
+  native type (`audio.duration`, `clip.duration`, `animation.clipCount`). Words
+  of letters, digits and `_`; anything else is reported as a plugin problem and
+  left out.
+- `use` — `sort`, `range` or both (the default).
+
+Sorting by a property puts the items without it last; a range leaves them out, and leaves out a value that is not a number.
+A native type redeclared without `properties` keeps the host's list (Models:
+animation clips; Animations: length; Audio: duration, sample rate, channels).
+The sort and the ranges are part of the list query (`sort.key` is
+`prop:<path>`, `ranges` holds `{ path, min, max }`), so a plugin type gets them
+with no code of its own.
 
 ## Implementing a type
 

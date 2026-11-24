@@ -14,8 +14,19 @@ presentation resources, such as loading an image or maintaining an element ref.
   Its optional `onPreviewHoverChange` emits pointer intent without loading or
   owning playback. Generic preview action and aspect-ratio props remain separate
   from application asset types.
+  Its optional `onContextMenu` emits the point a context menu opens at (the tile's
+  centre when opened from the keyboard) and suppresses the browser's own menu.
+- `ContextMenu` receives a point, heading/separator/item entries, and pick and close
+  callbacks. It places itself inside the viewport, owns the keyboard and the active
+  row, and asks to close on an outside press, scroll, resize or window blur.
 - `ThumbnailStrip` receives generic options, a value, and `onChange`.
 - `PropertyRow` receives a label, value, and optional action.
+- `Field` receives a label and shows its children as the value under it.
+- `Chip` receives a label, a tone, and optional press and remove callbacks. The press
+  callback gets the mouse event, so its owner can read modifier keys.
+- `SuggestionList` receives rows, the active row, and pick and hover callbacks. It
+  keeps the focus in its owner's text field. `useActiveRow` holds the active row
+  and moves it with the arrow keys.
 - `Segmented`, `Select`, `Checkbox`, and `TextInput` are controlled inputs.
 - `Slider` is a controlled labelled range with a number box. It emits `onChange`
   continuously while dragging and `onCommit` once a change is finished.

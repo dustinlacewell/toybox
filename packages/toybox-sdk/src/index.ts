@@ -195,7 +195,32 @@ export interface AssetTypeDeclaration {
   tileAspectRatio?: number;
   /** Position in the navigation; lower first. Defaults to 100. */
   order?: number;
+  /** Numbers of the type's assets the library can sort by and filter on with a
+   *  range. Absent keeps the host's own list for a native type, and none for a
+   *  plugin type. */
+  properties?: AssetTypePropertyDeclaration[];
 }
+
+/** A number in the type's stored asset record, offered in the library's sort
+ *  menu and as a range filter. The library reads it from the record itself, so
+ *  it needs no code, only a path. */
+export interface AssetTypePropertyDeclaration {
+  /** Stable id within the type: lower-case letters, digits and dashes. */
+  id: string;
+  /** Shown in the sort menu and the filter pane, e.g. `Duration`. */
+  label: string;
+  /** Dotted path to a number in the asset record: `audio.duration`,
+   *  `clip.duration`, or for a plugin type `meta.width` (what `meta` holds is
+   *  the plugin's). Words of letters, digits and `_`. */
+  path: string;
+  /** Written after the numbers, e.g. `s` or `px`. */
+  unit?: string;
+  /** Where it is offered: `sort`, `range`, or both (the default). */
+  use?: ("sort" | "range")[];
+}
+
+/** What `AssetTypePropertyDeclaration.path` must look like. */
+export const ASSET_PROPERTY_PATH = /^[A-Za-z_][A-Za-z0-9_]*(\.[A-Za-z_][A-Za-z0-9_]*)*$/;
 
 /** What a plugin folder's `manifest.json` declares. */
 export interface PluginManifest {

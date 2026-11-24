@@ -10,8 +10,37 @@
  * the matching default. Pure: no React, three or tauri imports.
  */
 
-import type { AssetTypeDeclaration, AssetTypeImplementation } from "@ldlework/toybox-sdk";
+import type { AssetTypeDeclaration, AssetTypeImplementation, AssetTypePropertyDeclaration } from "@ldlework/toybox-sdk";
 import type { AssetKind, BuiltinKind } from "../domain/catalog";
+
+/** A number of a type's assets the library sorts by and filters on (see `AssetTypePropertyDeclaration`). */
+export interface AssetTypeProperty {
+  id: string;
+  label: string;
+  /** Dotted path into the stored asset record. */
+  path: string;
+  unit?: string;
+  sort: boolean;
+  range: boolean;
+}
+
+// Kept local (the SDK's `ASSET_PROPERTY_PATH`): this module has no runtime imports. The backend checks the same shape.
+const PROPERTY_PATH = /^[A-Za-z_][A-Za-z0-9_]*(\.[A-Za-z_][A-Za-z0-9_]*)*$/;
+const PROPERTY_ID = /^[a-z][a-z0-9-]{0,31}$/;
+
+/** The declared properties that are well formed (others are reported), each id once. */
+export function typeProperties(declared: AssetTypePropertyDeclaration[] | undefined, report: (message: string) => void = () => undefined): AssetTypeProperty[] {
+  const out: AssetTypeProperty[] = [];
+  for (const property of Array.isArray(declared) ? declared : []) {
+    if (!property || typeof property.id !== "string" || !PROPERTY_ID.test(property.id)) { report(`a property needs an id of lower-case letters, digits and dashes`); continue; }
+    if (typeof property.label !== "string" || !property.label.trim()) { report(`property '${property.id}' needs a label`); continue; }
+    if (typeof property.path !== "string" || property.path.length > 64 || !PROPERTY_PATH.test(property.path)) { report(`property '${property.id}' has no valid path (like "meta.width")`); continue; }
+    if (out.some((known) => known.id === property.id)) { report(`property '${property.id}' is declared twice`); continue; }
+    const use = Array.isArray(property.use) && property.use.length ? property.use : ["sort", "range"];
+    out.push({ id: property.id, label: property.label.trim(), path: property.path, unit: typeof property.unit === "string" && property.unit.trim() ? property.unit.trim() : undefined, sort: use.includes("sort"), range: use.includes("range") });
+  }
+  return out;
+}
 
 export interface AssetTypeEntry {
   id: AssetKind;
@@ -25,6 +54,8 @@ export interface AssetTypeEntry {
   icon?: string;
   tileAspectRatio: number;
   order: number;
+  /** Numbers the library sorts by and filters on. */
+  properties: AssetTypeProperty[];
   /** Loaded implementation of a plugin type. */
   implementation?: AssetTypeImplementation;
 }
@@ -36,10 +67,14 @@ const TYPE_ID = /^[a-z][a-z0-9-]{1,31}$/;
 const RESERVED = new Set<string>([...NATIVE_KINDS, "plugin", "models", "materials", "animations"]);
 
 const DEFAULTS: AssetTypeEntry[] = [
-  { id: "model", label: "Models", singular: "Model", native: true, tileAspectRatio: 1, order: 10 },
-  { id: "material", label: "Materials", singular: "Material", native: true, tileAspectRatio: 1, order: 20 },
-  { id: "animation", label: "Animations", singular: "Animation", native: true, tileAspectRatio: 1, order: 30 },
-  { id: "audio", label: "Audio", singular: "Audio", native: true, tileAspectRatio: 2, order: 40 },
+  { id: "model", label: "Models", singular: "Model", native: true, tileAspectRatio: 1, order: 10, properties: typeProperties([{ id: "clips", label: "Animation clips", path: "animation.clipCount" }]) },
+  { id: "material", label: "Materials", singular: "Material", native: true, tileAspectRatio: 1, order: 20, properties: [] },
+  { id: "animation", label: "Animations", singular: "Animation", native: true, tileAspectRatio: 1, order: 30, properties: typeProperties([{ id: "length", label: "Length", path: "clip.duration", unit: "s" }]) },
+  { id: "audio", label: "Audio", singular: "Audio", native: true, tileAspectRatio: 2, order: 40, properties: typeProperties([
+    { id: "duration", label: "Duration", path: "audio.duration", unit: "s" },
+    { id: "sample-rate", label: "Sample rate", path: "audio.sampleRate", unit: "Hz" },
+    { id: "channels", label: "Channels", path: "audio.channels" },
+  ]) },
 ];
 
 export const isNativeKind = (id: string): id is BuiltinKind => (NATIVE_KINDS as readonly string[]).includes(id);
@@ -86,6 +121,7 @@ export function buildAssetTypes(declared: DeclaredTypes[], hidden: Iterable<stri
         icon: declaration.icon,
         tileAspectRatio: positive(declaration.tileAspectRatio) ?? existing?.tileAspectRatio ?? 1,
         order: Number.isFinite(declaration.order) ? Number(declaration.order) : existing?.order ?? 100,
+        properties: declaration.properties === undefined ? existing?.properties ?? [] : typeProperties(declaration.properties, (message) => problems.push({ pluginId, message: `type '${declaration.id}': ${message}` })),
         implementation: native ? undefined : implementations?.[declaration.id],
       });
     }
@@ -204,7 +240,7 @@ export function pluginVisibility(plugins: VisibilitySource[]): PluginVisibility 
  *  list, filter and export. */
 export function unknownAssetType(id: string): AssetTypeEntry {
   const label = id.charAt(0).toUpperCase() + id.slice(1);
-  return { id, label, singular: label, native: false, tileAspectRatio: 1, order: 1000 };
+  return { id, label, singular: label, native: false, tileAspectRatio: 1, order: 1000, properties: [] };
 }
 
 /** Registered types, plus a stand-in for every type that has assets but no

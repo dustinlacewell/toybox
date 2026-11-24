@@ -3,7 +3,12 @@
   "name": "Audio",
   "version": "2.0.0",
   "assetTypes": [
-    { "id": "audio", "label": "Audio", "singular": "Sound", "icon": "icons/audio.svg", "implementation": "native", "tileAspectRatio": 2, "order": 40 }
+    { "id": "audio", "label": "Audio", "singular": "Sound", "icon": "icons/audio.svg", "implementation": "native", "tileAspectRatio": 2, "order": 40,
+      "properties": [
+        { "id": "duration", "label": "Duration", "path": "audio.duration", "unit": "s" },
+        { "id": "sample-rate", "label": "Sample rate", "path": "audio.sampleRate", "unit": "Hz" },
+        { "id": "channels", "label": "Channels", "path": "audio.channels" }
+      ] }
   ],
   "icon": "icons/audio.svg",
   "description": "The Audio type of the library and its importer: import WAV, MP3, Ogg Vorbis and FLAC files with waveforms and audio metadata.",

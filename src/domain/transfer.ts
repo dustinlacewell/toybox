@@ -210,3 +210,8 @@ export function readOnlyNotice(action: string, blockers: readonly { library: Lib
   if (!blockers.length) return undefined;
   return `Cannot ${action}: ${blockers.map(({ library, reason }) => `${library.name} (${reason})`).join(", ")}.`;
 }
+
+/** Why `assets` cannot be deleted (a library they belong to cannot be written), or undefined when they can. */
+export function deleteBlocker(libraries: readonly LibraryInfo[], assets: readonly Pick<Asset, "library">[]): string | undefined {
+  return readOnlyNotice("delete", readOnlyOwners(libraries, assets));
+}

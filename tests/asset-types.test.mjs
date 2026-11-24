@@ -9,7 +9,7 @@ function moduleUrl(file, replacements = {}) {
   for (const [from, to] of Object.entries(replacements)) outputText = outputText.replaceAll(`from "${from}"`, `from ${JSON.stringify(to)}`);
   return `data:text/javascript;base64,${Buffer.from(outputText).toString("base64")}`;
 }
-const { buildAssetTypes, defaultAssetTypes, withAssetTypesInUse, declarationProblem, disabledAssetTypes, pluginVisibility, replacementsOf, resolveExporterId } = await import(moduleUrl("../src/services/assetTypes.ts"));
+const { buildAssetTypes, defaultAssetTypes, withAssetTypesInUse, declarationProblem, disabledAssetTypes, pluginVisibility, replacementsOf, resolveExporterId, typeProperties } = await import(moduleUrl("../src/services/assetTypes.ts"));
 const { pluginKinds, acceptsKind } = await import(moduleUrl("../src/services/pluginKinds.ts"));
 const stubAssetUrl = `data:text/javascript,${encodeURIComponent('export const assetUrl=async(library,path)=>"asset://"+library+"/"+path;')}`;
 const { resolveAssetFile } = await import(moduleUrl("../src/services/pluginAssetFiles.ts", { "./assetUrl": stubAssetUrl }));
@@ -244,4 +244,37 @@ test("a saved export that names a retired exporter follows the one plugin that t
   assert.equal(resolveExporterId(exporters, ""), "");
   // An installed exporter keeps its own id even when another one lists it as replaced.
   assert.equal(resolveExporterId([{ id: "x" }, { id: "y", replaces: ["x"] }], "x"), "x");
+});
+
+test("a type declares the numbers the library sorts and filters by", () => {
+  const { types, problems } = buildAssetTypes([
+    { pluginId: "com.example.skies", declarations: [{ id: "skybox", label: "Skyboxes", properties: [
+      { id: "width", label: "Width", path: "meta.width", unit: "px" },
+      { id: "exposure", label: "Exposure", path: "meta.exposure", use: ["range"] },
+      { id: "bad path", label: "Nope", path: "meta.width" },
+      { id: "evil", label: "Evil", path: "meta.width') OR 1=1 --" },
+      { id: "width", label: "Again", path: "meta.w" },
+    ] }] },
+    { pluginId: "com.example.audio", declarations: [{ id: "audio", label: "Sounds", implementation: "native" }] },
+  ]);
+  const sky = types.find((type) => type.id === "skybox");
+  assert.deepEqual(sky.properties, [
+    { id: "width", label: "Width", path: "meta.width", unit: "px", sort: true, range: true },
+    { id: "exposure", label: "Exposure", path: "meta.exposure", unit: undefined, sort: false, range: true },
+  ]);
+  assert.equal(problems.length, 3);
+  assert.ok(problems.every((problem) => problem.pluginId === "com.example.skies" && problem.message.startsWith("type 'skybox':")));
+  // A native type redeclared without properties keeps the host's list.
+  assert.deepEqual(types.find((type) => type.id === "audio").properties.map((property) => property.path), ["audio.duration", "audio.sampleRate", "audio.channels"]);
+  assert.deepEqual(typeProperties(undefined), []);
+});
+
+test("the bundled plugins declare paths of their own records", () => {
+  for (const plugin of ["skybox-core", "audio-core", "animation-core", "model-core"]) {
+    const manifest = JSON.parse(readFileSync(new URL(`../plugins/com.toybox.${plugin}/manifest.json`, import.meta.url), "utf8"));
+    const problems = [];
+    const properties = typeProperties(manifest.assetTypes[0].properties, (message) => problems.push(message));
+    assert.deepEqual(problems, [], plugin);
+    assert.ok(properties.length > 0, plugin);
+  }
 });

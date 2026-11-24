@@ -23,7 +23,11 @@ export function DragSurface({children,onDrag,onSecondaryDrag}:{children:ReactNod
       current.dragged=true;(current.button===2?onSecondaryDrag:onDrag)?.(event.clientX-current.x,event.clientY-current.y);current.x=event.clientX;current.y=event.clientY;
     }}
     onPointerUp={event=>finish(event)} onPointerCancel={event=>finish(event,true)} onLostPointerCapture={event=>finish(event,true)}
-    onContextMenu={event=>{if(onSecondaryDrag){event.preventDefault();event.stopPropagation();}}}
+    onContextMenu={event=>{
+      // A secondary drag ends in a context-menu event that belongs to the drag; a plain right-click is the owner's.
+      if(!onSecondaryDrag)return;
+      event.preventDefault();if(performance.now()-lastDrag.current<400)event.stopPropagation();
+    }}
     onClickCapture={event=>{const suppress=suppressClick.current;suppressClick.current=false;if(suppress&&event.detail!==0){event.preventDefault();event.stopPropagation();}}}
     onDoubleClickCapture={event=>{if(performance.now()-lastDrag.current<400){event.preventDefault();event.stopPropagation();}}}>
     {children}

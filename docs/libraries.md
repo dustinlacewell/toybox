@@ -213,7 +213,7 @@ optional `library?: { id, name }`.
 ## Transferring
 
 Items can be copied or moved from one library to another. Select them, then use
-**Copy to library…** or **Move to library…** (selection bar; the inspector has
+**Copy to library…** or **Move to library…** (a tile's right-click menu; the inspector has
 the same two buttons for the item it shows). Both appear only when more than one
 library is registered. The dialog asks for the target library (writable ones,
 without the source when the selection comes from one library), what to do with an
@@ -581,7 +581,7 @@ button, and one field, "Add a tag". Adding or removing a tag saves it in the lib
 that holds the asset (a remote library through its server) and the chips update from the
 answer; nothing is rescanned. There is no choice of where a tag goes.
 
-Several assets selected: the selection bar has **Tag…**. The dialog takes tags to add
+Several assets selected: a selected tile's right-click menu has **Tag…**. The dialog takes tags to add
 (separated by commas) and lists the tags present on the selection with how many of the
 selected assets have each (**all**, or "3 of 8"); **Remove from all** marks one for
 removal. **Apply** saves the whole change, with a progress bar for a large selection,
