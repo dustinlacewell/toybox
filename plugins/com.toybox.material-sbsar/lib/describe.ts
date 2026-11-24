@@ -99,7 +99,7 @@ export function describeSubstance(asset: SubstanceAsset & Pick<AssetView, "libra
     ...(meta?.sha256 ? { sha256: meta.sha256 } : {}), ...(meta?.graphs ? { graphs: meta.graphs } : {}),
     materials: materials.map((material) => {
       const recorded = readMeta(material.origin?.meta);
-      return { id: material.id, name: material.name, preset: recorded?.preset ?? null, size: recorded?.size ?? null, pixels: recorded ? pixels(recorded.size) : null };
+      return { id: material.id, name: material.name, preset: recorded?.preset ?? null, inputs: recorded?.inputs ?? {}, size: recorded?.size ?? null, pixels: recorded ? pixels(recorded.size) : null };
     }).sort((a, b) => a.name.localeCompare(b.name)),
   };
 }
@@ -113,7 +113,7 @@ export function substanceText(item: ReturnType<typeof describeSubstance>): strin
   }
   if (!item.graphs) lines.push("  graphs:     not recorded (import the archive again, or see: tbx sbsar inputs)");
   lines.push(`  materials:  ${item.materials.length || "none"}`);
-  for (const material of item.materials) lines.push(`    ${material.name}  (${material.preset ?? "defaults"}${material.pixels ? `, ${material.pixels} px` : ""})  ${material.id}`);
+  for (const material of item.materials) lines.push(`    ${material.name}  (${material.preset ? `preset ${material.preset}` : "defaults"}${Object.keys(material.inputs).length ? `, ${inputsText(material.inputs as never)}` : ""}${material.pixels ? `, ${material.pixels} px` : ""})  ${material.id}`);
   return lines.join("\n");
 }
 

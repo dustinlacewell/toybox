@@ -637,8 +637,8 @@ test("tbx sbsar show tells how materials were made, and what a substance holds",
     id: TILES, name: "tiles", library: "lib-1", kind: "substance", archive: "tiles.sbsar", archiveStored: true, bytes: 11, sha256: sha256(enc("archive one")),
     graphs: [{ index: 0, label: "Tiles", presets: ["Green", "Blue"], parameters: 5, outputs: ["baseColor", "normal", "roughness"] }], materials: undefined,
   });
-  assert.deepEqual(shown.items[2].materials, [{ id: made.id, name: "tiles", preset: "Green", size: 9, pixels: 512 }]);
-  assert.match(made.host.printed[2], /\(substance\)\n {2}archive: {4}tiles\.sbsar, 11 bytes\n {2}graph 0: {4}Tiles: 5 parameters; presets: Green, Blue[^]*materials: {2}1\n {4}tiles {2}\(Green, 512 px\)/);
+  assert.deepEqual(shown.items[2].materials, [{ id: made.id, name: "tiles", preset: "Green", inputs: { count: 9 }, size: 9, pixels: 512 }]);
+  assert.match(made.host.printed[2], /\(substance\)\n {2}archive: {4}tiles\.sbsar, 11 bytes\n {2}graph 0: {4}Tiles: 5 parameters; presets: Green, Blue[^]*materials: {2}1\n {4}tiles {2}\(preset Green, count=9, 512 px\)/);
   // A material whose substance is gone says so.
   made.host.library.delete(TILES);
   const orphan = await made.host.runCommand(ID, "sbsar show", {}, {}, [made.id]);
