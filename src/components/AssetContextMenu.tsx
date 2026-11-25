@@ -9,7 +9,8 @@ import { libraryOf } from "../domain/libraryId";
 /** An open tile menu: where it opened, the tile right-clicked, and the ids it acts on. */
 export interface AssetMenuOpen { x: number; y: number; asset: Asset; ids: string[] }
 
-const ICONS: Record<AssetAction, LucideIcon> = {
+/** The icon of each action, shared with the selection bar. */
+export const ASSET_ACTION_ICONS: Record<AssetAction, LucideIcon> = {
   open: Maximize2, collect: FolderPlus, tag: Tag, copy: Copy, move: FolderInput,
   reveal: FolderOpen, export: Download, clear: X, delete: Trash2,
 };
@@ -30,5 +31,5 @@ export function AssetContextMenu({ menu, libraries, selectionSize, offerTransfer
 }
 
 function withIcon(entry: AssetMenuEntry): MenuEntry {
-  return entry.kind === "item" ? { ...entry, icon: ICONS[entry.id] } : entry;
+  return entry.kind === "item" ? { ...entry, icon: ASSET_ACTION_ICONS[entry.id] } : entry;
 }

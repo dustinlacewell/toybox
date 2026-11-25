@@ -7,7 +7,7 @@ function moduleUrl(file) {
   const { outputText } = ts.transpileModule(readFileSync(new URL(file, import.meta.url), "utf8"), { compilerOptions: { module: ts.ModuleKind.ESNext, target: ts.ScriptTarget.ES2022 } });
   return `data:text/javascript;base64,${Buffer.from(outputText).toString("base64")}`;
 }
-const { assetMenu, menuTarget } = await import(moduleUrl("../src/domain/assetMenu.ts"));
+const { assetMenu, menuTarget, selectionActions, SELECTION_BAR_MIN } = await import(moduleUrl("../src/domain/assetMenu.ts"));
 const { placeMenu } = await import(moduleUrl("../src/ds/placeMenu.ts"));
 
 /** The menu as text: the heading, `---` for separators, item labels with `!reason` when disabled. */
@@ -51,6 +51,22 @@ test("items locked in their library cannot be tagged, moved or deleted, and say 
   assert.ok(shown(entries).includes("Delete!read-only"));
   assert.ok(shown(entries).includes("Move to library…!read-only"));
   assert.deepEqual(entries.filter((entry) => entry.disabled).map((entry) => entry.id), ["tag", "move", "delete"]);
+});
+
+test("the selection bar offers the menu's actions for several items, Export last", () => {
+  const bar = selectionActions({ offerTransfer: true });
+  assert.deepEqual(shown(bar), ["Add to collection", "Tag…", "Copy to library…", "Move to library…", "Delete", "Export"]);
+  const menu = assetMenu({ target: { ids: ["a", "b"] }, selectionSize: 2, offerTransfer: true }).filter((entry) => entry.kind === "item" && entry.id !== "clear");
+  assert.deepEqual(new Set(bar.map((entry) => entry.id)), new Set(menu.map((entry) => entry.id)));
+  assert.equal(bar.find((entry) => entry.id === "delete").tone, "danger");
+  assert.equal(SELECTION_BAR_MIN, 2);
+});
+
+test("the selection bar has no transfer without another library, and locks what the menu locks", () => {
+  assert.deepEqual(shown(selectionActions({ offerTransfer: false })), ["Add to collection", "Tag…", "Delete", "Export"]);
+  const locked = selectionActions({ offerTransfer: true, sourceLocked: "read-only" });
+  assert.deepEqual(locked.filter((entry) => entry.disabled).map((entry) => entry.id), ["tag", "move", "delete"]);
+  assert.ok(locked.every((entry) => !entry.disabled || entry.reason === "read-only"));
 });
 
 const viewport = { width: 1000, height: 800 };

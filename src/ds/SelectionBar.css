@@ -1,0 +1,22 @@
+/* The dock spans its positioned parent so the bar can follow the parent's width; only the bar takes the pointer.
+   Its owner may move it up with --selection-bar-bottom (the library keeps it above the preview tray). */
+.ds-selection-bar-dock { position: absolute; left: 0; right: 0; bottom: var(--selection-bar-bottom, 22px); z-index: 7; display: flex; justify-content: center; padding: 0 12px; pointer-events: none; container-type: inline-size; }
+.ds-selection-bar { pointer-events: auto; display: flex; align-items: center; gap: 2px; max-width: 100%; padding: 5px 5px 5px 14px; background: var(--floating-surface); backdrop-filter: blur(16px); border: 1px solid var(--border-strong); border-radius: 12px; box-shadow: 0 16px 40px -12px #000; white-space: nowrap; animation: ds-selection-bar-in 120ms ease-out; }
+.ds-selection-bar__label { margin-right: 10px; font-weight: 600; font-variant-numeric: tabular-nums; color: var(--text-0); }
+.ds-selection-bar__action { flex: none; }
+.ds-selection-bar__action.is-danger { color: var(--danger); }
+.ds-selection-bar__action.ds-button--primary { margin-left: 4px; }
+.ds-selection-bar__divider { width: 1px; height: 20px; margin: 0 4px; background: var(--border); flex: none; }
+.ds-selection-bar__clear { flex: none; border-radius: var(--radius-1); }
+@container (max-width: 820px) {
+  .ds-selection-bar__text { display: none; }
+  .ds-selection-bar__action { padding: 0 8px; }
+  .ds-selection-bar__action.ds-button--primary .ds-selection-bar__text { display: inline; }
+}
+@container (max-width: 420px) {
+  .ds-selection-bar__action.ds-button--primary .ds-selection-bar__text { display: none; }
+  .ds-selection-bar { padding-left: 10px; }
+  .ds-selection-bar__label { margin-right: 4px; }
+}
+@keyframes ds-selection-bar-in { from { opacity: 0; transform: translateY(6px); } }
+@media (prefers-reduced-motion: reduce) { .ds-selection-bar { animation: none; } }

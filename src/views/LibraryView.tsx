@@ -9,7 +9,7 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { assetTypeOf } from "@ldlework/toybox-sdk";
 
 import type { Asset, AssetKind } from "../domain/catalog";
-import { menuTarget, type AssetAction } from "../domain/assetMenu";
+import { SELECTION_BAR_MIN, menuTarget, type AssetAction } from "../domain/assetMenu";
 import { NO_RULES, filterSignature, toBrowseFilter } from "../domain/browseQuery";
 import { filterChips } from "../domain/query";
 import { readFilter, type SavedView } from "../domain/savedViews";
@@ -34,6 +34,7 @@ import { useSavedExports } from "../state/savedExports";
 import { AssetGrid } from "../components/AssetGrid";
 import { AssetDetail } from "../components/AssetDetail";
 import { AssetContextMenu, type AssetMenuOpen } from "../components/AssetContextMenu";
+import { AssetSelectionBar } from "../components/AssetSelectionBar";
 import { AssetInspector } from "../components/AssetInspector";
 import { LibrarySidebar } from "../components/LibrarySidebar";
 import { CollectionDialog } from "../components/CollectionDialog";
@@ -230,6 +231,8 @@ export function LibraryView() {
   const summary = list.total === null ? "Loading…" : `${visibleCount.toLocaleString()}${list.exact ? "" : "+"} ${noun}${collection ? ` in ${collection}` : ""}`;
   const suggestedViewName = chips.filter((chip) => !chip.exclude).map((chip) => chip.text).concat(filter.text ? [`“${filter.text}”`] : []).slice(0, 3).join(", ") || typeEntry.label;
   const tray = !!inspected || selection.size > 1;
+  const selectionBar = selection.size >= SELECTION_BAR_MIN;
+  const selectedIds = useMemo(() => [...selection], [selection]);
   const filterPane = (onClose?: () => void) => <FacetFilter counts={facets} rules={rules} filter={filter} libraries={libraries}
     properties={properties.filter((property) => property.range)}
     onFacet={(field, value, state, only) => setFacet(field, value, state, only)} onTagsMatch={setTagsMatch} onRange={setRange}
@@ -239,18 +242,24 @@ export function LibraryView() {
   const rescan = () => void initCatalog(deps, true);
   const openExport = (ids: string[], setupId?: string, kind: AssetKind = filter.kind) => { setExportIds(ids); setExportSetup(setupId); setExportKind(kind); setReturnToExports(false); setExportOpen(true); };
   const manageExports = () => { setNavigationOpen(false); setExportsManagerOpen(true); };
-  /** What each tile-menu entry does to the items it acts on. */
-  const menuActions: Record<AssetAction, (target: AssetMenuOpen) => void> = {
-    open: ({ asset }) => { stopAudioAudition(); setPreview(asset.id); },
-    collect: ({ ids }) => setCollectIds(ids),
-    tag: ({ ids }) => setTagIds(ids),
-    copy: ({ ids }) => openTransfer("copy", ids),
-    move: ({ ids }) => openTransfer("move", ids),
-    reveal: ({ asset }) => void revealAsset(asset),
-    export: ({ ids }) => openExport(ids),
+  /** What each action of the tile menu and the selection bar does to the items it acts on. */
+  const itemActions: Record<Exclude<AssetAction, "open" | "reveal">, (ids: string[]) => void> = {
+    collect: (ids) => setCollectIds(ids),
+    tag: (ids) => setTagIds(ids),
+    copy: (ids) => openTransfer("copy", ids),
+    move: (ids) => openTransfer("move", ids),
+    export: (ids) => openExport(ids),
     clear: () => clearSelection(),
-    delete: ({ ids }) => setDeleteIds(ids),
+    delete: (ids) => setDeleteIds(ids),
   };
+  const menuAction = (action: AssetAction, { asset, ids }: AssetMenuOpen) => {
+    if (action === "open") { stopAudioAudition(); setPreview(asset.id); }
+    else if (action === "reveal") void revealAsset(asset);
+    else itemActions[action](ids);
+  };
+  const selectionAction = (action: AssetAction) => { if (action !== "open" && action !== "reveal") itemActions[action]([...useStore.getState().selection]); };
+  // Escape lets the selection go only while nothing else is open over the library.
+  const overlayOpen = !!(menu || collectIds || tagIds || deleteIds || transfer || savingView || previewAsset || exportOpen || exportsManagerOpen || importOpen || settingsOpen || navigationOpen || (compact && filtersOpen));
 
   const renderSidebar = () => <LibrarySidebar
         typeCounts={typeCounts} filter={filter} collections={collections} collection={collection} onCollection={(name) => { setCollectionName(name); setExportOpen(false);setNavigationOpen(false); }}
@@ -302,7 +311,7 @@ export function LibraryView() {
 
   return (
     <>
-      <Workbench className={`library-workbench${compact?" is-compact":""}${tray?" has-tray":""}${tray&&trayOpen?" is-tray-open":""}`} navigation={!compact&&renderSidebar()} header={<>
+      <Workbench className={`library-workbench${compact?" is-compact":""}${tray?" has-tray":""}${tray&&trayOpen?" is-tray-open":""}${selectionBar?" has-selection-bar":""}`} navigation={!compact&&renderSidebar()} header={<>
         {compact&&<CompactLibraryNavigation kind={filter.kind} types={types} icons={icons} favorites={filter.favoritesOnly} onKind={changeKind} onFavorites={changeFavorites} onExports={manageExports} onSettings={()=>setSettingsOpen(true)} narrow={narrow} onRestore={()=>{if(narrow)setNavigationOpen(true);else setMaximized(false);}}/>}
         <LibraryToolbar
             title={activeViewName ?? typeEntry.label}
@@ -350,7 +359,8 @@ export function LibraryView() {
               inspectedId={inspected?.id}
             />
           )}
-          {menu && <AssetContextMenu menu={menu} libraries={libraries} selectionSize={selection.size} offerTransfer={offerTransfer} onAction={(action, target) => menuActions[action](target)} onClose={() => setMenu(null)} />}
+          {menu && <AssetContextMenu menu={menu} libraries={libraries} selectionSize={selection.size} offerTransfer={offerTransfer} onAction={menuAction} onClose={() => setMenu(null)} />}
+          {selectionBar && <AssetSelectionBar ids={selectedIds} libraries={libraries} offerTransfer={offerTransfer} escapeClears={!overlayOpen} onAction={selectionAction} onClear={clearSelection} />}
           {tray && <PreviewTray asset={inspected} selected={[...selection]} open={trayOpen} onOpenChange={setTrayOpen} onExpand={() => inspected && setPreview(inspected.id)}>
             {inspected && <AssetInspector asset={inspected}
               onOpen={() => setPreview(inspected.id)} onFavorite={() => toggleFavorite(inspected.id)}
