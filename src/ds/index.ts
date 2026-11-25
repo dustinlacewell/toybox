@@ -44,5 +44,6 @@ export { AudioTransport, CueButton, formatTime } from "./AudioTransport";
 import "./audio.css";
 export { Workbench, PageHeader, Pane, NavigationGroup, NavigationItem, PropertyRow } from "./Workbench";
 export { ContextMenu, type MenuEntry } from "./ContextMenu";
+export { SelectionBar, type SelectionAction } from "./SelectionBar";
 export { PreviewTile, ThumbnailStrip, type ThumbnailOption } from "./PreviewTile";
 export { ImageViewport, type ImageChannel, type ImageScale } from "./ImageViewport";

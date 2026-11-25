@@ -19,6 +19,10 @@ presentation resources, such as loading an image or maintaining an element ref.
 - `ContextMenu` receives a point, heading/separator/item entries, and pick and close
   callbacks. It places itself inside the viewport, owns the keyboard and the active
   row, and asks to close on an outside press, scroll, resize or window blur.
+- `SelectionBar` receives a label, generic actions (id, label, icon, tone, primary,
+  disabled with a reason), and action and clear callbacks. It floats over the bottom
+  of its positioned parent (`--selection-bar-bottom` moves it up) and shows icons only
+  when the parent is narrow. Its owner decides when it shows and what each action does.
 - `ThumbnailStrip` receives generic options, a value, and `onChange`.
 - `PropertyRow` receives a label, value, and optional action.
 - `Field` receives a label and shows its children as the value under it.

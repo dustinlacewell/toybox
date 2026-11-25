@@ -210,10 +210,23 @@ optional `library?: { id, name }`.
   the setup's own library; items of other libraries in the same send are exported
   but not tracked.
 
+## Selecting several items
+
+A tile's checkbox adds it to the selection or takes it out; Shift on a checkbox selects
+the range from the last one picked. A plain click on a tile selects that tile alone.
+While two or more items are selected, a bar floats over the bottom of the grid (above
+the preview tray) with the count and the actions for the selection: **Add to
+collection**, **Tag…**, **Copy to library…** and **Move to library…** (with more than one
+library), **Delete** and **Export**. These are the same actions a selected tile's
+right-click menu has (`selectionActions` in `src/domain/assetMenu.ts` builds the bar's
+from the menu's groups), and they are disabled with "read-only" in the same cases. The
+bar's × button, or Escape while no dialog, menu or text field has the key, clears the
+selection. In a narrow window the bar shows the actions as icons, named in their tooltip.
+
 ## Transferring
 
 Items can be copied or moved from one library to another. Select them, then use
-**Copy to library…** or **Move to library…** (a tile's right-click menu; the inspector has
+**Copy to library…** or **Move to library…** (the selection bar, or a tile's right-click menu; the inspector has
 the same two buttons for the item it shows). Both appear only when more than one
 library is registered. The dialog asks for the target library (writable ones,
 without the source when the selection comes from one library), what to do with an
@@ -581,7 +594,7 @@ button, and one field, "Add a tag". Adding or removing a tag saves it in the lib
 that holds the asset (a remote library through its server) and the chips update from the
 answer; nothing is rescanned. There is no choice of where a tag goes.
 
-Several assets selected: a selected tile's right-click menu has **Tag…**. The dialog takes tags to add
+Several assets selected: the selection bar and a selected tile's right-click menu have **Tag…**. The dialog takes tags to add
 (separated by commas) and lists the tags present on the selection with how many of the
 selected assets have each (**all**, or "3 of 8"); **Remove from all** marks one for
 removal. **Apply** saves the whole change, with a progress bar for a large selection,

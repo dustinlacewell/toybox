@@ -27,4 +27,7 @@
 .library-workbench.has-tray { --tray-space: 49px; }
 .library-workbench.has-tray.is-tray-open { --tray-space: 218px; }
 .library-workbench .grid-scroll { padding-bottom: calc(var(--tray-space) + 24px); }
+/* The selection bar floats above the tray; the grid keeps room for it too, so the last row is never under it. */
+.library-workbench { --selection-bar-bottom: calc(var(--tray-space) + 14px); }
+.library-workbench.has-selection-bar .grid-scroll { padding-bottom: calc(var(--tray-space) + 80px); }
 .library-workbench > .ds-workbench__inspector { width: 280px; }
